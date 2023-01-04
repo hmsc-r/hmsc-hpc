@@ -1,11 +1,13 @@
 import numpy as np
 import tensorflow as tf
+
 tfla, tfr = tf.linalg, tf.random
+
 
 def updateEta(params, dtype=np.float64):
     """Update conditional updater(s):
     Z - site loadings.
-        
+
     Parameters
     ----------
     params : dict
@@ -74,11 +76,9 @@ def updateEta(params, dtype=np.float64):
         )
 
         if sDim[r] > 0:
-            Eta = modelSpatialFull(
-                Eta, Lambda, LamInvSigLam, mu0, Alpha, iWg, npVec[r], nf
-            )
+            Eta = modelSpatialFull(Eta, LamInvSigLam, mu0, Alpha, iWg, npVec[r], nf)
         else:
-            Eta = modelNonSpatial(Eta, Lambda, LamInvSigLam, mu0, npVec[r], nf)
+            Eta = modelNonSpatial(Eta, LamInvSigLam, mu0, npVec[r], nf)
 
         EtaListNew[r] = Eta
 
@@ -87,9 +87,7 @@ def updateEta(params, dtype=np.float64):
     return EtaListNew
 
 
-def modelSpatialFull(
-    Eta, Lambda, LamInvSigLam, mu0, Alpha, iWg, np, nf, dtype=np.float64
-):
+def modelSpatialFull(Eta, LamInvSigLam, mu0, Alpha, iWg, np, nf, dtype=np.float64):
     iWs = tf.reshape(
         tf.transpose(
             tfla.diag(tf.transpose(tf.gather(iWg, tf.squeeze(Alpha, -1)), [1, 2, 0])),
@@ -110,7 +108,7 @@ def modelSpatialFull(
     return Eta
 
 
-def modelNonSpatial(Eta, Lambda, LamInvSigLam, mu0, np, nf, dtype=np.float64):
+def modelNonSpatial(Eta, LamInvSigLam, mu0, np, nf, dtype=np.float64):
     iV = tf.eye(nf, dtype=dtype) + LamInvSigLam
     LiV = tfla.cholesky(iV + tf.eye(nf, dtype=dtype))
     mu1 = tfla.triangular_solve(LiV, tf.expand_dims(mu0, -1))
@@ -120,4 +118,45 @@ def modelNonSpatial(Eta, Lambda, LamInvSigLam, mu0, np, nf, dtype=np.float64):
         ),
         -1,
     )
+    return Eta
+
+
+def modelSpatialNNGP(Eta, LamInvSigLam, mu0, Alpha, iWg, np, nf, dtype=np.float64):
+    iWs = tf.zeros([npVec[r] * nf, npVec[r] * nf], dtype=dtype)
+
+    for h in range(nf):
+        iWs = iWs + kron(
+            tf.gather(iWg, tf.squeeze(Alpha[h], -1)),
+            np.eye(1, nf * nf, k=(h + 1) * nf + h, dtype=dtype).reshape(nf, nf),
+        )
+
+    P = tfs.SparseTensor(
+        tf.stack([np.arange(ny), Pi[:, r]], axis=1),
+        tf.ones([ny], dtype=dtype),
+        [ny, npVec[r]],
+    )
+
+    fS = tf.matmul(
+        tf.matmul(tfs.to_dense(P), S, transpose_a=True),
+        tf.reshape(tf.tile(iSigma, [nf]), [nf, len(iSigma)]),
+        transpose_b=True,
+    )
+
+    iUEta = iWs + kron(
+        LamInvSigLam[0, :, :],
+        tf.cast(tfla.diag(tfs.reduce_sum(P, axis=0)), dtype=dtype),
+    )
+
+    LiUEta = tf.numpy_function(my_numpy_func, [iUEta], tf.float64)
+
+    mu1 = tfla.triangular_solve(
+        LiUEta, tf.reshape(tf.transpose(mu0), [nf * npVec[r], 1])
+    )
+
+    eta = tfla.triangular_solve(
+        LiUEta, mu1 + tfr.normal([nf * npVec[r], 1], dtype=dtype), adjoint=True
+    )
+
+    Eta = tf.transpose(tf.reshape(eta, [nf, npVec[r]]))
+
     return Eta

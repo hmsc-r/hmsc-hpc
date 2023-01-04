@@ -7,10 +7,11 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from tqdm import tqdm, trange
 from matplotlib import pyplot as plt
+
 tfd, tfb = tfp.distributions, tfp.bijectors
 tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
 
-from gibbs_sampler import GibbsParameter, GibbsSampler
+from hmsc.gibbs_sampler import GibbsParameter, GibbsSampler
 
 from updaters.updateEta import updateEta
 from updaters.updateAlpha import updateAlpha
@@ -21,157 +22,194 @@ from updaters.updateGammaV import updateGammaV
 from updaters.updateSigma import updateSigma
 from updaters.updateZ import updateZ
 
-#path = "/Users/gtikhono/Downloads/importExport/"
-path = '/users/anisjyu/Documents/demo-import/'
-
-#
-# Option 3. Using jsonify
-#
-
 import json
 
-with open(path + 'obj-complete.json') as json_file:
-    obj = json.load(json_file)
+def load_params():
+    # path = "/Users/gtikhono/Downloads/importExport/"
+    # path = "/users/anisjyu/Documents/demo-import/"
 
-print(obj.keys())
+    with open(path + "obj-complete.json") as json_file:
+        obj = json.load(json_file)
 
-nChains = int(np.squeeze(len(obj['postList'])))
-nChains
+    nChains = int(np.squeeze(len(obj["postList"])))
 
-dtype = np.float64
+    dtype = np.float64
 
-ny = int(np.squeeze(obj.get('ny'))) # 50
-ns = int(np.squeeze(obj.get('ns'))) # 4
-nc = int(np.squeeze(obj.get('nc'))) # 3
-nt = int(np.squeeze(obj.get('nt'))) # 3
-nr = int(np.squeeze(obj.get('nr'))) # 2
+    ny = int(np.squeeze(obj.get("ny")))  # 50
+    ns = int(np.squeeze(obj.get("ns")))  # 4
+    nc = int(np.squeeze(obj.get("nc")))  # 3
+    nt = int(np.squeeze(obj.get("nt")))  # 3
+    nr = int(np.squeeze(obj.get("nr")))  # 2
 
-nu = np.squeeze([obj.get('rL')[key]['nu'] for key in obj.get('rL').keys()])
-a1 = np.squeeze([obj.get('rL')[key]['a1'] for key in obj.get('rL').keys()])
-b1 = np.squeeze([obj.get('rL')[key]['b1'] for key in obj.get('rL').keys()])
-a2 = np.squeeze([obj.get('rL')[key]['a2'] for key in obj.get('rL').keys()])
-b2 = np.squeeze([obj.get('rL')[key]['b2'] for key in obj.get('rL').keys()])
+    nu = np.squeeze([obj.get("rL")[key]["nu"] for key in obj.get("rL").keys()])
+    a1 = np.squeeze([obj.get("rL")[key]["a1"] for key in obj.get("rL").keys()])
+    b1 = np.squeeze([obj.get("rL")[key]["b1"] for key in obj.get("rL").keys()])
+    a2 = np.squeeze([obj.get("rL")[key]["a2"] for key in obj.get("rL").keys()])
+    b2 = np.squeeze([obj.get("rL")[key]["b2"] for key in obj.get("rL").keys()])
 
-nfMin = np.squeeze([obj.get('rL')[key]['nfMin'] for key in obj.get('rL').keys()])
-nfMax = np.squeeze([obj.get('rL')[key]['nfMax'] for key in obj.get('rL').keys()])
+    nfMin = np.squeeze([obj.get("rL")[key]["nfMin"] for key in obj.get("rL").keys()])
+    nfMax = np.squeeze([obj.get("rL")[key]["nfMax"] for key in obj.get("rL").keys()])
 
-sDim = np.squeeze([obj.get('rL')[key]['sDim'] for key in obj.get('rL').keys()])
+    sDim = np.squeeze([obj.get("rL")[key]["sDim"] for key in obj.get("rL").keys()])
 
-#alphapw = [obj.get('rL')[key]['alphapw'] for key in obj.get('rL').keys()] # todo
-#alphapw = [None, np.abs(np.random.normal(size=[101, 2]))]
-alphapw = [np.abs(np.random.normal(size=[101, 2])), np.abs(np.random.normal(size=[101, 2]))]
+    spatialMethod = [
+        "".join(obj.get("rL")[key]["spatialMethod"])
+        if isinstance(obj.get("rL")[key]["spatialMethod"], list)
+        else ""
+        for key in obj.get("rL").keys()
+    ]
 
-distr = np.asarray(obj.get('distr')).astype(int)
+    # alphapw = [obj.get('rL')[key]['alphapw'] for key in obj.get('rL').keys()] # todo
+    # alphapw = [None, np.abs(np.random.normal(size=[101, 2]))]
+    alphapw = [
+        np.abs(np.random.normal(size=[101, 2])),
+        np.abs(np.random.normal(size=[101, 2])),
+    ]
 
-X = np.asarray(obj.get('X'))
-T = np.asarray(obj.get('Tr'))
-Y = np.asarray(obj.get('Y'))
+    distr = np.asarray(obj.get("distr")).astype(int)
 
-Pi = np.asarray(obj.get('Pi')).astype(int) - 1
-npVec = Pi.max(axis=0) + 1
+    X = np.asarray(obj.get("X"))
+    T = np.asarray(obj.get("Tr"))
+    Y = np.asarray(obj.get("Y"))
 
-nfVec = 3 + np.arange(nr)
+    Pi = np.asarray(obj.get("Pi")).astype(int) - 1
+    npVec = Pi.max(axis=0) + 1
 
-mGamma = np.asarray(obj.get('mGamma'))
-iUGamma = np.asarray(obj.get('UGamma'))
+    nfVec = 3 + np.arange(nr)
 
-aSigma = np.asarray(obj.get('aSigma'))
-bSigma = np.asarray(obj.get('bSigma'))
+    mGamma = np.asarray(obj.get("mGamma"))
+    iUGamma = np.asarray(obj.get("UGamma"))
 
-V0 = np.squeeze(obj.get('V0'))
-f0 = int(np.squeeze(obj.get('f0')))
+    aSigma = np.asarray(obj.get("aSigma"))
+    bSigma = np.asarray(obj.get("bSigma"))
 
-WgList = [tfr.normal([101,npVec[r],npVec[r]], dtype=dtype) for r in range(nr)]
-WgList = [tf.matmul(WgList[r], WgList[r], transpose_a=True) for r in range(nr)] # these MUST be SPD matrices!
-iWgList = [tfla.inv(WgList[r]) for r in range(nr)]
-LiWgList = [tfla.cholesky(iWgList[r]) for r in range(nr)]
-detWgList = [tfr.normal([101], dtype=dtype) for r in range(nr)]
+    V0 = np.squeeze(obj.get("V0"))
+    f0 = int(np.squeeze(obj.get("f0")))
 
-#modelDataList = [Y, X, T, Pi, distr]
-#priorHyperParams = [mGamma, iUGamma, f0, V0, aSigma, bSigma]
-#rLParList = [[nu[r], a1[r], b1[r], a2[r], b2[r], nfMin[r], nfMax[r], sDim[r], alphapw[r], npVec[r]] for r in range(nr)]
-#rLDataParList = [[WgList[r], iWgList[r], LiWgList[r], detWgList[r]] for r in range(nr)]
-#rLParList = [nu, a1, b1, a2, b2, nfMin, nfMax, sDim, alphapw]
-#rLDataParList = [WgList, iWgList, LiWgList, detWgList]
+    WgList = [tfr.normal([101, npVec[r], npVec[r]], dtype=dtype) for r in range(nr)]
+    WgList = [
+        tf.matmul(WgList[r], WgList[r], transpose_a=True) for r in range(nr)
+    ]  # these MUST be SPD matrices!
+    iWgList = [tfla.inv(WgList[r]) for r in range(nr)]
+    LiWgList = [tfla.cholesky(iWgList[r]) for r in range(nr)]
+    detWgList = [tfr.normal([101], dtype=dtype) for r in range(nr)]
 
-modelData = {}
-modelData['Y'] = Y
-modelData['X'] = X
-modelData['T'] = T
-modelData['Pi'] = Pi
-modelData['distr'] = distr
+    modelData = {}
+    modelData["Y"] = Y
+    modelData["X"] = X
+    modelData["T"] = T
+    modelData["Pi"] = Pi
+    modelData["distr"] = distr
 
-priorHyperParams = {}
-priorHyperParams['mGamma'] = mGamma
-priorHyperParams['iUGamma'] = iUGamma
-priorHyperParams['f0'] = f0
-priorHyperParams['V0'] = V0
-priorHyperParams['aSigma'] = aSigma
-priorHyperParams['bSigma'] = bSigma
+    priorHyperParams = {}
+    priorHyperParams["mGamma"] = mGamma
+    priorHyperParams["iUGamma"] = iUGamma
+    priorHyperParams["f0"] = f0
+    priorHyperParams["V0"] = V0
+    priorHyperParams["aSigma"] = aSigma
+    priorHyperParams["bSigma"] = bSigma
 
-rLDataParams = {}
-rLDataParams['Wg'] = WgList
-rLDataParams['iWg'] = iWgList
-rLDataParams['LiWg'] = LiWgList
-rLDataParams['detWg'] = detWgList
+    rLDataParams = {}
+    rLDataParams["Wg"] = WgList
+    rLDataParams["iWg"] = iWgList
+    rLDataParams["LiWg"] = LiWgList
+    rLDataParams["detWg"] = detWgList
 
-rLParams = {}
+    rLParams = {}
 
-rLParams['nu'] = nu 
-rLParams['a1'] = a1 
-rLParams['b1'] = b1 
-rLParams['a2'] = a2 
-rLParams['b2'] = b2
-rLParams['nfMin'] = nfMin 
-rLParams['nfMax'] = nfMax 
-rLParams['sDim'] = sDim
-rLParams['alphapw'] = alphapw
+    rLParams["nu"] = nu
+    rLParams["a1"] = a1
+    rLParams["b1"] = b1
+    rLParams["a2"] = a2
+    rLParams["b2"] = b2
+    rLParams["nfMin"] = nfMin
+    rLParams["nfMax"] = nfMax
+    rLParams["sDim"] = sDim
+    rLParams["spatialMethod"] = spatialMethod
+    rLParams["alphapw"] = alphapw
 
-np.random.seed(1)
-tfr.set_seed(1)
+    np.random.seed(1)
+    tfr.set_seed(1)
 
-aDeltaList = [tf.concat([a1[r]*tf.ones([1,1], dtype), a2[r]*tf.ones([nfVec[r]-1,1], dtype)], 0) for r in range(nr)]
-bDeltaList = [tf.concat([b1[r]*tf.ones([1,1], dtype), b2[r]*tf.ones([nfVec[r]-1,1], dtype)], 0) for r in range(nr)]
+    aDeltaList = [
+        tf.concat(
+            [a1[r] * tf.ones([1, 1], dtype), a2[r] * tf.ones([nfVec[r] - 1, 1], dtype)], 0
+        )
+        for r in range(nr)
+    ]
+    bDeltaList = [
+        tf.concat(
+            [b1[r] * tf.ones([1, 1], dtype), b2[r] * tf.ones([nfVec[r] - 1, 1], dtype)], 0
+        )
+        for r in range(nr)
+    ]
 
-Beta = tfr.normal([nc,ns], dtype=dtype)
-Gamma = tfr.normal([nc,nt], dtype=dtype)
-iV = tf.ones([nc,nc], dtype=dtype) + tf.eye(nc, dtype=dtype)
-EtaList = [tfr.normal([npVec[r],nfVec[r]], dtype=dtype) for r in range(nr)]
-PsiList = [1 + tf.abs(tfr.normal([nfVec[r],ns], dtype=dtype)) for r in range(nr)]
-DeltaList = [np.random.gamma(aDeltaList[r], bDeltaList[r], size=[nfVec[r],1]) for r in range(nr)]
-LambdaList = [tfr.normal([nfVec[r],ns], dtype=dtype) for r in range(nr)]
-AlphaList = [tf.zeros([nfVec[r],1], dtype=tf.int64) for r in range(nr)]
-Z = tf.zeros_like(Y)
+    Beta = tfr.normal([nc, ns], dtype=dtype)
+    Gamma = tfr.normal([nc, nt], dtype=dtype)
+    iV = tf.ones([nc, nc], dtype=dtype) + tf.eye(nc, dtype=dtype)
+    EtaList = [tfr.normal([npVec[r], nfVec[r]], dtype=dtype) for r in range(nr)]
+    PsiList = [1 + tf.abs(tfr.normal([nfVec[r], ns], dtype=dtype)) for r in range(nr)]
+    DeltaList = [
+        np.random.gamma(aDeltaList[r], bDeltaList[r], size=[nfVec[r], 1]) for r in range(nr)
+    ]
+    LambdaList = [tfr.normal([nfVec[r], ns], dtype=dtype) for r in range(nr)]
+    AlphaList = [tf.zeros([nfVec[r], 1], dtype=tf.int64) for r in range(nr)]
+    Z = tf.zeros_like(Y)
 
-sigma = tf.abs(tfr.normal([ns], dtype=dtype))*(distr[:,1]==1) + tf.ones([ns], dtype=dtype)*(distr[:,1]==0)
-#sigma = tf.ones(ns, dtype=dtype)
-iSigma = 1/sigma
+    sigma = tf.abs(tfr.normal([ns], dtype=dtype)) * (distr[:, 1] == 1) + tf.ones(
+        [ns], dtype=dtype
+    ) * (distr[:, 1] == 0)
+    # sigma = tf.ones(ns, dtype=dtype)
+    iSigma = 1 / sigma
 
-model_data = modelData
-prior_params = priorHyperParams
-random_level_data_params = rLDataParams
-random_level_params = rLParams
+    model_data = modelData
+    prior_params = priorHyperParams
+    random_level_data_params = rLDataParams
+    random_level_params = rLParams
 
-sampler_params = {
-    'Z': GibbsParameter(Z, updateZ),
-    'BetaLambda': GibbsParameter({'Beta': Beta, 'Lambda': LambdaList}, updateBetaLambda),
-    'GammaV': GibbsParameter({'Gamma': Gamma, 'iV': iV}, updateGammaV),
-    'PsiDelta': GibbsParameter({'Psi': PsiList, 'Delta': DeltaList}, updateLambdaPriors),
-    'Eta': GibbsParameter(EtaList, updateEta),    
-    'sigma': GibbsParameter(sigma, updateSigma),
-    'Nf': GibbsParameter({'Eta': EtaList, 'Lambda': LambdaList, 'Psi': PsiList, 'Delta': DeltaList}, updateNf),
-    'Alpha': GibbsParameter(AlphaList, updateAlpha),
-}
+    sampler_params = {
+        "Z": GibbsParameter(Z, updateZ),
+        "BetaLambda": GibbsParameter(
+            {"Beta": Beta, "Lambda": LambdaList}, updateBetaLambda
+        ),
+        "GammaV": GibbsParameter({"Gamma": Gamma, "iV": iV}, updateGammaV),
+        "PsiDelta": GibbsParameter(
+            {"Psi": PsiList, "Delta": DeltaList}, updateLambdaPriors
+        ),
+        "Eta": GibbsParameter(EtaList, updateEta),
+        "sigma": GibbsParameter(sigma, updateSigma),
+        "Nf": GibbsParameter(
+            {"Eta": EtaList, "Lambda": LambdaList, "Psi": PsiList, "Delta": DeltaList},
+            updateNf,
+        ),
+        "Alpha": GibbsParameter(AlphaList, updateAlpha),
+    }
 
-startTime = time.time()
+    params={
+        **sampler_params,
+        **prior_params,
+        **random_level_params,
+        **random_level_data_params,
+        **model_data,
+    }
 
-gibbs = GibbsSampler(params = {**sampler_params, **prior_params, **random_level_params, **random_level_data_params, **model_data})
+    return params
 
-postList = [None] * nChains
-for chain in range(nChains):
-    postList[chain] = gibbs.sampling_routine(3)
+def run_sampler():
+    params = load_params()
 
-elapsedTime = time.time() - startTime
-print("\nTF decorated whole cycle elapsed %.1f" % elapsedTime)
+    gibbs = GibbsSampler(params=params)
 
+    postList = [None] * nChains
+    for chain in range(nChains):
+        postList[chain] = gibbs.sampling_routine(3)
 
+if __name__ == "__main__":
+    print("Whole Gibbs sampler:")
+
+    startTime = time.time()
+
+    run_sampler()
+
+    elapsedTime = time.time() - startTime
+    print("\nTF decorated whole cycle elapsed %.1f" % elapsedTime)
