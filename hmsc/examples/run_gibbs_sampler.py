@@ -201,7 +201,55 @@ def load_params(path):
     return params, nChains
 
 
-def run_gibbs_sampler(path):
+def save_postList(postList, path, nChains):
+
+    json_data = {chain: {} for chain in range(nChains)}
+
+    for chain in range(nChains):
+        for i in range(len(postList[chain])):
+            sample_data = {}
+
+            sample_data["Beta"] = (
+                postList[chain][i]["BetaLambda"]["Beta"].numpy().tolist()
+            )
+            sample_data["Gamma"] = postList[chain][i]["GammaV"]["iV"].numpy().tolist()
+
+            sample_data["iV"] = postList[chain][i]["GammaV"]["iV"].numpy().tolist()
+            sample_data["sigma"] = postList[chain][i]["sigma"].numpy().tolist()
+            sample_data["Lambda"] = [
+                postList[chain][i]["BetaLambda"]["Lambda"][j].numpy().tolist()
+                for j in range(len(postList[chain][i]["BetaLambda"]["Lambda"]))
+            ]
+            sample_data["Eta"] = [
+                postList[chain][i]["Eta"][j].numpy().tolist()
+                for j in range(len(postList[chain][i]["Eta"]))
+            ]
+            sample_data["Psi"] = [
+                postList[chain][i]["PsiDelta"]["Psi"][j].numpy().tolist()
+                for j in range(len(postList[chain][i]["PsiDelta"]["Psi"]))
+            ]
+            sample_data["Delta"] = [
+                postList[chain][i]["PsiDelta"]["Delta"][j].numpy().tolist()
+                for j in range(len(postList[chain][i]["PsiDelta"]["Delta"]))
+            ]
+
+            sample_data["Alpha"] = [
+                postList[chain][i]["Alpha"][j].numpy().tolist()
+                for j in range(len(postList[chain][i]["Alpha"]))
+            ]
+            postList[chain][i]["BetaLambda"]["Beta"].numpy().tolist()
+
+            sample_data["wRRR"] = sample_data["rho"] = sample_data[
+                "PsiRRR"
+            ] = sample_data["DeltaRRR"] = None
+
+            json_data[chain][i] = sample_data
+
+    with open(path + "obj-postList.json", "w") as fp:
+        json.dump(json_data, fp)
+
+
+def run_gibbs_sampler(path, save_postList_to_json=False):
 
     params, nChains = load_params(path)
 
@@ -209,7 +257,10 @@ def run_gibbs_sampler(path):
 
     postList = [None] * nChains
     for chain in range(nChains):
-        postList[chain] = gibbs.sampling_routine(3)
+        postList[chain] = gibbs.sampling_routine(num_samples=50)
+
+    if save_postList_to_json:
+        save_postList(postList, path, nChains)
 
 
 if __name__ == "__main__":
@@ -220,7 +271,7 @@ if __name__ == "__main__":
     # path = "/Users/gtikhono/Downloads/importExport/"
     path = "/users/anisjyu/Documents/demo-import/"
 
-    run_gibbs_sampler(path)
+    run_gibbs_sampler(path, True)
 
     elapsedTime = time.time() - startTime
     print("\nTF decorated whole cycle elapsed %.1f" % elapsedTime)

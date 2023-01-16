@@ -40,9 +40,9 @@ class GibbsSampler:
         sample_period=1,
         sample_burnin=0,
         sample_thining=1,
-        printRetraceFlag=True,
+        print_retrace_flag=True,
     ):
-        if printRetraceFlag:
+        if print_retrace_flag:
             print("retracing")
 
         params = self.params

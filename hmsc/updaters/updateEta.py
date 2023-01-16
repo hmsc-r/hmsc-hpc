@@ -1,7 +1,27 @@
 import numpy as np
 import tensorflow as tf
 
-tfla, tfr = tf.linalg, tf.random
+tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
+
+from scipy.linalg import cholesky
+
+
+def my_numpy_func(X):
+    # X will be a tensor with the contents of the input to the
+    # tf.function
+    return cholesky(X)
+
+
+@tf.function(input_signature=[tf.TensorSpec(None, tf.float64)])
+def tf_function(input):
+    y = tf.numpy_function(my_numpy_func, [input], tf.float64)
+    return y
+
+
+def kron(A, B):
+    tmp1 = A[None, None, :, :] * B[:, :, None, None]
+    shape = [tf.shape(A)[0] * tf.shape(B)[0], tf.shape(A)[1] * tf.shape(B)[1]]
+    return tf.reshape(tf.transpose(tmp1, [0, 2, 1, 3]), shape)
 
 
 def updateEta(params, dtype=np.float64):
@@ -27,6 +47,8 @@ def updateEta(params, dtype=np.float64):
     sigma = params["sigma"]
 
     sDim = params["sDim"]
+    spatialMethod = params["spatialMethod"]
+
     Pi = params["Pi"]
 
     Z = params["Z"]
@@ -39,7 +61,10 @@ def updateEta(params, dtype=np.float64):
 
     npVec = tf.reduce_max(Pi, 0) + 1
 
+    ny, _ = X.shape
     nr = len(LambdaList)
+
+    iSigma = 1 / sigma
 
     LFix = tf.matmul(X, Beta)
 
@@ -76,7 +101,15 @@ def updateEta(params, dtype=np.float64):
         )
 
         if sDim[r] > 0:
-            Eta = modelSpatialFull(Eta, LamInvSigLam, mu0, Alpha, iWg, npVec[r], nf)
+            if spatialMethod[r] == "Full":
+                Eta = modelSpatialFull(Eta, LamInvSigLam, mu0, Alpha, iWg, npVec[r], nf)
+            elif spatialMethod[r] == "NNGP":
+                Eta = modelSpatialNNGP(Eta, LamInvSigLam, mu0, Alpha, Pi[:, r], iWg, S, iSigma, npVec[r], nf, ny)
+            elif spatialMethod[r] == "GPP":
+                raise NotImplementedError
+            else:
+                raise NotImplementedError
+
         else:
             Eta = modelNonSpatial(Eta, LamInvSigLam, mu0, npVec[r], nf)
 
@@ -121,19 +154,19 @@ def modelNonSpatial(Eta, LamInvSigLam, mu0, np, nf, dtype=np.float64):
     return Eta
 
 
-def modelSpatialNNGP(Eta, LamInvSigLam, mu0, Alpha, iWg, np, nf, dtype=np.float64):
-    iWs = tf.zeros([npVec[r] * nf, npVec[r] * nf], dtype=dtype)
+def modelSpatialNNGP(Eta, LamInvSigLam, mu0, Alpha, Pi, iWg, S, iSigma, np, nf, ny, dtype=np.float64):
+    iWs = tf.zeros([np * nf, np * nf], dtype=dtype)
 
     for h in range(nf):
         iWs = iWs + kron(
             tf.gather(iWg, tf.squeeze(Alpha[h], -1)),
-            np.eye(1, nf * nf, k=(h + 1) * nf + h, dtype=dtype).reshape(nf, nf),
+            tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
         )
 
     P = tfs.SparseTensor(
-        tf.stack([np.arange(ny), Pi[:, r]], axis=1),
+        tf.cast(tf.stack([tf.range(ny), Pi], axis=1), tf.int64),
         tf.ones([ny], dtype=dtype),
-        [ny, npVec[r]],
+        [ny, np],
     )
 
     fS = tf.matmul(
@@ -149,14 +182,12 @@ def modelSpatialNNGP(Eta, LamInvSigLam, mu0, Alpha, iWg, np, nf, dtype=np.float6
 
     LiUEta = tf.numpy_function(my_numpy_func, [iUEta], tf.float64)
 
-    mu1 = tfla.triangular_solve(
-        LiUEta, tf.reshape(tf.transpose(mu0), [nf * npVec[r], 1])
-    )
+    mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf * np, 1]))
 
     eta = tfla.triangular_solve(
-        LiUEta, mu1 + tfr.normal([nf * npVec[r], 1], dtype=dtype), adjoint=True
+        LiUEta, mu1 + tfr.normal([nf * np, 1], dtype=dtype), adjoint=True
     )
 
-    Eta = tf.transpose(tf.reshape(eta, [nf, npVec[r]]))
+    Eta = tf.transpose(tf.reshape(eta, [nf, np]))
 
     return Eta

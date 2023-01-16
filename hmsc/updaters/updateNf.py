@@ -18,7 +18,7 @@ def updateNf(params, dtype=np.float64):
         Psi - local shrinage species loadings (lambda's prior)
         Delta - delta global shrinage species loadings (lambda's prior)
         nu - 
-        a2 - 
+        a2 - prior parameters
         b2 - 
         nfMin -
         nfMax - 

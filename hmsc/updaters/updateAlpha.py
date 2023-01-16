@@ -11,8 +11,8 @@ def updateAlpha(params, dtype=np.float64):
     params : dict
         The initial value of the model parameter(s).
             Eta - site loadings
-            sDim - 
-            alphapw - 
+            sDim - spatial dimension
+            alphapw - conditional distribution of each Alpha
             LiWg - 
             detWg - 
     """
