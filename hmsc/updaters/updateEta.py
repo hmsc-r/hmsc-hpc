@@ -3,27 +3,7 @@ import tensorflow as tf
 
 tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
 
-from scipy.linalg import cholesky
-
-from hmsc.utils.tflautils import kron
-
-
-def my_numpy_func(X):
-    # X will be a tensor with the contents of the input to the
-    # tf.function
-    return cholesky(X)
-
-
-@tf.function(input_signature=[tf.TensorSpec(None, tf.float64)])
-def tf_function(input):
-    y = tf.numpy_function(my_numpy_func, [input], tf.float64)
-    return y
-
-
-def kron(A, B):
-    tmp1 = A[None, None, :, :] * B[:, :, None, None]
-    shape = [tf.shape(A)[0] * tf.shape(B)[0], tf.shape(A)[1] * tf.shape(B)[1]]
-    return tf.reshape(tf.transpose(tmp1, [0, 2, 1, 3]), shape)
+from hmsc.utils.tflautils import kron, scipy_cholesky
 
 
 def updateEta(params, dtype=np.float64):
@@ -196,7 +176,7 @@ def modelSpatialNNGP(
         tf.cast(tfla.diag(tfs.reduce_sum(P, axis=0)), dtype=dtype),
     )
 
-    LiUEta = tf.numpy_function(my_numpy_func, [iUEta], tf.float64)
+    LiUEta = tf.numpy_function(scipy_cholesky, [iUEta], tf.float64)
 
     mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf * np, 1]))
 

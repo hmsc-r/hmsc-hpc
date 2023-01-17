@@ -3,22 +3,13 @@ import tensorflow as tf
 
 tfla, tfr = tf.linalg, tf.random
 
+def load_model_data(hmscModel):
 
-def load_model_params(hmsc_model):
-
-    ny = int(np.squeeze(hmsc_model.get("ny")))  # 50
-    ns = int(np.squeeze(hmsc_model.get("ns")))  # 4
-    nc = int(np.squeeze(hmsc_model.get("nc")))  # 3
-    nt = int(np.squeeze(hmsc_model.get("nt")))  # 3
-    nr = int(np.squeeze(hmsc_model.get("nr")))  # 2
-
-    Y = np.asarray(hmsc_model.get("Y"))
-    X = np.asarray(hmsc_model.get("X"))
-    T = np.asarray(hmsc_model.get("Tr"))
-    Pi = np.asarray(hmsc_model.get("Pi")).astype(int) - 1
-    distr = np.asarray(hmsc_model.get("distr")).astype(int)
-
-    nChains = int(np.squeeze(len(hmsc_model["postList"])))
+    Y = np.asarray(hmscModel.get("Y"))
+    X = np.asarray(hmscModel.get("X"))
+    T = np.asarray(hmscModel.get("Tr"))
+    Pi = np.asarray(hmscModel.get("Pi")).astype(int) - 1
+    distr = np.asarray(hmscModel.get("distr")).astype(int)
 
     modelData = {}
     modelData["Y"] = Y
@@ -26,6 +17,16 @@ def load_model_params(hmsc_model):
     modelData["T"] = T
     modelData["Pi"] = Pi
     modelData["distr"] = distr
+
+    return modelData
+
+def load_model_data_params(hmscModel):
+
+    ny = int(np.squeeze(hmscModel.get("ny")))
+    ns = int(np.squeeze(hmscModel.get("ns")))
+    nc = int(np.squeeze(hmscModel.get("nc")))
+    nt = int(np.squeeze(hmscModel.get("nt")))
+    nr = int(np.squeeze(hmscModel.get("nr")))
 
     modelDataParams = {}
     modelDataParams["ny"] = ny
@@ -34,50 +35,43 @@ def load_model_params(hmsc_model):
     modelDataParams["nt"] = nt
     modelDataParams["nr"] = nr
 
-    modelData = {}
-    modelData["Y"] = Y
-    modelData["X"] = X
-    modelData["T"] = T
-    modelData["Pi"] = Pi
-    modelData["distr"] = distr
-
-    return modelDataParams, modelData, nChains
+    return modelDataParams
 
 
-def load_random_level_params(hmsc_model):
+def load_random_level_params(hmscModel):
 
     nu = np.squeeze(
-        [hmsc_model.get("rL")[key]["nu"] for key in hmsc_model.get("rL").keys()]
+        [hmscModel.get("rL")[key]["nu"] for key in hmscModel.get("rL").keys()]
     )
     a1 = np.squeeze(
-        [hmsc_model.get("rL")[key]["a1"] for key in hmsc_model.get("rL").keys()]
+        [hmscModel.get("rL")[key]["a1"] for key in hmscModel.get("rL").keys()]
     )
     b1 = np.squeeze(
-        [hmsc_model.get("rL")[key]["b1"] for key in hmsc_model.get("rL").keys()]
+        [hmscModel.get("rL")[key]["b1"] for key in hmscModel.get("rL").keys()]
     )
     a2 = np.squeeze(
-        [hmsc_model.get("rL")[key]["a2"] for key in hmsc_model.get("rL").keys()]
+        [hmscModel.get("rL")[key]["a2"] for key in hmscModel.get("rL").keys()]
     )
     b2 = np.squeeze(
-        [hmsc_model.get("rL")[key]["b2"] for key in hmsc_model.get("rL").keys()]
+        [hmscModel.get("rL")[key]["b2"] for key in hmscModel.get("rL").keys()]
     )
 
     nfMin = np.squeeze(
-        [hmsc_model.get("rL")[key]["nfMin"] for key in hmsc_model.get("rL").keys()]
+        [hmscModel.get("rL")[key]["nfMin"] for key in hmscModel.get("rL").keys()]
     )
     nfMax = np.squeeze(
-        [hmsc_model.get("rL")[key]["nfMax"] for key in hmsc_model.get("rL").keys()]
+        [hmscModel.get("rL")[key]["nfMax"] for key in hmscModel.get("rL").keys()]
     )
 
     sDim = np.squeeze(
-        [hmsc_model.get("rL")[key]["sDim"] for key in hmsc_model.get("rL").keys()]
+        [hmscModel.get("rL")[key]["sDim"] for key in hmscModel.get("rL").keys()]
     )
 
     spatialMethod = [
-        "".join(hmsc_model.get("rL")[key]["spatialMethod"])
-        if isinstance(hmsc_model.get("rL")[key]["spatialMethod"], list)
+        "".join(hmscModel.get("rL")[key]["spatialMethod"])
+        if isinstance(hmscModel.get("rL")[key]["spatialMethod"], list)
         else ""
-        for key in hmsc_model.get("rL").keys()
+        for key in hmscModel.get("rL").keys()
     ]
 
     alphapw = [
@@ -124,16 +118,16 @@ def init_random_level_data_params(modelDataParams, modelData, dtype=np.float64):
     return rLDataParams
 
 
-def load_prior_hyper_params(hmsc_model):
+def load_prior_hyper_params(hmscModel):
 
-    mGamma = np.asarray(hmsc_model.get("mGamma"))
-    iUGamma = np.asarray(hmsc_model.get("UGamma"))
+    mGamma = np.asarray(hmscModel.get("mGamma"))
+    iUGamma = np.asarray(hmscModel.get("UGamma"))
 
-    aSigma = np.asarray(hmsc_model.get("aSigma"))
-    bSigma = np.asarray(hmsc_model.get("bSigma"))
+    aSigma = np.asarray(hmscModel.get("aSigma"))
+    bSigma = np.asarray(hmscModel.get("bSigma"))
 
-    V0 = np.squeeze(hmsc_model.get("V0"))
-    f0 = int(np.squeeze(hmsc_model.get("f0")))
+    V0 = np.squeeze(hmscModel.get("V0"))
+    f0 = int(np.squeeze(hmscModel.get("f0")))
 
     priorHyperParams = {}
     priorHyperParams["mGamma"] = mGamma

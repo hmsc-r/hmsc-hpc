@@ -26,7 +26,8 @@ from hmsc.updaters.updateZ import updateZ
 
 from hmsc.utils.jsonutils import load_model_from_json, save_postList_to_json
 from hmsc.utils.hmscutils import (
-    load_model_params,
+    load_model_data_params,
+    load_model_data,
     load_prior_hyper_params,
     load_random_level_params,
     init_random_level_data_params,
@@ -127,11 +128,12 @@ def build_sampler(modelDataParams, modelData, rLParams, dtype=np.float64):
 
 def load_params(file_path, dtype=np.float64):
 
-    hmsc_model = load_model_from_json(file_path)
+    hmscModel = load_model_from_json(file_path)
 
-    modelDataParams, modelData, nChains = load_model_params(hmsc_model)
-    priorHyperParams = load_prior_hyper_params(hmsc_model)
-    rLParams = load_random_level_params(hmsc_model)
+    modelDataParams = load_model_data_params(hmscModel)
+    modelData = load_model_data(hmscModel)
+    priorHyperParams = load_prior_hyper_params(hmscModel)
+    rLParams = load_random_level_params(hmscModel)
 
     rLDataParams = init_random_level_data_params(modelDataParams, modelData)
 
@@ -145,6 +147,8 @@ def load_params(file_path, dtype=np.float64):
         **modelData,
         **modelDataParams,
     }
+
+    nChains = int(np.squeeze(len(hmscModel["postList"])))
 
     return params, nChains
 
