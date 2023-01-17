@@ -1,19 +1,18 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+
 tfd = tfp.distributions
 tfla, tfr = tf.linalg, tf.random
 
-def kron(A, B):
-    tmp1 = A[None, None, :, :] * B[:, :, None, None]
-    shape = [tf.shape(A)[0]*tf.shape(B)[0], tf.shape(A)[1]*tf.shape(B)[1]]
-    return tf.reshape(tf.transpose(tmp1, [0, 2, 1, 3]), shape)
+from hmsc.utils.tflautils import kron
+
 
 def updateGammaV(params, dtype=np.float64):
     """Update prior(s) for whole model:
     Gamma - influence of traits on species niches, and
     V - residual covariance of species niches.
-       
+
     Parameters
     ----------
     params : dict
@@ -21,11 +20,11 @@ def updateGammaV(params, dtype=np.float64):
         Beta - species niches
         Gamma - influence of traits on species niches
         iV - inverse of residual covariance of species niches
-        T - 
-        mGamma - 
-        iUGamma - 
-        V0 - 
-        f0 - 
+        T -
+        mGamma -
+        iUGamma -
+        V0 -
+        f0 -
     """
 
     Beta = params["BetaLambda"]["Beta"]

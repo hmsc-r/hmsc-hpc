@@ -5,6 +5,8 @@ tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
 
 from scipy.linalg import cholesky
 
+from hmsc.utils.tflautils import kron
+
 
 def my_numpy_func(X):
     # X will be a tensor with the contents of the input to the
@@ -104,7 +106,19 @@ def updateEta(params, dtype=np.float64):
             if spatialMethod[r] == "Full":
                 Eta = modelSpatialFull(Eta, LamInvSigLam, mu0, Alpha, iWg, npVec[r], nf)
             elif spatialMethod[r] == "NNGP":
-                Eta = modelSpatialNNGP(Eta, LamInvSigLam, mu0, Alpha, Pi[:, r], iWg, S, iSigma, npVec[r], nf, ny)
+                Eta = modelSpatialNNGP(
+                    Eta,
+                    LamInvSigLam,
+                    mu0,
+                    Alpha,
+                    Pi[:, r],
+                    iWg,
+                    S,
+                    iSigma,
+                    npVec[r],
+                    nf,
+                    ny,
+                )
             elif spatialMethod[r] == "GPP":
                 raise NotImplementedError
             else:
@@ -154,7 +168,9 @@ def modelNonSpatial(Eta, LamInvSigLam, mu0, np, nf, dtype=np.float64):
     return Eta
 
 
-def modelSpatialNNGP(Eta, LamInvSigLam, mu0, Alpha, Pi, iWg, S, iSigma, np, nf, ny, dtype=np.float64):
+def modelSpatialNNGP(
+    Eta, LamInvSigLam, mu0, Alpha, Pi, iWg, S, iSigma, np, nf, ny, dtype=np.float64
+):
     iWs = tf.zeros([np * nf, np * nf], dtype=dtype)
 
     for h in range(nf):
