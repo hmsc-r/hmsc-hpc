@@ -7,7 +7,7 @@ def load_model_from_json(json_file_path):
 
     return hmsc_model
 
-def save_postList_to_json(postList, path, nChains):
+def save_postList_to_json(postList, postList_file_path, nChains):
 
     json_data = {chain: {} for chain in range(nChains)}
 
@@ -51,5 +51,5 @@ def save_postList_to_json(postList, path, nChains):
 
             json_data[chain][i] = sample_data
 
-    with open(path + "obj-postList.json", "w") as fp:
+    with open(postList_file_path, "w") as fp:
         json.dump(json_data, fp)
