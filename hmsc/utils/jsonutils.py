@@ -20,7 +20,7 @@ def save_postList_to_json(postList, postList_file_path, nChains):
             )
             sample_data["Gamma"] = postList[chain][i]["GammaV"]["iV"].numpy().tolist()
 
-            sample_data["iV"] = postList[chain][i]["GammaV"]["iV"].numpy().tolist()
+            sample_data["V"] = postList[chain][i]["GammaV"]["iV"].numpy().tolist() # TODO. need to confirm V or iV
             sample_data["sigma"] = postList[chain][i]["sigma"].numpy().tolist()
             sample_data["Lambda"] = [
                 postList[chain][i]["BetaLambda"]["Lambda"][j].numpy().tolist()

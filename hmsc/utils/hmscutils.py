@@ -3,6 +3,7 @@ import tensorflow as tf
 
 tfla, tfr = tf.linalg, tf.random
 
+
 def load_model_data(hmscModel):
 
     Y = np.asarray(hmscModel.get("Y"))
@@ -19,6 +20,7 @@ def load_model_data(hmscModel):
     modelData["distr"] = distr
 
     return modelData
+
 
 def load_model_data_params(hmscModel):
 
@@ -75,8 +77,7 @@ def load_random_level_params(hmscModel):
     ]
 
     alphapw = [
-        np.abs(np.random.normal(size=[101, 2])),
-        np.abs(np.random.normal(size=[101, 2])),
+        np.abs(np.random.normal(size=[101, 2])) for key in hmscModel.get("rL").keys()
     ]
 
     rLParams = {}
