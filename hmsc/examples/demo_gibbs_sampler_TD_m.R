@@ -4,13 +4,12 @@ library(vioplot)
 
 path = "/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc"
 
-load(file = file.path(path, "examples/data", "unfitted_models.RData"))
-models
-
-m = models[[1]]
+m = TD$m
 
 nChains = 4
-nSamples = 50
+nSamples = 250
+transient = 125
+thin = 10
 
 #
 # Generate sampled posteriors for TF initialization
@@ -32,9 +31,11 @@ write(to_json(init_obj), file = init_file_path)
 # Start the clock!
 ptm <- proc.time()
 
-obj.R = sampleMcmc(m, samples = nSamples,
-                   nChains = nChains, 
-                   verbose = 0) # fitted by R
+obj.R = sampleMcmc(m, samples = nSamples, 
+                   transient = transient, 
+                   thin = thin, 
+                   nChains = nChains, verbose = 1) #fitted by R
+
 # Stop the clock
 proc.time() - ptm
 
@@ -58,9 +59,8 @@ Sys.setenv(RETICULATE_PYTHON = py_bin)
 # End one-time python setup
 
 library(reticulate)
-use_condaenv(my_conda_env_name) # activate the TF env
-
-repl_python() # a hack to activate newly set python
+use_condaenv(my_conda_env_name, required=TRUE) # activate the TF env
+repl_python()
 
 #
 # Generate sampled posteriors in TF
@@ -74,12 +74,16 @@ postList_file_path = file.path(path, "examples/data", postList_file_name)
 
 python_cmd = paste("python", python_file_path, 
                    "--samples", nSamples,
+                   "--transient", transient,
+                   "--thin", thin,
                    "--input", init_file_name, 
                    "--output", postList_file_name)
 
 system(paste("chmod a+x", python_file_path)) # set file permissions for shell execution
 
 system(python_cmd, wait=TRUE) # run TF gibbs sampler
+
+system("python --version", wait=TRUE) # run TF gibbs sampler
 
 #
 # Import TF-generated sampled posteriors as JSON in R
@@ -164,11 +168,14 @@ for (chain in seq_len(nChains)) {
 # Plot sampled posteriors summaries from R only and TF
 #
 
-obj.list = list(R=obj.R,TF=obj.TF)
+obj.R.TF = obj.R
+obj.R.TF$postList = c(obj.R$postList,obj.TF$postList)
+
+obj.list = list(R=obj.R,TF=obj.TF,R.TF=obj.R.TF)
 
 #beta and gamma
 for(variable in 1:2){
-  for(i in 1:2){
+  for(i in 1:3){
     mpost = convertToCodaObject(obj.list[[i]], Rho=FALSE)
     mpost.var = if(variable==1) {mpost$Beta} else {mpost$Gamma} 
     psrf = gelman.diag(mpost.var,multivariate=FALSE)$psrf
@@ -184,8 +191,8 @@ maxOmega = 100 #number of species pairs to be subsampled
 nr = obj.list[[1]]$nr
 if(nr>0){
   for(k in 1:nr){
-    for(i in 1:2){
-      mpost = convertToCodaObject(obj.list[[i]])
+    for(i in 1:3){
+      mpost = convertToCodaObject(obj.list[[i]], Rho=FALSE)
       tmp = mpost$Omega[[k]]
       z = dim(tmp[[1]])[2]
       if(z > maxOmega){

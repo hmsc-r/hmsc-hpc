@@ -1,11 +1,13 @@
 import numpy as np
 import tensorflow as tf
+
 tfm, tfla, tfr = tf.math, tf.linalg, tf.random
+
 
 def updateAlpha(params, dtype=np.float64):
     """Update prior(s) for each random level:
     Alpha - scale of site loadings (eta's prior).
-        
+
     Parameters
     ----------
     params : dict
@@ -13,8 +15,8 @@ def updateAlpha(params, dtype=np.float64):
             Eta - site loadings
             sDim - spatial dimension
             alphapw - conditional distribution of each Alpha
-            LiWg - 
-            detWg - 
+            LiWg -
+            detWg -
     """
 
     EtaList = params["Eta"]
@@ -27,6 +29,7 @@ def updateAlpha(params, dtype=np.float64):
 
     nr = len(EtaList)
     AlphaList = [None] * nr
+
     for r, (Eta, LiWg, detWg, alphapw) in enumerate(
         zip(EtaList, LiWgList, detWgList, alphapwList)
     ):

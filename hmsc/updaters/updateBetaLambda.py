@@ -1,12 +1,14 @@
 import numpy as np
 import tensorflow as tf
+
 tfm, tfla = tf.math, tf.linalg
+
 
 def updateBetaLambda(params, dtype=np.float64):
     """Update conditional updater(s):
     Beta - species niches, and
     Lambda - species loadings.
-        
+
     Parameters
     ----------
     params : dict
@@ -73,8 +75,11 @@ def updateBetaLambda(params, dtype=np.float64):
             -1,
         )
     )
+
     BetaLambdaList = tf.split(
         BetaLambda, tf.concat([tf.constant([nc], tf.int32), nfVec], -1), axis=-2
     )
+
     BetaNew, LambdaListNew = BetaLambdaList[0], BetaLambdaList[1:]
+
     return {"Beta": BetaNew, "Lambda": LambdaListNew}

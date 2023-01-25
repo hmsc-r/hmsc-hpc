@@ -1,23 +1,25 @@
 import numpy as np
 import tensorflow as tf
+
 tfm, tfr = tf.math, tf.random
+
 
 def updateLambdaPriors(params, dtype=np.float64):
     """Update prior(s) for each random level:
     Psi - local shrinage species loadings (lambda's prior), and
     Delta - delta global shrinage species loadings (lambda's prior).
-       
+
     Parameters
     ----------
     params : dict
         The initial value of the model parameter(s):
         Lambda - species loadings
         Delta - delta global shrinage species loadings (lambda's prior)
-        nu - 
-        a1 - 
-        b1 - 
-        a2 - 
-        b2 - 
+        nu -
+        a1 -
+        b1 -
+        a2 -
+        b2 -
     """
 
     LambdaList = params["BetaLambda"]["Lambda"]
@@ -35,6 +37,7 @@ def updateLambdaPriors(params, dtype=np.float64):
         ns = Lambda.shape[-1]
         nf = tf.shape(Lambda)[0]
         if nf > 0:
+            # if tf.cond(tf.greater(nf, 0), lambda: True, lambda: False):
             aDelta = tf.concat(
                 [a1[r] * tf.ones([1, 1], dtype), a2[r] * tf.ones([nf - 1, 1], dtype)], 0
             )

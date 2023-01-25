@@ -139,3 +139,46 @@ def load_prior_hyper_params(hmscModel):
     priorHyperParams["bSigma"] = bSigma
 
     return priorHyperParams
+
+
+def init_sampler_params(hmscModel, dtype=np.float64):
+
+    Y = tf.constant(hmscModel.get("Y"), dtype=dtype)
+
+    nr = int(np.squeeze(hmscModel.get("nr")))
+
+    Z = tf.zeros_like(Y, dtype=dtype)
+    Beta = tf.constant(hmscModel.get("postList")[0][""]["Beta"], dtype=dtype)
+    Gamma = tf.constant(hmscModel.get("postList")[0][""]["Gamma"], dtype=dtype)
+    iV = tf.constant(hmscModel.get("postList")[0][""]["V"], dtype=dtype)
+    LambdaList = [
+        tf.constant(hmscModel.get("postList")[0][""]["Lambda"][r], dtype=dtype) for r in range(nr)
+    ]
+    PsiList = [
+        tf.constant(hmscModel.get("postList")[0][""]["Psi"][r], dtype=dtype) for r in range(nr)
+    ]
+    DeltaList = [
+        tf.constant(hmscModel.get("postList")[0][""]["Delta"][r], dtype=dtype) for r in range(nr)
+    ]
+    EtaList = [
+        tf.constant(hmscModel.get("postList")[0][""]["Eta"][r], dtype=dtype) for r in range(nr)
+    ]
+    AlphaList = [
+        tf.expand_dims(tf.constant(list(map(int, hmscModel.get("postList")[0][""]["Alpha"][r])), dtype=tf.int64), -1)
+        for r in range(nr)
+    ]
+    sigma = tf.constant(hmscModel.get("postList")[0][""]["sigma"], dtype=dtype)
+
+    postList = {}
+    postList["Z"] = Z
+    postList["Beta"] = Beta
+    postList["Gamma"] = Gamma
+    postList["iV"] = iV
+    postList["Lambda"] = LambdaList
+    postList["Psi"] = PsiList
+    postList["Delta"] = DeltaList
+    postList["Eta"] = EtaList
+    postList["Alpha"] = AlphaList
+    postList["sigma"] = sigma
+
+    return postList

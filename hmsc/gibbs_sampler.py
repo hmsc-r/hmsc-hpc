@@ -22,9 +22,10 @@
 
 import tensorflow as tf
 
+
 class GibbsParameter:
     def __init__(self, value, conditional_posterior, posterior_params=None):
-        self.value = value
+        self.__value = value
         self.conditional_posterior = conditional_posterior
         self.posterior_params = posterior_params
 
@@ -32,7 +33,15 @@ class GibbsParameter:
         pass
 
     def __repr__(self) -> str:
-        return str(self.value)
+        return str(self.__value)
+
+    def get_value(self):
+        return self.__value
+
+    def set_value(self, value):
+        self.__value = value
+
+    value = property(get_value, set_value)
 
     def sample(self, sample_params):
         param_values = {}
@@ -42,11 +51,11 @@ class GibbsParameter:
             else:
                 param_values[k] = v
         post_params = param_values
-        self.value = self.conditional_posterior(post_params)
-        return self.value
+        self.__value = self.conditional_posterior(post_params)
+        return self.__value
 
 
-class GibbsSampler:
+class GibbsSampler(tf.Module):
     def __init__(self, params):
         self.params = params
 
@@ -55,26 +64,37 @@ class GibbsSampler:
         self.params[param_name].value = value
         return value
 
-    @tf.function
+    #@tf.function
     def sampling_routine(
         self,
         num_samples,
         sample_period=1,
         sample_burnin=0,
         sample_thining=1,
+        shape_invariants=[],
         print_retrace_flag=True,
     ):
         if print_retrace_flag:
             print("retracing")
 
         params = self.params
+
         history = []
         step_num = sample_burnin + num_samples * sample_thining
+        print("Iterations %d" % step_num)
         for n in range(step_num):
+
+            tf.autograph.experimental.set_loop_options(
+                shape_invariants=shape_invariants
+            )
+
+            print("Iteration %d of %d" % (n, step_num))
+
             row = {}
             for key in list(params.keys()):
                 if isinstance(params[key], GibbsParameter):
                     row[key] = self.single_sample(key)
             if (n >= sample_burnin) & (n % sample_period == 0):
                 history.append(row)
+        print("Completed iterations %d" % step_num)
         return history

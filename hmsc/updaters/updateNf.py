@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
+
 tfm, tfr = tf.math, tf.random
+
 
 def updateNf(params, dtype=np.float64):
     """Update latent factors:
@@ -8,7 +10,7 @@ def updateNf(params, dtype=np.float64):
     Lambda - species loadings,
     Psi - local shrinage species loadings (lambda's prior), and
     Delta - delta global shrinage species loadings (lambda's prior).
-        
+
     Parameters
     ----------
     params : dict
@@ -17,11 +19,11 @@ def updateNf(params, dtype=np.float64):
         Beta - species niches
         Psi - local shrinage species loadings (lambda's prior)
         Delta - delta global shrinage species loadings (lambda's prior)
-        nu - 
+        nu -
         a2 - prior parameters
-        b2 - 
+        b2 -
         nfMin -
-        nfMax - 
+        nfMax -
         iter -
     """
 
@@ -61,7 +63,7 @@ def updateNf(params, dtype=np.float64):
             numRedundant = tf.reduce_sum(tf.cast(indRedundant, dtype=dtype))
 
             if (
-                nf < nfMax[r] and iter > 20 and numRedundant == 0
+                nf < tf.cast(nfMax[r], tf.int32) and iter > 20 and numRedundant == 0
             ):  # and tf.reduce_all(smallLoadingProp < 0.995):
                 EtaNew[r] = tf.concat([Eta, tfr.normal([np, 1], dtype=dtype)], axis=1)
                 LambdaNew[r] = tf.concat(
@@ -73,15 +75,19 @@ def updateNf(params, dtype=np.float64):
                 DeltaNew[r] = tf.concat(
                     [Delta, tfr.gamma([1, 1], a2[r], b2[r], dtype=dtype)], axis=0
                 )
-            elif nf > nfMin[r] and numRedundant > 0:
+            elif nf > tf.cast(nfMin[r], tf.int32) and numRedundant > 0:
                 indRemain = tf.cast(
                     tf.squeeze(tf.where(tfm.logical_not(indRedundant)), -1), tf.int32
                 )
-                if tf.shape(indRemain)[0] < nfMin[r]:
+                if tf.shape(indRemain)[0] < tf.cast(nfMin[r], tf.int32):
                     indRemain = tf.concat(
                         [
                             indRemain,
-                            nf - 1 - tf.range(nfMin[r] - tf.shape(indRemain)[0]),
+                            nf
+                            - 1
+                            - tf.range(
+                                tf.cast(nfMin[r], tf.int32) - tf.shape(indRemain)[0]
+                            ),
                         ],
                         axis=0,
                     )
