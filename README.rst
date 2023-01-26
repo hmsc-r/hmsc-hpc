@@ -27,6 +27,7 @@ Features
 --------
 
 * TODO
+* Test change to check commit and push preferences.
 
 Credits
 -------
