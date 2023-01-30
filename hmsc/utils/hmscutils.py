@@ -6,9 +6,10 @@ tfla, tfr = tf.linalg, tf.random
 
 def load_model_data(hmscModel):
 
-    Y = np.asarray(hmscModel.get("Y"))
-    X = np.asarray(hmscModel.get("X"))
-    T = np.asarray(hmscModel.get("Tr"))
+    Y = np.asarray(hmscModel.get("YScaled"))
+    X = np.asarray(hmscModel.get("XScaled"))
+    T = np.asarray(hmscModel.get("TrScaled"))
+    C = np.asarray(hmscModel.get("C"))
     Pi = np.asarray(hmscModel.get("Pi")).astype(int) - 1
     distr = np.asarray(hmscModel.get("distr")).astype(int)
 
@@ -16,123 +17,72 @@ def load_model_data(hmscModel):
     modelData["Y"] = Y
     modelData["X"] = X
     modelData["T"] = T
+    modelData["C"] = C
     modelData["Pi"] = Pi
     modelData["distr"] = distr
 
     return modelData
 
 
-def load_model_data_params(hmscModel):
+def load_model_dims(hmscModel):
 
     ny = int(np.squeeze(hmscModel.get("ny")))
     ns = int(np.squeeze(hmscModel.get("ns")))
     nc = int(np.squeeze(hmscModel.get("nc")))
     nt = int(np.squeeze(hmscModel.get("nt")))
     nr = int(np.squeeze(hmscModel.get("nr")))
+    npVec = (np.squeeze(hmscModel.get("np"))).astype(int)
 
-    modelDataParams = {}
-    modelDataParams["ny"] = ny
-    modelDataParams["ns"] = ns
-    modelDataParams["nc"] = nc
-    modelDataParams["nt"] = nt
-    modelDataParams["nr"] = nr
+    modelDims = {}
+    modelDims["ny"] = ny
+    modelDims["ns"] = ns
+    modelDims["nc"] = nc
+    modelDims["nt"] = nt
+    modelDims["nr"] = nr
+    modelDims["np"] = npVec
 
-    return modelDataParams
+    return modelDims
 
 
-def load_random_level_params(hmscModel):
+def load_random_level_hyperparams(hmscModel):
 
-    nu = np.squeeze(
-        [hmscModel.get("rL")[key]["nu"] for key in hmscModel.get("rL").keys()]
-    )
-    a1 = np.squeeze(
-        [hmscModel.get("rL")[key]["a1"] for key in hmscModel.get("rL").keys()]
-    )
-    b1 = np.squeeze(
-        [hmscModel.get("rL")[key]["b1"] for key in hmscModel.get("rL").keys()]
-    )
-    a2 = np.squeeze(
-        [hmscModel.get("rL")[key]["a2"] for key in hmscModel.get("rL").keys()]
-    )
-    b2 = np.squeeze(
-        [hmscModel.get("rL")[key]["b2"] for key in hmscModel.get("rL").keys()]
-    )
-
-    nfMin = np.squeeze(
-        [hmscModel.get("rL")[key]["nfMin"] for key in hmscModel.get("rL").keys()]
-    )
-    nfMax = np.squeeze(
-        [hmscModel.get("rL")[key]["nfMax"] for key in hmscModel.get("rL").keys()]
-    )
-
-    sDim = np.squeeze(
-        [hmscModel.get("rL")[key]["sDim"] for key in hmscModel.get("rL").keys()]
-    )
-
-    spatialMethod = [
-        "".join(hmscModel.get("rL")[key]["spatialMethod"])
-        if isinstance(hmscModel.get("rL")[key]["spatialMethod"], list)
-        else ""
-        for key in hmscModel.get("rL").keys()
-    ]
-
-    alphapw = [
-        np.abs(np.random.normal(size=[101, 2])) for key in hmscModel.get("rL").keys()
-    ]
-
-    rLParams = {}
-    rLParams["nu"] = nu
-    rLParams["a1"] = a1
-    rLParams["b1"] = b1
-    rLParams["a2"] = a2
-    rLParams["b2"] = b2
-    rLParams["nfMin"] = nfMin
-    rLParams["nfMax"] = nfMax
-    rLParams["sDim"] = sDim
-    rLParams["spatialMethod"] = spatialMethod
-    rLParams["alphapw"] = alphapw
+    nr = int(np.squeeze(hmscModel.get("nr")))
+    rLParams = [None] * nr
+    for r in range(nr):
+      rLName = hmscModel.get("rL").keys()[r]
+      rLPar = {}
+      rLPar["nu"] = hmscModel.get("rL")[rLName]["nu"][0]
+      rLPar["a1"] = hmscModel.get("rL")[rLName]["a1"][0]
+      rLPar["b1"] = hmscModel.get("rL")[rLName]["b1"][0]
+      rLPar["a2"] = hmscModel.get("rL")[rLName]["a2"][0]
+      rLPar["b2"] = hmscModel.get("rL")[rLName]["b2"][0]
+      rLPar["nfMin"] = int(hmscModel.get("rL")[rLName]["nfMin"][0])
+      rLPar["nfMax"] = int(hmscModel.get("rL")[rLName]["nfMax"][0])
+      rLPar["sDim"] = int(hmscModel.get("rL")[rLName]["sDim"][0])
+      rLPar["spatialMethod"] = hmscModel.get("rL")[rLName]["spatialMethod"]
+      rLPar["alphapw"] = hmscModel.get("rL")[rLName]["alphapw"]
+      if rLPar["sDim"] > 0:
+        rLPar["Wg"] = hmscModel.get("rL")[rLName]["Wg"]
+        rLPar["iWg"] = hmscModel.get("rL")[rLName]["iWg"]
+        rLPar["LiWg"] = hmscModel.get("rL")[rLName]["LiWg"]
+        rLPar["detWg"] = hmscModel.get("rL")[rLName]["detWg"]
+      rLParams[r] = rLPar
 
     return rLParams
 
 
-def init_random_level_data_params(modelDataParams, modelData, dtype=np.float64):
-
-    nr = modelDataParams["nr"]
-    Pi = modelData["Pi"]
-
-    npVec = Pi.max(axis=0) + 1
-
-    WgList = [tfr.normal([101, npVec[r], npVec[r]], dtype=dtype) for r in range(nr)]
-    WgList = [
-        tf.matmul(WgList[r], WgList[r], transpose_a=True) for r in range(nr)
-    ]  # these MUST be SPD matrices!
-    iWgList = [tfla.inv(WgList[r]) for r in range(nr)]
-    LiWgList = [tfla.cholesky(iWgList[r]) for r in range(nr)]
-    detWgList = [tfr.normal([101], dtype=dtype) for r in range(nr)]
-
-    rLDataParams = {}
-    rLDataParams["Wg"] = WgList
-    rLDataParams["iWg"] = iWgList
-    rLDataParams["LiWg"] = LiWgList
-    rLDataParams["detWg"] = detWgList
-
-    return rLDataParams
-
-
-def load_prior_hyper_params(hmscModel):
+def load_prior_hyperparams(hmscModel):
 
     mGamma = np.asarray(hmscModel.get("mGamma"))
-    iUGamma = np.asarray(hmscModel.get("UGamma"))
-
+    UGamma = np.asarray(hmscModel.get("UGamma"))
+    f0 = np.squeeze(hmscModel.get("f0"))
+    V0 = np.squeeze(hmscModel.get("V0"))
     aSigma = np.asarray(hmscModel.get("aSigma"))
     bSigma = np.asarray(hmscModel.get("bSigma"))
 
-    V0 = np.squeeze(hmscModel.get("V0"))
-    f0 = int(np.squeeze(hmscModel.get("f0")))
-
     priorHyperParams = {}
     priorHyperParams["mGamma"] = mGamma
-    priorHyperParams["iUGamma"] = iUGamma
+    priorHyperParams["iUGamma"] = tfla.inv(UGamma)
     priorHyperParams["f0"] = f0
     priorHyperParams["V0"] = V0
     priorHyperParams["aSigma"] = aSigma
@@ -141,44 +91,31 @@ def load_prior_hyper_params(hmscModel):
     return priorHyperParams
 
 
-def init_sampler_params(hmscModel, dtype=np.float64):
+def init_params(importedInitParList, dtype=np.float64):
+    
+    initParList = [None] * len(importedInitParList)
+    for chainInd, importedInitPar in enumerate(importedInitParList):
+      Z = tf.constant(importedInitPar["Z"], dtype=dtype)
+      Beta = tf.constant(importedInitPar["Beta"], dtype=dtype)
+      Gamma = tf.constant(importedInitPar["Gamma"], dtype=dtype)
+      V = tf.constant(importedInitPar["V"], dtype=dtype)
+      sigma = tf.constant(importedInitPar["sigma"], dtype=dtype)
+      LambdaList = [tf.constant(Lambda, dtype=dtype) for Lambda in importedInitPar["Lambda"]]
+      PsiList = [tf.constant(Psi, dtype=dtype) for Psi in importedInitPar["Psi"]]
+      DeltaList = [tf.constant(Delta, dtype=dtype) for Delta in importedInitPar["Delta"]]
+      EtaList = [tf.constant(Eta, dtype=dtype) for Eta in importedInitPar["Eta"]]
+      AlphaList = [tf.constant(Alpha, dtype=dtype) for Alpha in importedInitPar["Alpha"]]
+      initPar = {}
+      initPar["Z"] = Z
+      initPar["Beta"] = Beta
+      initPar["Gamma"] = Gamma
+      initPar["V"] = V
+      initPar["sigma"] = sigma
+      initPar["Lambda"] = LambdaList
+      initPar["Psi"] = PsiList
+      initPar["Delta"] = DeltaList
+      initPar["Eta"] = EtaList
+      initPar["Alpha"] = AlphaList
+      initParList[chainInd] = initPar
 
-    Y = tf.constant(hmscModel.get("Y"), dtype=dtype)
-
-    nr = int(np.squeeze(hmscModel.get("nr")))
-
-    Z = tf.zeros_like(Y, dtype=dtype)
-    Beta = tf.constant(hmscModel.get("postList")[0][""]["Beta"], dtype=dtype)
-    Gamma = tf.constant(hmscModel.get("postList")[0][""]["Gamma"], dtype=dtype)
-    iV = tf.constant(hmscModel.get("postList")[0][""]["V"], dtype=dtype)
-    LambdaList = [
-        tf.constant(hmscModel.get("postList")[0][""]["Lambda"][r], dtype=dtype) for r in range(nr)
-    ]
-    PsiList = [
-        tf.constant(hmscModel.get("postList")[0][""]["Psi"][r], dtype=dtype) for r in range(nr)
-    ]
-    DeltaList = [
-        tf.constant(hmscModel.get("postList")[0][""]["Delta"][r], dtype=dtype) for r in range(nr)
-    ]
-    EtaList = [
-        tf.constant(hmscModel.get("postList")[0][""]["Eta"][r], dtype=dtype) for r in range(nr)
-    ]
-    AlphaList = [
-        tf.expand_dims(tf.constant(list(map(int, hmscModel.get("postList")[0][""]["Alpha"][r])), dtype=tf.int64), -1)
-        for r in range(nr)
-    ]
-    sigma = tf.constant(hmscModel.get("postList")[0][""]["sigma"], dtype=dtype)
-
-    postList = {}
-    postList["Z"] = Z
-    postList["Beta"] = Beta
-    postList["Gamma"] = Gamma
-    postList["iV"] = iV
-    postList["Lambda"] = LambdaList
-    postList["Psi"] = PsiList
-    postList["Delta"] = DeltaList
-    postList["Eta"] = EtaList
-    postList["Alpha"] = AlphaList
-    postList["sigma"] = sigma
-
-    return postList
+    return initParList

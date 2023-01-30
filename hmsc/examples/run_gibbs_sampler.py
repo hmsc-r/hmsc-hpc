@@ -6,8 +6,9 @@ import numpy as np
 import time
 import sys
 import argparse
+import os
 
-sys.path.append("/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/")
+sys.path.append("/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/../")
 
 from random import randint, sample
 from datetime import datetime
@@ -18,16 +19,15 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 tfr = tf.random
-
 from hmsc.gibbs_sampler import GibbsParameter, GibbsSampler
-from hmsc.updaters.updateEta import updateEta
-from hmsc.updaters.updateAlpha import updateAlpha
-from hmsc.updaters.updateBetaLambda import updateBetaLambda
-from hmsc.updaters.updateLambdaPriors import updateLambdaPriors
-from hmsc.updaters.updateNf import updateNf
-from hmsc.updaters.updateGammaV import updateGammaV
-from hmsc.updaters.updateSigma import updateSigma
-from hmsc.updaters.updateZ import updateZ
+# from hmsc.updaters.updateEta import updateEta
+# from hmsc.updaters.updateAlpha import updateAlpha
+# from hmsc.updaters.updateBetaLambda import updateBetaLambda
+# from hmsc.updaters.updateLambdaPriors import updateLambdaPriors
+# from hmsc.updaters.updateNf import updateNf
+# from hmsc.updaters.updateGammaV import updateGammaV
+# from hmsc.updaters.updateSigma import updateSigma
+# from hmsc.updaters.updateZ import updateZ
 
 from hmsc.utils.jsonutils import (
     load_model_from_json,
@@ -35,71 +35,61 @@ from hmsc.utils.jsonutils import (
     save_chains_postList_to_json,
 )
 from hmsc.utils.hmscutils import (
-    load_model_data_params,
+    load_model_dims,
     load_model_data,
-    load_prior_hyper_params,
-    load_random_level_params,
-    init_random_level_data_params,
-    init_sampler_params,
+    load_prior_hyperparams,
+    load_random_level_hyperparams,
+    init_params,
 )
 
 
-def build_sampler(postList, dtype=np.float64):
+# def build_sampler(params, dtype=np.float64):
 
-    samplerParams = {
-        "Z": GibbsParameter(postList["Z"], updateZ),
-        "BetaLambda": GibbsParameter(
-            {"Beta": postList["Beta"], "Lambda": postList["Lambda"]}, updateBetaLambda
-        ),
-        "GammaV": GibbsParameter(
-            {"Gamma": postList["Gamma"], "iV": postList["iV"]}, updateGammaV
-        ),
-        "PsiDelta": GibbsParameter(
-            {"Psi": postList["Psi"], "Delta": postList["Delta"]}, updateLambdaPriors
-        ),
-        "Eta": GibbsParameter(postList["Eta"], updateEta),
-        "sigma": GibbsParameter(postList["sigma"], updateSigma),
-        "Nf": GibbsParameter(
-            {
-                "Eta": postList["Eta"],
-                "Lambda": postList["Lambda"],
-                "Psi": postList["Psi"],
-                "Delta": postList["Delta"],
-            },
-            updateNf,
-        ),
-        "Alpha": GibbsParameter(postList["Alpha"], updateAlpha),
-    }
-    return samplerParams
+#     samplerParams = {
+#         "Z": GibbsParameter(params["Z"], updateZ),
+#         "BetaLambda": GibbsParameter(
+#             {"Beta": params["Beta"], "Lambda": params["Lambda"]}, updateBetaLambda
+#         ),
+#         "GammaV": GibbsParameter(
+#             {"Gamma": params["Gamma"], "iV": params["iV"]}, updateGammaV
+#         ),
+#         "PsiDelta": GibbsParameter(
+#             {"Psi": params["Psi"], "Delta": params["Delta"]}, updateLambdaPriors
+#         ),
+#         "Eta": GibbsParameter(params["Eta"], updateEta),
+#         "sigma": GibbsParameter(params["sigma"], updateSigma),
+#         "nf": GibbsParameter(
+#             {
+#                 "Eta": params["Eta"],
+#                 "Lambda": params["Lambda"],
+#                 "Psi": params["Psi"],
+#                 "Delta": params["Delta"],
+#             },
+#             updateNf,
+#         ),
+#         "Alpha": GibbsParameter(params["Alpha"], updateAlpha),
+#     }
+#     return samplerParams
 
 
 def load_params(file_path, dtype=np.float64):
 
-    hmscModel = load_model_from_json(file_path)
-
-    modelDataParams = load_model_data_params(hmscModel)
+    hmscImport, hmscModel = load_model_from_json(file_path)
+    modelDims = load_model_dims(hmscModel)
     modelData = load_model_data(hmscModel)
-    priorHyperParams = load_prior_hyper_params(hmscModel)
-    rLParams = load_random_level_params(hmscModel)
+    priorHyperparams = load_prior_hyperparams(hmscModel)
+    rLHyperparams = load_random_level_hyperparams(hmscModel)
+    initParList = init_params(hmscImport.get("initParList"))
 
-    rLDataParams = init_random_level_data_params(modelDataParams, modelData)
-
-    postList = init_sampler_params(hmscModel)
-
-    samplerParams = build_sampler(postList)
-
-    params = {
-        **samplerParams,
-        **priorHyperParams,
-        **rLParams,
-        **rLDataParams,
-        **modelData,
-        **modelDataParams,
-    }
-
-    nChains = int(np.squeeze(len(hmscModel["postList"])))
-
-    return params, nChains
+    # params = {
+    #     **samplerParams,
+    #     **priorHyperparams,
+    #     **rLHyperParams,
+    #     **modelData,
+    #     **modelDims,
+    # }
+    nChains = int(hmscImport.get("nChains")[0])
+    return modelDims, modelData, priorHyperparams, rLHyperparams, initParList, nChains
 
 
 def run_gibbs_sampler(
@@ -111,32 +101,38 @@ def run_gibbs_sampler(
     flag_save_postList_to_json=True,
 ):
 
-    params, nChains = load_params(init_obj_file_path)
-
-    gibbs = GibbsSampler(params=params)
-
-    ns = params["ns"]
-    nr = params["nr"]
-
-    shape_invariants = [
-        (params["Eta"], [tf.TensorShape([None, None])] * nr),
-        ((params["BetaLambda"].value)["Beta"], tf.TensorShape([None, ns])),
-        ((params["BetaLambda"].value)["Lambda"], [tf.TensorShape([None, ns])] * nr),
-        ((params["PsiDelta"].value)["Psi"], [tf.TensorShape([None, ns])] * nr),
-        ((params["PsiDelta"].value)["Delta"], [tf.TensorShape([None, 1])] * nr),
-        (params["Alpha"], [tf.TensorShape([None, 1])] * nr),
-    ]
+    modelDims, modelData, priorHyperparams, rLHyperparams, initParList, nChains = load_params(init_obj_file_path)
+    gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
+    # ns = modelDims["ns"]
+    # nr = modelDims["nr"]
+    # shape_invariants = [
+    #     (params["Eta"], [tf.TensorShape([None, None])] * nr),
+    #     ((params["BetaLambda"].value)["Beta"], tf.TensorShape([None, ns])),
+    #     ((params["BetaLambda"].value)["Lambda"], [tf.TensorShape([None, ns])] * nr),
+    #     ((params["PsiDelta"].value)["Psi"], [tf.TensorShape([None, ns])] * nr),
+    #     ((params["PsiDelta"].value)["Delta"], [tf.TensorShape([None, 1])] * nr),
+    #     (params["Alpha"], [tf.TensorShape([None, 1])] * nr),
+    # ]
 
     postList = [None] * nChains
     for chain in range(nChains):
         print("Computing chain %d" % chain)
-
-        postList[chain] = gibbs.sampling_routine(
-            num_samples,
+        
+        parSamples = gibbs.sampling_routine(
+            initParList[chain],
+            num_samples=num_samples,
             sample_burnin=sample_burnin,
             sample_thining=sample_thining,
-            shape_invariants=shape_invariants,
         )
+        postList[chain] = [None] * num_samples
+        for n in range(num_samples):
+          parSnapshot = {
+            "Beta" : parSamples[0][n],
+            "Gamma" : parSamples[1][n],
+            "V" : parSamples[2][n],
+            "sigma" : parSamples[3][n],
+          }
+          postList[chain][n] = parSnapshot
 
     if flag_save_postList_to_json:
         save_chains_postList_to_json(postList, postList_file_path, nChains)
@@ -193,13 +189,13 @@ if __name__ == "__main__":
     print("args=%s" % args)
     # print("args.samples=%s" % args.samples)
 
-    path = "/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc"
+    path = "/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/"
 
     init_obj_file_name = args.input
     postList_file_name = args.output
 
-    init_obj_file_path = path + "/examples/data/" + init_obj_file_name
-    postList_file_path = path + "/examples/data/" + postList_file_name
+    postList_file_path = os.path.join(path, "examples/data/", postList_file_name)
+    init_obj_file_path = os.path.join(path, "examples/data/", init_obj_file_name)
 
     print("Running TF Gibbs sampler:")
 
@@ -216,4 +212,4 @@ if __name__ == "__main__":
 
     elapsedTime = time.time() - startTime
 
-    print("\nTF decorated whole cycle elapsed %.1f" % elapsedTime)
+    print("\ndecorated whole cycle elapsed %.1f" % elapsedTime)

@@ -6,7 +6,7 @@ tfd = tfp.distributions
 tfm = tf.math
 
 
-def updateSigma(params, dtype=np.float64):
+def updateSigma(params, data, priorHyperparameters, dtype=np.float64):
     """Update prior(s) for whole model:
     sigma - residual variance.
 
@@ -28,26 +28,26 @@ def updateSigma(params, dtype=np.float64):
     """
 
     Z = params["Z"]
-    Beta = params["BetaLambda"]["Beta"]
+    Beta = params["Beta"]
     EtaList = params["Eta"]
-    LambdaList = params["BetaLambda"]["Lambda"]
+    LambdaList = params["Lambda"]
     sigma = params["sigma"]
 
-    Y = params["Y"]
-    X = params["X"]
-    Pi = params["Pi"]
-    distr = params["distr"]
-    aSigma = params["aSigma"]
-    bSigma = params["bSigma"]
+    Y = data["Y"]
+    X = data["X"]
+    Pi = data["Pi"]
+    distr = data["distr"]
+    aSigma = priorHyperparameters["aSigma"]
+    bSigma = priorHyperparameters["bSigma"]
 
     nr = len(EtaList)
-    indVarSigma = tf.cast(tf.equal(distr[:, 1], 1), dtype)
+    indVarSigma = tf.cast(tf.equal(distr[:,1], 1), dtype)
     LFix = tf.matmul(X, Beta)
     LRanLevelList = [None] * nr
     for r, (Eta, Lambda) in enumerate(zip(EtaList, LambdaList)):
         LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:, r]), Lambda)
 
-    L = LFix + tf.reduce_sum(LRanLevelList)
+    L = LFix + sum(LRanLevelList)
     Eps = Z - L
 
     alpha = aSigma + Y.shape[0] / 2.0

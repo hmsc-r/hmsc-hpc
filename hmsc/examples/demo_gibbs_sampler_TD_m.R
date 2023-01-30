@@ -1,29 +1,44 @@
+# library(devtools)
+# install_github("hmsc-r/HMSC")
 library(Hmsc)
 library(jsonify)
 library(vioplot)
 
-path = "/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc"
+rm(list=ls())
+# path = "/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc"
+path = file.path(utils::getSrcDirectory(function(){}), "..")
+print(dir(path))
 
-m = TD$m
-
-nChains = 4
+nChains = 41
 nSamples = 250
-transient = 125
-thin = 10
+thin = 100
+transient = nSamples*thin
 
 #
 # Generate sampled posteriors for TF initialization
 #
 
-init_obj = sampleMcmc(m, samples = 1, thin = 1,
-                      transient = 0, 
-                      nChains = nChains)
+XData = TD$X
+XData$x1 = (XData$x1-mean(XData$x1))/sqrt(var(XData$x1))
+TrData = TD$Tr
+TrData$T1 = (TrData$T1-mean(TrData$T1))/sqrt(var(TrData$T1))
+rLSample = HmscRandomLevel(units=TD$studyDesign$sample)
+m = Hmsc(Y=TD$Y, XFormula = ~x1+x2, XData = XData, studyDesign = TD$studyDesign,
+         TrFormula = ~T1+T2, TrData = TrData, distr = "probit", ranLevels=list()) #sample=rLSample
+
+init_obj = sampleMcmc(m, samples=nSamples, thin=thin,
+                      transient=transient,
+                      nChains=nChains, verbose=thin*10, engine="pass")
 
 init_file_name = "TF-init-obj.json"
 init_file_path = file.path(path, "examples/data", init_file_name)
+python_file_name = "run_gibbs_sampler.py"
+python_file_path = file.path(path, "examples", python_file_name)
+postList_file_name = "TF-postList-obj.json"
+postList_file_path = file.path(path, "examples/data", postList_file_name)
 
 write(to_json(init_obj), file = init_file_path)
-
+# aaa
 #
 # Generate sampled posteriors in R
 #
@@ -34,7 +49,7 @@ ptm <- proc.time()
 obj.R = sampleMcmc(m, samples = nSamples, 
                    transient = transient, 
                    thin = thin, 
-                   nChains = nChains, verbose = 1) #fitted by R
+                   nChains = nChains, verbose = thin*10, updater=list(Gamma2=FALSE)) #fitted by R
 
 # Stop the clock
 proc.time() - ptm
@@ -43,47 +58,40 @@ proc.time() - ptm
 # Set RStudio to TF env
 #
 
-my_conda_env_name = "tensorflow" # name of my conda TF env
+my_conda_env_name = "tf_241" # name of my conda TF env
 
 # Start one-time python setup
 # INFO. one-time steps to set python for RStudio/reticulate
 # INFO. requires a session restart for Sys.setenv() to take effect
 
-library(tidyverse)
-py_bin <- reticulate::conda_list() %>% 
-  filter(name == my_conda_env_name) %>% 
-  pull(python)
-
-Sys.setenv(RETICULATE_PYTHON = py_bin) 
+# library(tidyverse)
+# py_bin <- reticulate::conda_list() %>%
+#   filter(name == my_conda_env_name) %>%
+#   pull(python)
+# 
+# Sys.setenv(RETICULATE_PYTHON = py_bin)
 
 # End one-time python setup
 
-library(reticulate)
-use_condaenv(my_conda_env_name, required=TRUE) # activate the TF env
-repl_python()
+# library(reticulate)
+# use_condaenv(my_conda_env_name, required=TRUE) # activate the TF env
+# repl_python()
 
 #
 # Generate sampled posteriors in TF
 #
 
-python_file_name = "run_gibbs_sampler.py"
-python_file_path = file.path(path, "examples", python_file_name)
-
-postList_file_name = "TF-postList-obj.json"
-postList_file_path = file.path(path, "examples/data", postList_file_name)
-
-python_cmd = paste("python", python_file_path, 
+python_cmd = paste("python", sprintf("'%s'",python_file_path), 
                    "--samples", nSamples,
                    "--transient", transient,
                    "--thin", thin,
                    "--input", init_file_name, 
                    "--output", postList_file_name)
 
-system(paste("chmod a+x", python_file_path)) # set file permissions for shell execution
-
+system(paste("chmod a+x", sprintf("'%s'",python_file_path))) # set file permissions for shell execution
+system("python --version", wait=TRUE)
 system(python_cmd, wait=TRUE) # run TF gibbs sampler
 
-system("python --version", wait=TRUE) # run TF gibbs sampler
 
 #
 # Import TF-generated sampled posteriors as JSON in R
@@ -95,10 +103,12 @@ for (chain in seq_len(nChains)) {
   names(postList.TF[[chain]]) = NULL
 }
 
-obj.TF = init_obj
+obj.TF = obj.R
 obj.TF[["postList"]] = postList.TF
 
 obj.TF$samples = nSamples
+obj.TF$thin = thin
+obj.TF$transient = transient
 
 #
 # Rescaling Beta/Gamma; copied from combineParameters.R; need to revisit this section
@@ -171,12 +181,29 @@ for (chain in seq_len(nChains)) {
 obj.R.TF = obj.R
 obj.R.TF$postList = c(obj.R$postList,obj.TF$postList)
 
+# for(i in 1:length(obj.TF$postList)){
+#   for(j in 1:length(obj.TF$postList[[i]])){
+#     obj.TF$postList[[i]][[j]] = obj.R$postList[[i]][[j]]
+#   }
+# }
+
 obj.list = list(R=obj.R,TF=obj.TF,R.TF=obj.R.TF)
 
 #beta and gamma
 for(variable in 1:2){
   for(i in 1:3){
-    mpost = convertToCodaObject(obj.list[[i]], Rho=FALSE)
+    mpost = convertToCodaObject(obj.list[[i]],
+                                Beta = TRUE,
+                                Gamma = TRUE,
+                                V = TRUE,
+                                Sigma = TRUE,
+                                Rho = FALSE,
+                                Eta = FALSE,
+                                Lambda = FALSE,
+                                Alpha = FALSE,
+                                Omega = FALSE,
+                                Psi = FALSE,
+                                Delta = FALSE)
     mpost.var = if(variable==1) {mpost$Beta} else {mpost$Gamma} 
     psrf = gelman.diag(mpost.var,multivariate=FALSE)$psrf
     if(i == 1) {ma = psrf[,1]} else {ma = cbind(ma,psrf[,1])}

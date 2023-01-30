@@ -4,7 +4,7 @@ import tensorflow_probability as tfp
 tfd = tfp.distributions
 tfm, tfr = tf.math, tf.random
 
-def updateZ(params, dtype=np.float64):
+def updateZ(params, data, dtype=np.float64):
     """Update conditional updater(s)
     Z - latent variable.
         
@@ -19,18 +19,18 @@ def updateZ(params, dtype=np.float64):
         Y - community data
         X - environmental data
         Pi - study design
-        distr - ??
+        distr - matrix regulating observation models per outcome
     """
 
-    Beta = params["BetaLambda"]["Beta"]
+    Beta = params["Beta"]
     EtaList = params["Eta"]
-    LambdaList = params["BetaLambda"]["Lambda"]
+    LambdaList = params["Lambda"]
     sigma = params["sigma"]
 
-    Y = params["Y"]
-    X = params["X"]
-    Pi = params["Pi"]
-    distr = params["distr"]
+    Y = data["Y"]
+    X = data["X"]
+    Pi = data["Pi"]
+    distr = data["distr"]
 
     ny, ns = Y.shape
     nr = len(EtaList)
@@ -42,38 +42,25 @@ def updateZ(params, dtype=np.float64):
     Yo = tfm.logical_not(tfm.is_nan(Y))
 
     # no data augmentation for normal model in columns with continious unbounded data
-    indColNormal = tf.squeeze(tf.where(distr[:, 0] == 1), -1)
+    indColNormal = tf.squeeze(tf.where(distr[:,0] == 1), -1)
     YN = tf.gather(Y, indColNormal, axis=-1)
-    YoN = tf.gather(Yo, indColNormal, axis=-1)
+    YoN = tf.cast(tf.gather(Yo, indColNormal, axis=-1), dtype)
     LN = tf.gather(L, indColNormal, axis=-1)
     sigmaN = tf.gather(sigma, indColNormal)
-    ZN = tf.cast(YoN, dtype) * YN + (1 - tf.cast(YoN, dtype)) * (
-        LN + tfr.normal([ny, tf.size(indColNormal)], dtype=dtype) * sigmaN
-    )
+    ZN = YoN * YN + (1-YoN) * (LN + sigmaN*tfr.normal([ny, tf.size(indColNormal)], dtype=dtype))
 
     # Albert and Chib (1993) data augemntation for probit model in columns with binary data
-    indColProbit = tf.squeeze(tf.where(distr[:, 0] == 2), -1)
+    indColProbit = tf.squeeze(tf.where(distr[:,0] == 2), -1)
     YP = tf.gather(Y, indColProbit, axis=-1)
     YoP = tf.gather(Yo, indColProbit, axis=-1)
+    YmP = tfm.logical_not(YoP)
     LP = tf.gather(L, indColProbit, axis=-1)
     sigmaP = tf.gather(sigma, indColProbit)
-    low = tf.where(
-        tfm.logical_or(YP == 0, tfm.logical_not(YoP)),
-        tf.cast(-np.inf, dtype),
-        tf.zeros_like(YP),
-    )
-    high = tf.where(
-        tfm.logical_or(YP == 1, tfm.logical_not(YoP)),
-        tf.cast(np.inf, dtype),
-        tf.zeros_like(YP),
-    )
-    ZP = tfd.TruncatedNormal(
-        loc=LP, scale=sigmaP, low=low, high=high, name="TruncatedNormal"
-    ).sample()
+    low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(-np.inf, dtype), tf.zeros_like(YP))
+    high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(np.inf, dtype), tf.zeros_like(YP))
+    ZP = tfd.TruncatedNormal(loc=LP, scale=sigmaP, low=low, high=high).sample()
 
     ZStack = tf.concat([ZN, ZP], -1)
     indColStack = tf.concat([indColNormal, indColProbit], 0)
-    ZNew = tf.transpose(
-        tf.scatter_nd(indColStack[:, None], tf.transpose(ZStack), Y.shape[::-1])
-    )
+    ZNew = tf.transpose(tf.scatter_nd(indColStack[:,None], tf.transpose(ZStack), Y.shape[::-1]))
     return ZNew
