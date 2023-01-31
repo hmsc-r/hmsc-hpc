@@ -8,7 +8,8 @@ import sys
 import argparse
 import os
 
-sys.path.append("/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/../")
+#sys.path.append("/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/../")
+sys.path.append("/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc/../")
 
 from random import randint, sample
 from datetime import datetime
@@ -78,7 +79,7 @@ def load_params(file_path, dtype=np.float64):
     modelDims = load_model_dims(hmscModel)
     modelData = load_model_data(hmscModel)
     priorHyperparams = load_prior_hyperparams(hmscModel)
-    rLHyperparams = load_random_level_hyperparams(hmscModel)
+    rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"))
     initParList = init_params(hmscImport.get("initParList"))
 
     # params = {
@@ -103,6 +104,7 @@ def run_gibbs_sampler(
 
     modelDims, modelData, priorHyperparams, rLHyperparams, initParList, nChains = load_params(init_obj_file_path)
     gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
+    
     # ns = modelDims["ns"]
     # nr = modelDims["nr"]
     # shape_invariants = [
@@ -131,9 +133,14 @@ def run_gibbs_sampler(
             "Gamma" : parSamples[1][n],
             "V" : parSamples[2][n],
             "sigma" : parSamples[3][n],
+            "Alpha" : parSamples[4][n],
+            "Psi" : parSamples[5][n],
+            "Delta" : parSamples[6][n],
+            "Eta" : parSamples[7][n],
+            "Lambda" : parSamples[8][n],
           }
           postList[chain][n] = parSnapshot
-
+    
     if flag_save_postList_to_json:
         save_chains_postList_to_json(postList, postList_file_path, nChains)
 
@@ -177,6 +184,13 @@ if __name__ == "__main__":
         help="output JSON file with recorded posterier samples",
     )
     argParser.add_argument(
+        "-p",
+        "--path",
+        type=str,
+        default="/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc/",
+        help="path to hmsc-hpc source code",
+    )
+    argParser.add_argument(
         "-v",
         "--verbose",
         type=bool,
@@ -189,7 +203,7 @@ if __name__ == "__main__":
     print("args=%s" % args)
     # print("args.samples=%s" % args.samples)
 
-    path = "/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/"
+    path = args.path
 
     init_obj_file_name = args.input
     postList_file_name = args.output

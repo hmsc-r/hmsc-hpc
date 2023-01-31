@@ -5,11 +5,11 @@ library(jsonify)
 library(vioplot)
 
 rm(list=ls())
-# path = "/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc"
+#path = "/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc"
 path = file.path(utils::getSrcDirectory(function(){}), "..")
 print(dir(path))
 
-nChains = 41
+nChains = 4 #41
 nSamples = 250
 thin = 100
 transient = nSamples*thin
@@ -38,7 +38,7 @@ postList_file_name = "TF-postList-obj.json"
 postList_file_path = file.path(path, "examples/data", postList_file_name)
 
 write(to_json(init_obj), file = init_file_path)
-# aaa
+
 #
 # Generate sampled posteriors in R
 #
@@ -58,7 +58,8 @@ proc.time() - ptm
 # Set RStudio to TF env
 #
 
-my_conda_env_name = "tf_241" # name of my conda TF env
+my_conda_env_name = "tensorflow" # name of my conda TF env
+#my_conda_env_name = "tf_241" # name of my conda TF env
 
 # Start one-time python setup
 # INFO. one-time steps to set python for RStudio/reticulate
@@ -86,12 +87,12 @@ python_cmd = paste("python", sprintf("'%s'",python_file_path),
                    "--transient", transient,
                    "--thin", thin,
                    "--input", init_file_name, 
-                   "--output", postList_file_name)
+                   "--output", postList_file_name,
+                   "--path", path)
 
 system(paste("chmod a+x", sprintf("'%s'",python_file_path))) # set file permissions for shell execution
 system("python --version", wait=TRUE)
 system(python_cmd, wait=TRUE) # run TF gibbs sampler
-
 
 #
 # Import TF-generated sampled posteriors as JSON in R
@@ -101,6 +102,18 @@ postList.TF <- from_json(postList_file_path)
 names(postList.TF) = NULL
 for (chain in seq_len(nChains)) {
   names(postList.TF[[chain]]) = NULL
+}
+
+# remove zero paddings to allow tensor array writes
+nr = init_obj[["hM"]]$nr
+for (chain in seq_len(nChains)) {
+  for (sample in seq_len(nSamples)) {
+    for (r in seq_len(nr)) {
+      np = init_obj[["hM"]][["np"]][[r]]
+      Eta = postList.TF[[chain]][[sample]]['Eta'][[1]][[r]][1:np,]
+      postList.TF[[chain]][[sample]]['Eta'][[1]][[r]] = Eta
+    }
+  }
 }
 
 obj.TF = obj.R
@@ -212,6 +225,7 @@ for(variable in 1:2){
   vioplot(ma,names=names(obj.list),ylim=c(0,max(ma)),main=c("beta","gamma")[variable])
   vioplot(ma,names=names(obj.list),ylim=c(0.9,1.1),main=c("beta","gamma")[variable])
 }
+
 
 #omega
 maxOmega = 100 #number of species pairs to be subsampled

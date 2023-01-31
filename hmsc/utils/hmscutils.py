@@ -44,12 +44,14 @@ def load_model_dims(hmscModel):
     return modelDims
 
 
-def load_random_level_hyperparams(hmscModel):
+def load_random_level_hyperparams(hmscModel, dataParList):
 
     nr = int(np.squeeze(hmscModel.get("nr")))
+    npVec = (np.squeeze(hmscModel.get("np"))).astype(int)
+    
     rLParams = [None] * nr
     for r in range(nr):
-      rLName = hmscModel.get("rL").keys()[r]
+      rLName = list(hmscModel.get("rL").keys())[r]
       rLPar = {}
       rLPar["nu"] = hmscModel.get("rL")[rLName]["nu"][0]
       rLPar["a1"] = hmscModel.get("rL")[rLName]["a1"][0]
@@ -60,12 +62,12 @@ def load_random_level_hyperparams(hmscModel):
       rLPar["nfMax"] = int(hmscModel.get("rL")[rLName]["nfMax"][0])
       rLPar["sDim"] = int(hmscModel.get("rL")[rLName]["sDim"][0])
       rLPar["spatialMethod"] = hmscModel.get("rL")[rLName]["spatialMethod"]
-      rLPar["alphapw"] = hmscModel.get("rL")[rLName]["alphapw"]
       if rLPar["sDim"] > 0:
-        rLPar["Wg"] = hmscModel.get("rL")[rLName]["Wg"]
-        rLPar["iWg"] = hmscModel.get("rL")[rLName]["iWg"]
-        rLPar["LiWg"] = hmscModel.get("rL")[rLName]["LiWg"]
-        rLPar["detWg"] = hmscModel.get("rL")[rLName]["detWg"]
+        rLPar["alphapw"] = np.asarray(hmscModel.get("rL")[rLName]["alphapw"])
+        rLPar["Wg"] = np.reshape(dataParList["rLPar"][r]["Wg"], (101, npVec[r], npVec[r]))
+        rLPar["iWg"] = np.reshape(dataParList["rLPar"][r]["iWg"], (101, npVec[r], npVec[r]))
+        rLPar["RiWg"] = np.reshape(dataParList["rLPar"][r]["RiWg"], (101, npVec[r], npVec[r]))
+        rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
       rLParams[r] = rLPar
 
     return rLParams
@@ -104,7 +106,7 @@ def init_params(importedInitParList, dtype=np.float64):
       PsiList = [tf.constant(Psi, dtype=dtype) for Psi in importedInitPar["Psi"]]
       DeltaList = [tf.constant(Delta, dtype=dtype) for Delta in importedInitPar["Delta"]]
       EtaList = [tf.constant(Eta, dtype=dtype) for Eta in importedInitPar["Eta"]]
-      AlphaList = [tf.constant(Alpha, dtype=dtype) for Alpha in importedInitPar["Alpha"]]
+      AlphaList = [tf.expand_dims(tf.constant(Alpha, dtype=dtype), 1) for Alpha in importedInitPar["Alpha"]]
       initPar = {}
       initPar["Z"] = Z
       initPar["Beta"] = Beta

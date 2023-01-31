@@ -6,7 +6,7 @@ tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
 from hmsc.utils.tflautils import kron, scipy_cholesky
 
 
-def updateEta(params, dtype=np.float64):
+def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     """Update conditional updater(s):
     Z - site loadings.
 
@@ -25,23 +25,17 @@ def updateEta(params, dtype=np.float64):
         iWg - ??
         sDim - ??
     """
-
-    sigma = params["sigma"]
-
-    sDim = params["sDim"]
-    spatialMethod = params["spatialMethod"]
-
-    Pi = params["Pi"]
-
     Z = params["Z"]
-    Beta = params["BetaLambda"]["Beta"]
+    sigma = params["sigma"]
+    Beta = params["Beta"]
     EtaList = params["Eta"]
-    LambdaList = params["BetaLambda"]["Lambda"]
+    LambdaList = params["Lambda"]
     AlphaList = params["Alpha"]
-    X = params["X"]
-    iWgList = params["iWg"]
 
-    npVec = tf.reduce_max(Pi, 0) + 1
+    Pi = data["Pi"]
+    X = data["X"]
+
+    npVec = modelDims["np"]
 
     ny, _ = X.shape
     nr = len(LambdaList)
@@ -58,9 +52,10 @@ def updateEta(params, dtype=np.float64):
 
     EtaListNew = [None] * nr
 
-    for r, (Eta, Lambda, Alpha, iWg) in enumerate(
-        zip(EtaList, LambdaList, AlphaList, iWgList)
+    for r, (Eta, Lambda, Alpha, rLPar) in enumerate(
+        zip(EtaList, LambdaList, AlphaList, rLHyperparams)
     ):
+        sDim = rLPar["sDim"]
 
         S = (
             Z
@@ -82,10 +77,12 @@ def updateEta(params, dtype=np.float64):
             tf.stack([npVec[r], nf]),
         )
 
-        if sDim[r] > 0:
-            if spatialMethod[r] == "Full":
-                Eta = modelSpatialFull(Eta, LamInvSigLam, mu0, Alpha, iWg, npVec[r], nf)
-            elif spatialMethod[r] == "NNGP":
+        if sDim > 0:
+
+            spatialMethod = rLPar["spatialMethod"]
+            iWg = tf.cast(rLPar["iWg"], dtype=dtype)
+
+            if spatialMethod == "NNGP":
                 Eta = modelSpatialNNGP(
                     Eta,
                     LamInvSigLam,
@@ -99,10 +96,10 @@ def updateEta(params, dtype=np.float64):
                     nf,
                     ny,
                 )
-            elif spatialMethod[r] == "GPP":
+            elif spatialMethod == "GPP":
                 raise NotImplementedError
             else:
-                raise NotImplementedError
+                Eta = modelSpatialFull(Eta, LamInvSigLam, mu0, Alpha, iWg, npVec[r], nf)
 
         else:
             Eta = modelNonSpatial(Eta, LamInvSigLam, mu0, npVec[r], nf)
@@ -117,7 +114,7 @@ def updateEta(params, dtype=np.float64):
 def modelSpatialFull(Eta, LamInvSigLam, mu0, Alpha, iWg, np, nf, dtype=np.float64):
     iWs = tf.reshape(
         tf.transpose(
-            tfla.diag(tf.transpose(tf.gather(iWg, tf.squeeze(Alpha, -1)), [1, 2, 0])),
+            tfla.diag(tf.transpose(tf.gather(iWg, tf.cast(tf.squeeze(Alpha), dtype=tf.int64)), [1, 2, 0])),
             [2, 0, 3, 1],
         ),
         [nf * np, nf * np],
