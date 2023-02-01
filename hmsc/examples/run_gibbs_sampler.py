@@ -8,8 +8,8 @@ import sys
 import argparse
 import os
 
-#sys.path.append("/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/../")
-sys.path.append("/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc/../")
+sys.path.append("/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/../")
+#sys.path.append("/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc/../")
 
 from random import randint, sample
 from datetime import datetime
@@ -82,13 +82,6 @@ def load_params(file_path, dtype=np.float64):
     rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"))
     initParList = init_params(hmscImport.get("initParList"))
 
-    # params = {
-    #     **samplerParams,
-    #     **priorHyperparams,
-    #     **rLHyperParams,
-    #     **modelData,
-    #     **modelDims,
-    # }
     nChains = int(hmscImport.get("nChains")[0])
     return modelDims, modelData, priorHyperparams, rLHyperparams, initParList, nChains
 
@@ -97,6 +90,7 @@ def run_gibbs_sampler(
     num_samples,
     sample_thining,
     sample_burnin,
+    verbose,
     init_obj_file_path,
     postList_file_path,
     flag_save_postList_to_json=True,
@@ -105,17 +99,6 @@ def run_gibbs_sampler(
     modelDims, modelData, priorHyperparams, rLHyperparams, initParList, nChains = load_params(init_obj_file_path)
     gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
     
-    # ns = modelDims["ns"]
-    # nr = modelDims["nr"]
-    # shape_invariants = [
-    #     (params["Eta"], [tf.TensorShape([None, None])] * nr),
-    #     ((params["BetaLambda"].value)["Beta"], tf.TensorShape([None, ns])),
-    #     ((params["BetaLambda"].value)["Lambda"], [tf.TensorShape([None, ns])] * nr),
-    #     ((params["PsiDelta"].value)["Psi"], [tf.TensorShape([None, ns])] * nr),
-    #     ((params["PsiDelta"].value)["Delta"], [tf.TensorShape([None, 1])] * nr),
-    #     (params["Alpha"], [tf.TensorShape([None, 1])] * nr),
-    # ]
-
     postList = [None] * nChains
     for chain in range(nChains):
         print("Computing chain %d" % chain)
@@ -125,19 +108,20 @@ def run_gibbs_sampler(
             num_samples=num_samples,
             sample_burnin=sample_burnin,
             sample_thining=sample_thining,
+            verbose=verbose,
         )
         postList[chain] = [None] * num_samples
         for n in range(num_samples):
           parSnapshot = {
-            "Beta" : parSamples[0][n],
-            "Gamma" : parSamples[1][n],
-            "V" : parSamples[2][n],
-            "sigma" : parSamples[3][n],
-            "Alpha" : parSamples[4][n],
-            "Psi" : parSamples[5][n],
-            "Delta" : parSamples[6][n],
-            "Eta" : parSamples[7][n],
-            "Lambda" : parSamples[8][n],
+            "Beta" : parSamples["Beta"][n],
+            "Gamma" : parSamples["Gamma"][n],
+            "V" : parSamples["V"][n],
+            "sigma" : parSamples["sigma"][n],
+            "Lambda" : [samples[n] for samples in parSamples["Lambda"]],
+            "Psi" : [samples[n] for samples in parSamples["Psi"]],
+            "Delta" : [samples[n] for samples in parSamples["Delta"]],
+            "Eta" : [samples[n] for samples in parSamples["Eta"]],
+            "Alpha" : [samples[n] for samples in parSamples["Alpha"]],
           }
           postList[chain][n] = parSnapshot
     
@@ -193,8 +177,8 @@ if __name__ == "__main__":
     argParser.add_argument(
         "-v",
         "--verbose",
-        type=bool,
-        default=False,
+        type=int,
+        default=1,
         help="print out information meassages and progress status",
     )
 
@@ -219,6 +203,7 @@ if __name__ == "__main__":
         num_samples=args.samples,
         sample_thining=args.thin,
         sample_burnin=args.transient,
+        verbose=args.verbose,
         init_obj_file_path=init_obj_file_path,
         postList_file_path=postList_file_path,
         flag_save_postList_to_json=True,
@@ -227,3 +212,8 @@ if __name__ == "__main__":
     elapsedTime = time.time() - startTime
 
     print("\ndecorated whole cycle elapsed %.1f" % elapsedTime)
+
+
+# runfile('/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples/run_gibbs_sampler.py', 
+#         args="--samples 250 --transient 25 --thin 1 --verbose 100 --input TF-init-obj.json --output TF-postList-obj.json --path '/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples/..'", 
+#         wdir='/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples')

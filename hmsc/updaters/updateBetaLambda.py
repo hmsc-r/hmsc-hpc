@@ -66,8 +66,8 @@ def updateBetaLambda(params, data, dtype=np.float64):
     
     if nr > 0:
       BetaLambdaList = tf.split(BetaLambda, tf.concat([tf.constant([nc], tf.int32), nfVec], -1), axis=-2)
-      BetaNew, LambdaListNew = BetaLambdaList[0], BetaLambdaList[1:]
+      BetaNew, LambdaListNew = tf.ensure_shape(BetaLambdaList[0], [nc,ns]), BetaLambdaList[1:]
     else:
       BetaNew, LambdaListNew = BetaLambda, []
 
-    return {"Beta": BetaNew, "Lambda": LambdaListNew}
+    return BetaNew, LambdaListNew

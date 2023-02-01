@@ -37,7 +37,7 @@ def updateZ(params, data, dtype=np.float64):
     LFix = tf.matmul(X, Beta)
     LRanLevelList = [None] * nr
     for r, (Eta, Lambda) in enumerate(zip(EtaList, LambdaList)):
-        LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:, r]), Lambda)
+        LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
     L = LFix + sum(LRanLevelList)
     Yo = tfm.logical_not(tfm.is_nan(Y))
 
@@ -62,5 +62,6 @@ def updateZ(params, data, dtype=np.float64):
 
     ZStack = tf.concat([ZN, ZP], -1)
     indColStack = tf.concat([indColNormal, indColProbit], 0)
-    ZNew = tf.transpose(tf.scatter_nd(indColStack[:,None], tf.transpose(ZStack), Y.shape[::-1]))
+    # ZNew = tf.transpose(tf.scatter_nd(indColStack[:,None], tf.transpose(ZStack), Y.shape[::-1]))
+    ZNew = tf.gather(ZStack, tf.argsort(indColStack), axis=-1)
     return ZNew

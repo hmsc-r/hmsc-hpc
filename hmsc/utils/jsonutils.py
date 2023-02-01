@@ -18,38 +18,20 @@ def save_postList_to_json(postList, postList_file_path, chain):
 
     for i in range(len(postList)):
         sample_data = {}
-        par = postList[i]
+        params = postList[i]
         
-        sample_data["Beta"] = par["Beta"].numpy().tolist()
-        sample_data["Gamma"] = par["Gamma"].numpy().tolist()
-        sample_data["V"] = par["V"].numpy().tolist()
-        sample_data["sigma"] = par["sigma"].numpy().tolist()
+        sample_data["Beta"] = params["Beta"].numpy().tolist()
+        sample_data["Gamma"] = params["Gamma"].numpy().tolist()
+        sample_data["V"] = params["V"].numpy().tolist()
+        sample_data["sigma"] = params["sigma"].numpy().tolist()
         
-        sample_data["Lambda"] = [
-            postList[i]["Lambda"][j].numpy().tolist()
-            for j in range(len(postList[i]["Lambda"]))
-        ]
-        sample_data["Eta"] = [
-            postList[i]["Eta"][j].numpy().tolist()
-            for j in range(len(postList[i]["Eta"]))
-        ]
-        sample_data["Psi"] = [
-            postList[i]["Psi"][j].numpy().tolist()
-            for j in range(len(postList[i]["Psi"]))
-        ]
-        sample_data["Delta"] = [
-            postList[i]["Delta"][j].numpy().tolist()
-            for j in range(len(postList[i]["Delta"]))
-        ]
+        sample_data["Lambda"] = [par.numpy().tolist() for par in params["Lambda"]]
+        sample_data["Psi"] = [par.numpy().tolist() for par in params["Psi"]]
+        sample_data["Delta"] = [par.numpy().tolist() for par in params["Delta"]]
+        sample_data["Eta"] = [par.numpy().tolist() for par in params["Eta"]]
+        sample_data["Alpha"] = [par.numpy().tolist() for par in params["Alpha"]]
 
-        sample_data["Alpha"] = [
-            postList[i]["Alpha"][j].numpy().tolist()
-            for j in range(len(postList[i]["Alpha"]))
-        ]
-
-        #sample_data["Lambda"] = sample_data["Eta"] = sample_data["Psi"] = sample_data["Delta"] = sample_data["Alpha"] = None
         sample_data["wRRR"] = sample_data["rho"] = sample_data["PsiRRR"] = sample_data["DeltaRRR"] = None
-
         json_data[i] = sample_data
 
     postList_file_path = (

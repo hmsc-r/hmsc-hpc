@@ -73,11 +73,6 @@ class GibbsSampler(tf.Module):
         self.priorHyperparams = priorHyperparams
         self.rLHyperparams = rLHyperparams
 
-    # def single_sample(self, param_name):
-    #     value = self.params[param_name].sample(self.params)
-    #     self.params[param_name].value = value
-    #     return value
-
     @staticmethod
     def printFunction(i, samInd):
         outStr = "iteration " + str(i.numpy())
@@ -100,24 +95,40 @@ class GibbsSampler(tf.Module):
         if print_retrace_flag:
             print("retracing")
 
+        ns = self.modelDims["ns"]
+        nc = self.modelDims["nc"]
+        nr = self.modelDims["nr"]
+        npVec = self.modelDims["np"]
+
         params = paramsTmp.copy()
-        # samplesPars = {}
-        # for parName in params.keys:
-        #   samplesPars[parName] = tf.TensorArray(params.dtype, size=num_samples)
-        mcmcSamples = [tf.TensorArray(tf.float64, size=num_samples) for i in range(9)]
-        # samplesGamma = tf.TensorArray(tf.float64, size=num_samples)
-        # mcmcSamples = []
+        parNamesFix = ["Beta","Gamma","V","sigma"]
+        parNamesRan = ["Lambda","Psi","Delta","Eta","Alpha"]
+        
+        # mcmcSamples = {}
+        # for parName in parNamesFix:
+        #   mcmcSamples[parName] = tf.TensorArray(params[parName].dtype, size=num_samples, name="mcmcSamples%s"%parName)
+        # for parName in parNamesRan:
+        #   mcmcSamples[parName] = [tf.TensorArray(params[parName][r].dtype, size=num_samples, name="mcmcSamples%s_%d"%(parName, r)) for r in range(nr)]          
+        # print(mcmcSamples)
+        
+        mcmcSamplesBeta = tf.TensorArray(params["Beta"].dtype, size=num_samples)
+        mcmcSamplesGamma = tf.TensorArray(params["Gamma"].dtype, size=num_samples)
+        mcmcSamplesV = tf.TensorArray(params["V"].dtype, size=num_samples)
+        mcmcSamplesSigma = tf.TensorArray(params["sigma"].dtype, size=num_samples)
+        mcmcSamplesLambda = [tf.TensorArray(params["Lambda"][r].dtype, size=num_samples) for r in range(nr)]
+        mcmcSamplesPsi = [tf.TensorArray(params["Psi"][r].dtype, size=num_samples) for r in range(nr)]
+        mcmcSamplesDelta = [tf.TensorArray(params["Delta"][r].dtype, size=num_samples) for r in range(nr)]
+        mcmcSamplesEta = [tf.TensorArray(params["Eta"][r].dtype, size=num_samples) for r in range(nr)]
+        mcmcSamplesAlpha = [tf.TensorArray(params["Alpha"][r].dtype, size=num_samples) for r in range(nr)]
+
+        
         step_num = sample_burnin + num_samples * sample_thining
         print("Iterations %d" % step_num)
-
-        _, ns = self.modelData["Y"].shape
-        nr = len(params["Lambda"])
-
         for n in tf.range(step_num):
             tf.autograph.experimental.set_loop_options(
                 shape_invariants=[
-                    (params["Eta"], [tf.TensorShape([None, None])] * nr),
-                    (params["Beta"], tf.TensorShape([None, ns])),
+                    (params["Eta"], [tf.TensorShape([npVec[r], None]) for r in range(nr)]),
+                    (params["Beta"], tf.TensorShape([nc, ns])),
                     (params["Lambda"], [tf.TensorShape([None, ns])] * nr),
                     (params["Psi"], [tf.TensorShape([None, ns])] * nr),
                     (params["Delta"], [tf.TensorShape([None, 1])] * nr),
@@ -125,61 +136,55 @@ class GibbsSampler(tf.Module):
                 ]
             )
 
-            # tf.autograph.experimental.set_loop_options(
-            #     shape_invariants=shape_invariants
-            # )
-            # print("Iteration %d of %d" % (n, step_num))
-
             params["Z"] = updateZ(params, self.modelData)
-            BetaLambda = updateBetaLambda(params, self.modelData)
-            params["Beta"], params["Lambda"] = BetaLambda["Beta"], BetaLambda["Lambda"]
-            GammaV = updateGammaV(params, self.modelData, self.priorHyperparams)
-            params["Gamma"], params["V"] = GammaV["Gamma"], GammaV["V"]
+            params["Beta"], params["Lambda"] = updateBetaLambda(params, self.modelData)
+            params["Gamma"], params["V"] = updateGammaV(params, self.modelData, self.priorHyperparams)
             params["sigma"] = updateSigma(params, self.modelData, self.priorHyperparams)
-            PsiDelta = updateLambdaPriors(params, self.rLHyperparams)
-            params["Psi"], params["Delta"] = PsiDelta["Psi"], PsiDelta["Delta"]
-            params["Eta"] = updateEta(
-                params, self.modelData, self.modelDims, self.rLHyperparams
-            )
+            params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
+            params["Eta"] = updateEta(params, self.modelData, self.modelDims, self.rLHyperparams)
             params["Alpha"] = updateAlpha(params, self.rLHyperparams)
             
-            EtaLambdaPsiDelta = updateNf(params, self.rLHyperparams)
-            params["Eta"], params["Lambda"], params["Psi"], params["Delta"] = EtaLambdaPsiDelta["Eta"], EtaLambdaPsiDelta["Lambda"], EtaLambdaPsiDelta["Psi"], EtaLambdaPsiDelta["Delta"]
+            if n < sample_burnin:
+                params["Lambda"], params["Psi"], params["Delta"], params["Eta"] = updateNf(params, self.rLHyperparams, n)
 
             samInd = tf.cast((n - sample_burnin + 1) / sample_thining - 1, tf.int32)
             if (n + 1) % verbose == 0:
                 tf.py_function(
                     func=GibbsSampler.printFunction, inp=[n, samInd], Tout=[]
                 )
-            if (n >= sample_burnin) & ((n - sample_burnin + 1) % sample_thining == 0):
-                # mcmcSnapshot = {
-                #   "Beta" : params["Beta"],
-                #   "Gamma" : params["Gamma"],
-                #   "V" : params["V"],
-                #   "sigma" : params["sigma"],
-                # }
-                # mcmcSamples.append(mcmcSnapshot)
+            if (n >= sample_burnin) & ((n - sample_burnin + 1) % sample_thining == 0):                
+                # for parName in parNamesFix:
+                #   mcmcSamples[parName] = mcmcSamples[parName].write(samInd, params[parName])
+                # for parName in parNamesRan:
+                #   for r in range(nr):
+                #     mcmcSamples[parName][r] = mcmcSamples[parName][r].write(samInd, params[parName][r])
+                mcmcSamplesBeta = mcmcSamplesBeta.write(samInd, params["Beta"])
+                mcmcSamplesGamma = mcmcSamplesGamma.write(samInd, params["Gamma"])
+                mcmcSamplesV = mcmcSamplesV.write(samInd, params["V"])
+                mcmcSamplesSigma = mcmcSamplesSigma.write(samInd, params["sigma"])
+                mcmcSamplesLambda = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesLambda, params["Lambda"])]
+                mcmcSamplesPsi = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesPsi, params["Psi"])]
+                mcmcSamplesDelta = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesDelta, params["Delta"])]
+                mcmcSamplesEta = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesEta, params["Eta"])]
+                mcmcSamplesAlpha = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesAlpha, params["Alpha"])]
 
-                npVec = self.modelDims["np"]
-                if npVec is None:
-                    paddedEtaList = params["Eta"]
-                else:
-                    paddedEtaList = [tf.pad(Eta, paddings=tf.constant([[0, (np.max(npVec) - Eta.shape[0])], [0, 0]]), mode="CONSTANT") for Eta in params["Eta"]]
-
-                mcmcSamples[0] = mcmcSamples[0].write(samInd, params["Beta"])
-                mcmcSamples[1] = mcmcSamples[1].write(samInd, params["Gamma"])
-                mcmcSamples[2] = mcmcSamples[2].write(samInd, params["V"])
-                mcmcSamples[3] = mcmcSamples[3].write(samInd, params["sigma"])
-                mcmcSamples[4] = mcmcSamples[4].write(samInd, params["Alpha"])
-                mcmcSamples[5] = mcmcSamples[5].write(samInd, params["Psi"])
-                mcmcSamples[6] = mcmcSamples[6].write(samInd, params["Delta"])
-                mcmcSamples[7] = mcmcSamples[7].write(samInd, paddedEtaList)
-                mcmcSamples[8] = mcmcSamples[8].write(samInd, params["Lambda"])
-                
-
-                # for parInd, parName in enumerate(["Beta", "Gamma", "V", "sigma"]): # for unclear reason this cycle does not work...
-                #   mcmcSamples[parInd] = mcmcSamples[parInd].write(samInd, params[parName])
 
         print("Completed iterations %d" % step_num)
-        samples = [samples.stack() for samples in mcmcSamples]
+        samples = {}
+        # for parName in parNamesFix:
+        #   samples[parName] = mcmcSamples[parName].stack()
+        # for parName in parNamesRan:
+        #   samples[parName] = [None] * nr
+        #   for r in range(nr):
+        #     mcmcSamples[parName][r] = mcmcSamples[parName][r].stack()
+        samples["Beta"] = mcmcSamplesBeta.stack()
+        samples["Gamma"] = mcmcSamplesGamma.stack()
+        samples["V"] = mcmcSamplesV.stack()
+        samples["sigma"] = mcmcSamplesSigma.stack()
+        samples["Lambda"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesLambda]
+        samples["Psi"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesPsi]
+        samples["Delta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesDelta]
+        samples["Eta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesEta]
+        samples["Alpha"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesAlpha]
+
         return samples

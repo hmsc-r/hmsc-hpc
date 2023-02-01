@@ -4,7 +4,8 @@ import tensorflow as tf
 tfm, tfr = tf.math, tf.random
 
 
-def updateNf(params, rLHyperparams, dtype=np.float64):
+def updateNf(params, rLHyperparams, iter, dtype=np.float64):
+#def updateNf_ml(EtaList, LambdaList, PsiList, DeltaList, iter, rLPar, dtype=np.float64):
     """Update latent factors:
     Eta - site loadings,
     Lambda - species loadings,
@@ -27,13 +28,10 @@ def updateNf(params, rLHyperparams, dtype=np.float64):
         iter -
     """
 
-    EtaList = params["Eta"]
     LambdaList = params["Lambda"]
     PsiList = params["Psi"]
     DeltaList = params["Delta"]
-
-    # iter ???
-    iter = 1
+    EtaList = params["Eta"]
 
     c0 = 1
     c1 = 0.0005
@@ -43,15 +41,13 @@ def updateNf(params, rLHyperparams, dtype=np.float64):
 
     nr = len(LambdaList)
     EtaNew, LambdaNew, PsiNew, DeltaNew = [[None] * nr for i in range(4)]
-    for r, (Eta, Lambda, Psi, Delta, rLPar) in enumerate(
-        zip(EtaList, LambdaList, PsiList, DeltaList, rLHyperparams)
-    ):
+    for r, (Eta, Lambda, Psi, Delta, rLPar) in enumerate(zip(EtaList, LambdaList, PsiList, DeltaList, rLHyperparams)):
 
         nu = rLPar["nu"]
         a2 = rLPar["a2"]
         b2 = rLPar["b2"]
-        nfMin = rLPar["nfMin"]
-        nfMax = rLPar["nfMax"]
+        nfMin = tf.cast(rLPar["nfMin"], tf.int32)
+        nfMax = tf.cast(rLPar["nfMax"], tf.int32)
 
         if tfr.uniform([], dtype=dtype) < prob:
             nf = tf.shape(Lambda)[0]
@@ -64,7 +60,7 @@ def updateNf(params, rLHyperparams, dtype=np.float64):
             numRedundant = tf.reduce_sum(tf.cast(indRedundant, dtype=dtype))
 
             if (
-                nf < tf.cast(nfMax, tf.int32) and iter > 20 and numRedundant == 0
+                nf < nfMax and iter > 20 and numRedundant == 0
             ):  # and tf.reduce_all(smallLoadingProp < 0.995):
                 EtaNew[r] = tf.concat([Eta, tfr.normal([np, 1], dtype=dtype)], axis=1)
                 LambdaNew[r] = tf.concat(
@@ -76,7 +72,7 @@ def updateNf(params, rLHyperparams, dtype=np.float64):
                 DeltaNew[r] = tf.concat(
                     [Delta, tfr.gamma([1, 1], a2, b2, dtype=dtype)], axis=0
                 )
-            elif nf > tf.cast(nfMin, tf.int32) and numRedundant > 0:
+            elif nf > nfMin and numRedundant > 0:
                 indRemain = tf.cast(
                     tf.squeeze(tf.where(tfm.logical_not(indRedundant)), -1), tf.int32
                 )
@@ -97,12 +93,7 @@ def updateNf(params, rLHyperparams, dtype=np.float64):
                 PsiNew[r] = tf.gather(Psi, indRemain, axis=0)
                 DeltaNew[r] = tf.gather(Delta, indRemain, axis=0)
             else:
-                EtaNew[r], LambdaNew[r], PsiNew[r], DeltaNew[r] = (
-                    Eta,
-                    Lambda,
-                    Psi,
-                    Delta,
-                )
+                EtaNew[r], LambdaNew[r], PsiNew[r], DeltaNew[r] = Eta, Lambda, Psi, Delta
         else:
             EtaNew[r], LambdaNew[r], PsiNew[r], DeltaNew[r] = Eta, Lambda, Psi, Delta
-    return {"Eta": EtaNew, "Lambda": LambdaNew, "Psi": PsiNew, "Delta": DeltaNew}
+    return LambdaNew, PsiNew, DeltaNew, EtaNew

@@ -36,8 +36,7 @@ def updateGammaV(params, data, priorHyperparams, dtype=np.float64):
     V0 = priorHyperparams["V0"]
     f0 = priorHyperparams["f0"]
 
-    nc = tf.shape(Beta)[0]
-    ns = tf.shape(Beta)[1]
+    nc, ns = Beta.shape
     nt = Gamma.shape[-1]
     
     Mu = tf.matmul(Gamma, T, transpose_b=True)
@@ -49,7 +48,7 @@ def updateGammaV(params, data, priorHyperparams, dtype=np.float64):
 
     iSigmaGamma = iUGamma + kron(tf.matmul(T, T, transpose_a=True), iV)
     L = tfla.cholesky(iSigmaGamma)
-    mg0 = tf.matmul(iUGamma, mGamma[:,None]) + tf.reshape(tf.matmul(iV, tf.matmul(Beta, T)), [nc*nt,1])
+    mg0 = tf.matmul(iUGamma, mGamma[:,None]) + tf.reshape(tf.transpose(tf.matmul(iV, tf.matmul(Beta, T))), [nc*nt,1])
     mg1 = tfla.triangular_solve(L, mg0)
-    Gamma = tf.reshape(tfla.triangular_solve(L, mg1 + tfr.normal([nc*nt,1], dtype=dtype), adjoint=True), [nc,nt])
-    return {"Gamma": Gamma, "V": tfla.inv(iV)}
+    Gamma = tf.transpose(tf.reshape(tfla.triangular_solve(L, mg1 + tfr.normal([nc*nt,1], dtype=dtype), adjoint=True), [nt,nc]))
+    return Gamma, tfla.inv(iV)

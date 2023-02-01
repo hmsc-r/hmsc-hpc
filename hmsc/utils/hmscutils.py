@@ -26,12 +26,12 @@ def load_model_data(hmscModel):
 
 def load_model_dims(hmscModel):
 
-    ny = int(np.squeeze(hmscModel.get("ny")))
-    ns = int(np.squeeze(hmscModel.get("ns")))
-    nc = int(np.squeeze(hmscModel.get("nc")))
-    nt = int(np.squeeze(hmscModel.get("nt")))
-    nr = int(np.squeeze(hmscModel.get("nr")))
-    npVec = (np.squeeze(hmscModel.get("np"))).astype(int)
+    ny = int(hmscModel.get("ny")[0])
+    ns = int(hmscModel.get("ns")[0])
+    nc = int(hmscModel.get("nc")[0])
+    nt = int(hmscModel.get("nt")[0])
+    nr = int(hmscModel.get("nr")[0])
+    npVec = np.array(hmscModel.get("np"), int)
 
     modelDims = {}
     modelDims["ny"] = ny
@@ -64,9 +64,10 @@ def load_random_level_hyperparams(hmscModel, dataParList):
       rLPar["spatialMethod"] = hmscModel.get("rL")[rLName]["spatialMethod"]
       if rLPar["sDim"] > 0:
         rLPar["alphapw"] = np.asarray(hmscModel.get("rL")[rLName]["alphapw"])
-        rLPar["Wg"] = np.reshape(dataParList["rLPar"][r]["Wg"], (101, npVec[r], npVec[r]))
-        rLPar["iWg"] = np.reshape(dataParList["rLPar"][r]["iWg"], (101, npVec[r], npVec[r]))
-        rLPar["RiWg"] = np.reshape(dataParList["rLPar"][r]["RiWg"], (101, npVec[r], npVec[r]))
+        gN = rLPar["alphapw"].shape[0]
+        rLPar["Wg"] = np.reshape(dataParList["rLPar"][r]["Wg"], (gN, npVec[r], npVec[r]))
+        rLPar["iWg"] = np.reshape(dataParList["rLPar"][r]["iWg"], (gN, npVec[r], npVec[r]))
+        rLPar["RiWg"] = np.reshape(dataParList["rLPar"][r]["RiWg"], (gN, npVec[r], npVec[r]))
         rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
       rLParams[r] = rLPar
 
