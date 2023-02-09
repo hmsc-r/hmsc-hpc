@@ -8,8 +8,8 @@ import sys
 import argparse
 import os
 
-# sys.path.append("/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/../")
-sys.path.append("/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc/../")
+sys.path.append("/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/../")
+# sys.path.append("/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc/../")
 
 from random import randint, sample
 from datetime import datetime
@@ -209,26 +209,15 @@ if __name__ == "__main__":
 
     startTime = time.time()
 
-    with tf.device("/device:CPU:0"):
-        run_gibbs_sampler(
-            num_samples=args.samples,
-            sample_thining=args.thin,
-            sample_burnin=args.transient,
-            verbose=args.verbose,
-            init_obj_file_path=init_obj_file_path,
-            postList_file_path=postList_file_path,
-            flag_save_postList_to_json=True,
-        )
-
-    # run_gibbs_sampler(
-    #     num_samples=args.samples,
-    #     sample_thining=args.thin,
-    #     sample_burnin=args.transient,
-    #     verbose=args.verbose,
-    #     init_obj_file_path=init_obj_file_path,
-    #     postList_file_path=postList_file_path,
-    #     flag_save_postList_to_json=True,
-    # )
+    run_gibbs_sampler(
+        num_samples=args.samples,
+        sample_thining=args.thin,
+        sample_burnin=args.transient,
+        verbose=args.verbose,
+        init_obj_file_path=init_obj_file_path,
+        postList_file_path=postList_file_path,
+        flag_save_postList_to_json=True,
+    )
 
     elapsedTime = time.time() - startTime
 
