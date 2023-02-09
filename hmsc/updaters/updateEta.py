@@ -51,18 +51,18 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
             LamInvSigLam = tf.scatter_nd(Pi[:,r,None], tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [npVec[r],nf,nf])
             mu0 = tf.scatter_nd(Pi[:,r,None], tf.matmul(iD * S, Lambda, transpose_b=True), [npVec[r],nf])
     
-            # if rLPar["sDim"] > 0:
-            #     spatialMethod = rLPar["spatialMethod"]
-            #     iWg = tf.cast(rLPar["iWg"], dtype=dtype)
-            #     if spatialMethod == "NNGP":
-            #         EtaListNew[r] = modelSpatialNNGP(LamInvSigLam, mu0, Alpha, Pi[:,r], iWg, S, sigma**-2, npVec[r], nf, ny)
-            #     elif spatialMethod == "GPP":
-            #         raise NotImplementedError
-            #     else:
-            #         EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, Alpha, iWg, npVec[r], nf)
-            # else:
-            EtaListNew[r] = modelNonSpatial(LamInvSigLam, mu0, npVec[r], nf, dtype)
-            LRanLevelList[r] = tf.matmul(tf.gather(EtaListNew[r], Pi[:,r]), Lambda)
+            if rLPar["sDim"] > 0:
+                spatialMethod = rLPar["spatialMethod"]
+                iWg = tf.cast(rLPar["iWg"], dtype=dtype)
+                if spatialMethod == "NNGP":
+                    EtaListNew[r] = modelSpatialNNGP(LamInvSigLam, mu0, Alpha, Pi[:,r], iWg, S, sigma**-2, npVec[r], nf, ny)
+                elif spatialMethod == "GPP":
+                    raise NotImplementedError
+                else:
+                    EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, Alpha, iWg, npVec[r], nf)
+            else:
+                EtaListNew[r] = modelNonSpatial(LamInvSigLam, mu0, npVec[r], nf, dtype)
+                LRanLevelList[r] = tf.matmul(tf.gather(EtaListNew[r], Pi[:,r]), Lambda)
         else:
             EtaListNew[r] = Eta
 

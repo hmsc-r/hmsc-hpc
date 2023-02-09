@@ -6,7 +6,7 @@ tfla, tfr = tf.linalg, tf.random
 
 def load_model_data(hmscModel):
 
-    Y = np.asarray(hmscModel.get("YScaled"))
+    Y = np.asarray(hmscModel.get("YScaled")).astype(float)
     X = np.asarray(hmscModel.get("XScaled"))
     T = np.asarray(hmscModel.get("TrScaled"))
     C = np.asarray(hmscModel.get("C"))
@@ -61,8 +61,8 @@ def load_random_level_hyperparams(hmscModel, dataParList):
       rLPar["nfMin"] = int(hmscModel.get("rL")[rLName]["nfMin"][0])
       rLPar["nfMax"] = int(hmscModel.get("rL")[rLName]["nfMax"][0])
       rLPar["sDim"] = int(hmscModel.get("rL")[rLName]["sDim"][0])
-      rLPar["spatialMethod"] = hmscModel.get("rL")[rLName]["spatialMethod"]
-      if rLPar["sDim"] > 0:
+      rLPar["spatialMethod"] = np.squeeze(hmscModel.get("rL")[rLName]["spatialMethod"]) # squeezed returned string array; assumption that one spatial method per level
+      if rLPar["sDim"] > 0 and rLPar["spatialMethod"] != "GPP": # skipping GPP; it has different hyperparams
         rLPar["alphapw"] = np.asarray(hmscModel.get("rL")[rLName]["alphapw"])
         gN = rLPar["alphapw"].shape[0]
         rLPar["Wg"] = np.reshape(dataParList["rLPar"][r]["Wg"], (gN, npVec[r], npVec[r]))

@@ -5,18 +5,25 @@ library(jsonify)
 library(vioplot)
 
 rm(list=ls())
-#path = "/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc"
+# path = "/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc"
 path = file.path(utils::getSrcDirectory(function(){}), "..")
 # print(dir(path))
 
 nChains = 8
 nSamples = 250
-thin = 1000
+thin = 20
 transient = nSamples*thin
-verbose = thin*10
+verbose = 1000 #thin*10
 #
 # Generate sampled posteriors for TF initialization
 #
+
+# load(file = file.path(path, "examples/data", "unfitted_models.RData"))
+# models
+# 
+# m = models[[5]]
+
+###
 
 XData = TD$X
 XData$x1 = (XData$x1-mean(XData$x1))/sqrt(var(XData$x1))
@@ -28,6 +35,19 @@ ranLevels = list(sample=rLSample, plot=rLPlot)  #sample=rLSample, plot=rLPlot
 m = Hmsc(Y=TD$Y, XFormula = ~x1+x2, XData = XData, studyDesign = TD$studyDesign,
          TrFormula = ~T1+T2, TrData = TrData, distr = "probit", ranLevels=ranLevels)
 
+###
+
+# nyMult = 20
+# nsMult = 125
+# TDY = TD$Y[rep(1:nrow(TD$Y),nyMult), rep(1:ncol(TD$Y),nsMult)]
+# XData = XData[rep(1:nrow(TD$Y),nyMult), ]
+# TD$studyDesign = TD$studyDesign[rep(1:nrow(TD$Y),nyMult), ]
+# TrData = TrData[rep(1:ncol(TD$Y),nsMult), ]
+# colnames(TDY) = rownames(TrData) = sprintf("så_%.3d", 1:ncol(TDY))
+# m = Hmsc(Y=TDY, XFormula = ~x1+x2, XData = XData, studyDesign = TD$studyDesign,
+#          TrFormula = ~T1+T2, TrData = TrData, distr = "probit", ranLevels=ranLevels)
+
+###
 init_obj = sampleMcmc(m, samples=nSamples, thin=thin,
                       transient=transient,
                       nChains=nChains, verbose=verbose, engine="pass")
@@ -39,6 +59,17 @@ python_file_path = file.path(path, "examples", python_file_name)
 postList_file_name = "TF-postList-obj.json"
 postList_file_path = file.path(path, "examples/data", postList_file_name)
 
+nr = init_obj[["hM"]][["nr"]]
+rLNames = init_obj[["hM"]][["ranLevelsUsed"]]
+
+for (i in seq_len(nr)) {
+  rLName = rLNames[[i]]
+  init_obj[["hM"]][["rL"]][[rLName]][["s"]] = NULL
+  init_obj[["hM"]][["ranLevels"]][[rLName]][["s"]] = NULL
+}
+
+init_obj[["dataParList"]][["rLPar"]][[1]] = NULL
+
 write(to_json(init_obj), file = init_file_path)
 
 #
@@ -47,7 +78,7 @@ write(to_json(init_obj), file = init_file_path)
 ptm <- proc.time()
 obj.R = sampleMcmc(m, samples = nSamples, thin = thin,
                    transient = transient, 
-                   nChains = nChains, nParallel=nChains,
+                   nChains = nChains, #nParallel=nChains,
                    verbose = verbose, updater=list(Gamma2=FALSE, GammaEta=FALSE)) #fitted by R
 print(proc.time() - ptm)
 

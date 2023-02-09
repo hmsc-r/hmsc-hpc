@@ -75,9 +75,9 @@ class GibbsSampler(tf.Module):
 
     @staticmethod
     def printFunction(i, samInd):
-        outStr = "iteration " + str(i.numpy())
+        outStr = "iteration " + str(i.numpy() + 1)
         if samInd.numpy() >= 0:
-            outStr += " saving " + str(samInd.numpy())
+            outStr += " saving " + str(samInd.numpy() + 1)
         else:
             outStr += " transient"
         sys.stdout.write("\r" + outStr)
@@ -86,7 +86,7 @@ class GibbsSampler(tf.Module):
     def sampling_routine(
         self,
         paramsTmp,
-        num_samples=100,
+        num_samples=1,
         sample_burnin=0,
         sample_thining=1,
         verbose=1,
@@ -135,7 +135,7 @@ class GibbsSampler(tf.Module):
                     (params["Alpha"], [tf.TensorShape([None, 1])] * nr),
                 ]
             )
-
+            
             params["Z"] = updateZ(params, self.modelData)
             params["Beta"], params["Lambda"] = updateBetaLambda(params, self.modelData)
             params["Gamma"], params["V"] = updateGammaV(params, self.modelData, self.priorHyperparams)
