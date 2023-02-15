@@ -126,6 +126,7 @@ def run_gibbs_sampler(
                 "Beta": parSamples["Beta"][n],
                 "Gamma": parSamples["Gamma"][n],
                 "V": parSamples["V"][n],
+                "rhoInd": parSamples["rhoInd"][n],
                 "sigma": parSamples["sigma"][n],
                 "Lambda": [samples[n] for samples in parSamples["Lambda"]],
                 "Psi": [samples[n] for samples in parSamples["Psi"]],
@@ -181,7 +182,7 @@ if __name__ == "__main__":
         "-p",
         "--path",
         type=str,
-        default="/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc/",
+        default="..",
         help="path to hmsc-hpc source code",
     )
     argParser.add_argument(

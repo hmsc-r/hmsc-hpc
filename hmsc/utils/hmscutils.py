@@ -1,6 +1,5 @@
 import numpy as np
 import tensorflow as tf
-
 tfla, tfr = tf.linalg, tf.random
 
 
@@ -9,7 +8,9 @@ def load_model_data(hmscModel):
     Y = np.asarray(hmscModel.get("YScaled")).astype(float)
     X = np.asarray(hmscModel.get("XScaled"))
     T = np.asarray(hmscModel.get("TrScaled"))
-    C = np.asarray(hmscModel.get("C"))
+    C_import = hmscModel.get("C")
+    rhoGroup = np.asarray([0]*X.shape[1]) #TODO replace once implemented in R as well
+    # rhoGroup = np.asarray(hmscModel.get("rhoGroup")).astype(int) - 1
     Pi = np.asarray(hmscModel.get("Pi")).astype(int) - 1
     distr = np.asarray(hmscModel.get("distr")).astype(int)
 
@@ -17,7 +18,13 @@ def load_model_data(hmscModel):
     modelData["Y"] = Y
     modelData["X"] = X
     modelData["T"] = T
-    modelData["C"] = C
+    if C_import is None or len(C_import)==0:
+      modelData["C"], modelData["eC"], modelData["VC"] = None, None, None
+    else:
+      C = np.asarray(C_import)
+      modelData["C"] = C
+      modelData["eC"], modelData["VC"] = np.linalg.eigh(C) #TODO replace once implemented in R as well
+    modelData["rhoGroup"] = rhoGroup
     modelData["Pi"] = Pi
     modelData["distr"] = distr
 
@@ -80,6 +87,7 @@ def load_prior_hyperparams(hmscModel):
     UGamma = np.asarray(hmscModel.get("UGamma"))
     f0 = np.squeeze(hmscModel.get("f0"))
     V0 = np.squeeze(hmscModel.get("V0"))
+    rhopw = np.asarray(hmscModel.get("rhopw"))
     aSigma = np.asarray(hmscModel.get("aSigma"))
     bSigma = np.asarray(hmscModel.get("bSigma"))
 
@@ -88,6 +96,7 @@ def load_prior_hyperparams(hmscModel):
     priorHyperParams["iUGamma"] = tfla.inv(UGamma)
     priorHyperParams["f0"] = f0
     priorHyperParams["V0"] = V0
+    priorHyperParams["rhopw"] = rhopw
     priorHyperParams["aSigma"] = aSigma
     priorHyperParams["bSigma"] = bSigma
 
@@ -102,17 +111,19 @@ def init_params(importedInitParList, dtype=np.float64):
       Beta = tf.constant(importedInitPar["Beta"], dtype=dtype)
       Gamma = tf.constant(importedInitPar["Gamma"], dtype=dtype)
       V = tf.constant(importedInitPar["V"], dtype=dtype)
+      rhoInd = tf.cast(tf.constant(importedInitPar["rho"]), tf.int32) - 1 #TODO replace once implemented in R as well
       sigma = tf.constant(importedInitPar["sigma"], dtype=dtype)
       LambdaList = [tf.constant(Lambda, dtype=dtype) for Lambda in importedInitPar["Lambda"]]
       PsiList = [tf.constant(Psi, dtype=dtype) for Psi in importedInitPar["Psi"]]
       DeltaList = [tf.constant(Delta, dtype=dtype) for Delta in importedInitPar["Delta"]]
       EtaList = [tf.constant(Eta, dtype=dtype) for Eta in importedInitPar["Eta"]]
-      AlphaList = [tf.expand_dims(tf.constant(Alpha, dtype=dtype), 1) for Alpha in importedInitPar["Alpha"]]
+      AlphaList = [tf.cast(tf.constant(Alpha), tf.int32) - 1 for Alpha in importedInitPar["Alpha"]]
       initPar = {}
       initPar["Z"] = Z
       initPar["Beta"] = Beta
       initPar["Gamma"] = Gamma
       initPar["V"] = V
+      initPar["rhoInd"] = rhoInd
       initPar["sigma"] = sigma
       initPar["Lambda"] = LambdaList
       initPar["Psi"] = PsiList

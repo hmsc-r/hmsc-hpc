@@ -27,7 +27,6 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
 
     for r, (Eta, rLPar) in enumerate(zip(EtaList, rLHyperparams)):
         sDim = rLPar["sDim"]
-
         np = Eta.shape[0]
         nf = tf.cast(tf.shape(Eta)[1], tf.int32)
         if sDim > 0:
@@ -45,8 +44,8 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
             like = tfm.exp(
                 logLike - tf.math.reduce_logsumexp(logLike, axis=-1, keepdims=True)
             )
-            AlphaList[r] = tf.cast(tfr.categorical(like, 1, dtype=tf.int64), dtype=dtype)
+            AlphaList[r] = tfr.categorical(like, 1, dtype=tf.int32)
         else:
-            AlphaList[r] = tf.zeros([nf, 1], dtype=dtype)
+            AlphaList[r] = tf.zeros([nf], dtype=tf.int32)
 
     return AlphaList
