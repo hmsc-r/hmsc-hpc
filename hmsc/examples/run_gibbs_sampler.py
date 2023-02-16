@@ -1,15 +1,16 @@
 import os
+import sys
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
-import numpy as np
-import time
-import sys
-import argparse
-import os
+path = os.path.dirname(os.path.dirname(__file__))
 
-sys.path.append("/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/../")
-# sys.path.append("/Users/anisjyu/Dropbox/hmsc-hpc/hmsc-hpc/hmsc/../")
+sys.path.append("{}{}".format(path, '/../'))
+
+import time
+import argparse
+
+import numpy as np
 
 from random import randint, sample
 from datetime import datetime
@@ -20,6 +21,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 
 tfr = tf.random
+
 from hmsc.gibbs_sampler import GibbsParameter, GibbsSampler
 
 # from hmsc.updaters.updateEta import updateEta
@@ -178,13 +180,13 @@ if __name__ == "__main__":
         default="TF-postList-obj.json",
         help="output JSON file with recorded posterier samples",
     )
-    argParser.add_argument(
-        "-p",
-        "--path",
-        type=str,
-        default="..",
-        help="path to hmsc-hpc source code",
-    )
+    # argParser.add_argument(
+    #     "-p",
+    #     "--path",
+    #     type=str,
+    #     default="..",
+    #     help="path to hmsc-hpc source code",
+    # )
     argParser.add_argument(
         "-v",
         "--verbose",
@@ -198,7 +200,7 @@ if __name__ == "__main__":
     print("args=%s" % args)
     # print("args.samples=%s" % args.samples)
 
-    path = args.path
+    # path = args.path
 
     init_obj_file_name = args.input
     postList_file_name = args.output

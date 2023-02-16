@@ -53,13 +53,13 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     
             if rLPar["sDim"] > 0:
                 spatialMethod = rLPar["spatialMethod"]
-                iWg = tf.cast(rLPar["iWg"], dtype=dtype)
+                
                 if spatialMethod == "NNGP":
-                    EtaListNew[r] = modelSpatialNNGP(LamInvSigLam, mu0, Alpha, Pi[:,r], iWg, S, sigma**-2, npVec[r], nf, ny)
+                    EtaListNew[r] = modelSpatialNNGP(LamInvSigLam, mu0, Alpha, Pi[:,r], rLPar["iWg"], S, sigma**-2, npVec[r], nf, ny)
                 elif spatialMethod == "GPP":
                     raise NotImplementedError
                 else:
-                    EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, Alpha, iWg, npVec[r], nf)
+                    EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, Alpha, rLPar["iWg"], npVec[r], nf)
             else:
                 EtaListNew[r] = modelNonSpatial(LamInvSigLam, mu0, npVec[r], nf, dtype)
                 LRanLevelList[r] = tf.matmul(tf.gather(EtaListNew[r], Pi[:,r]), Lambda)
@@ -104,8 +104,17 @@ def modelSpatialNNGP(
     iWs = tf.zeros([np * nf, np * nf], dtype=dtype)
 
     for h in range(nf):
+
+        '''
         iWs = iWs + kron(
-            tf.gather(iWg, tf.squeeze(Alpha[h], -1)),
+            tf.squeeze(tfs.to_dense(tfs.slice(iWg, [1,0,0], [1, np, np]))),
+            tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
+        )
+        '''
+
+        iWs = iWs + kron(
+            # tf.gather(iWg, tf.cast(tf.squeeze(Alpha[h], -1), dtype=tf.int64)),
+            tf.gather(iWg, tf.squeeze(Alpha[h])),
             tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
         )
 

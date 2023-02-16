@@ -56,8 +56,10 @@ def updateZ(params, data, dtype=np.float64):
     YmP = tfm.logical_not(YoP)
     LP = tf.gather(L, indColProbit, axis=-1)
     sigmaP = tf.gather(sigma, indColProbit)
-    low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(-np.inf, dtype), tf.zeros_like(YP))
-    high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(np.inf, dtype), tf.zeros_like(YP))
+    # low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(-np.inf, dtype), tf.zeros_like(YP))
+    # high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(np.inf, dtype), tf.zeros_like(YP))
+    low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(float("-1e+9"), dtype), tf.zeros_like(YP))
+    high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(float("1e+9"), dtype), tf.zeros_like(YP))
     ZP = tfd.TruncatedNormal(loc=LP, scale=sigmaP, low=low, high=high).sample()
 
     ZStack = tf.concat([ZN, ZP], -1)

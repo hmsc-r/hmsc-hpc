@@ -41,10 +41,10 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
                 - 0.5 * detWg
                 - 0.5 * tfla.matrix_transpose(EtaTiWEta)
             )
-            like = tfm.exp(
-                logLike - tf.math.reduce_logsumexp(logLike, axis=-1, keepdims=True)
-            )
-            AlphaList[r] = tfr.categorical(like, 1, dtype=tf.int32)
+            # like = tfm.exp(
+            #     logLike - tf.math.reduce_logsumexp(logLike, axis=-1, keepdims=True)
+            # )
+            AlphaList[r] = tfr.categorical(logLike, 1, dtype=tf.int32)
         else:
             AlphaList[r] = tf.zeros([nf], dtype=tf.int32)
 

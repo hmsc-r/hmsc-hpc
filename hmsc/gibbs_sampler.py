@@ -83,7 +83,7 @@ class GibbsSampler(tf.Module):
             outStr += " transient"
         sys.stdout.write("\r" + outStr)
 
-    @tf.function
+    #@tf.function
     def sampling_routine(
         self,
         paramsInput,
@@ -156,7 +156,7 @@ class GibbsSampler(tf.Module):
                 mcmcSamplesEta = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesEta, params["Eta"])]
                 mcmcSamplesAlpha = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesAlpha, params["Alpha"])]
 
-        print("Completed iterations %d" % step_num)
+        print("\nCompleted iterations %d" % step_num)
         samples = {}
         samples["Beta"] = mcmcSamplesBeta.stack()
         samples["Gamma"] = mcmcSamplesGamma.stack()
