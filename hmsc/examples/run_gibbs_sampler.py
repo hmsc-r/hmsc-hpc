@@ -134,7 +134,7 @@ def run_gibbs_sampler(
                 "Psi": [samples[n] for samples in parSamples["Psi"]],
                 "Delta": [samples[n] for samples in parSamples["Delta"]],
                 "Eta": [samples[n] for samples in parSamples["Eta"]],
-                "Alpha": [samples[n] for samples in parSamples["Alpha"]],
+                "AlphaInd": [samples[n] for samples in parSamples["AlphaInd"]],
             }
             postList[chain][n] = parSnapshot
 

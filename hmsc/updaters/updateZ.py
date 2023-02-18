@@ -44,10 +44,11 @@ def updateZ(params, data, dtype=np.float64):
     # no data augmentation for normal model in columns with continious unbounded data
     indColNormal = tf.squeeze(tf.where(distr[:,0] == 1), -1)
     YN = tf.gather(Y, indColNormal, axis=-1)
-    YoN = tf.cast(tf.gather(Yo, indColNormal, axis=-1), dtype)
+    YoN = tf.gather(Yo, indColNormal, axis=-1)
     LN = tf.gather(L, indColNormal, axis=-1)
     sigmaN = tf.gather(sigma, indColNormal)
-    ZN = YoN * YN + (1-YoN) * (LN + sigmaN*tfr.normal([ny, tf.size(indColNormal)], dtype=dtype))
+    # ZN = YoN * YN + (1-YoN) * (LN + sigmaN*tfr.normal([ny, tf.size(indColNormal)], dtype=dtype))
+    ZN = tf.where(YoN, YN, LN + sigmaN*tfr.normal([ny, tf.size(indColNormal)], dtype=dtype))
 
     # Albert and Chib (1993) data augemntation for probit model in columns with binary data
     indColProbit = tf.squeeze(tf.where(distr[:,0] == 2), -1)
@@ -58,6 +59,9 @@ def updateZ(params, data, dtype=np.float64):
     sigmaP = tf.gather(sigma, indColProbit)
     # low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(-np.inf, dtype), tf.zeros_like(YP))
     # high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(np.inf, dtype), tf.zeros_like(YP))
+    # norm = tfd.Normal(LP, sigmaP)
+    # samUnif = tf.random.uniform(YP.shape, norm.cdf(low), norm.cdf(high), dtype=dtype)
+    # ZP = norm.quantile(samUnif)
     low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(float("-1e+9"), dtype), tf.zeros_like(YP))
     high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(float("1e+9"), dtype), tf.zeros_like(YP))
     ZP = tfd.TruncatedNormal(loc=LP, scale=sigmaP, low=low, high=high).sample()

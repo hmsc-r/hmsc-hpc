@@ -30,7 +30,7 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     sigma = params["sigma"]
     LambdaList = params["Lambda"]
     EtaList = params["Eta"]
-    AlphaList = params["Alpha"]
+    AlphaIndList = params["AlphaInd"]
     Pi = data["Pi"]
     X = data["X"]
     ny = modelDims["ny"]
@@ -44,7 +44,7 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
         LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
 
     EtaListNew = [None] * nr
-    for r, (Eta, Lambda, Alpha, rLPar) in enumerate(zip(EtaList, LambdaList, AlphaList, rLHyperparams)):
+    for r, (Eta, Lambda, AlphaInd, rLPar) in enumerate(zip(EtaList, LambdaList, AlphaIndList, rLHyperparams)):
         nf = tf.cast(tf.shape(Lambda)[-2], tf.int64)
         if nf > 0:
             S = Z - LFix - sum([LRanLevelList[rInd] for rInd in np.setdiff1d(np.arange(nr), r)])
@@ -52,41 +52,30 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
             mu0 = tf.scatter_nd(Pi[:,r,None], tf.matmul(iD * S, Lambda, transpose_b=True), [npVec[r],nf])
     
             if rLPar["sDim"] > 0:
-                spatialMethod = rLPar["spatialMethod"]
-                
-                if spatialMethod == "NNGP":
-                    EtaListNew[r] = modelSpatialNNGP(LamInvSigLam, mu0, Alpha, Pi[:,r], rLPar["iWg"], S, sigma**-2, npVec[r], nf, ny)
-                elif spatialMethod == "GPP":
+                if rLPar["spatialMethod"] == "Full":
+                    EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], npVec[r], nf)
+                elif rLPar["spatialMethod"] == "GPP":
                     raise NotImplementedError
-                else:
-                    EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, Alpha, rLPar["iWg"], npVec[r], nf)
+                elif rLPar["spatialMethod"] == "NNGP":
+                    EtaListNew[r] = modelSpatialNNGP(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], npVec[r], nf)
             else:
                 EtaListNew[r] = modelNonSpatial(LamInvSigLam, mu0, npVec[r], nf, dtype)
-                LRanLevelList[r] = tf.matmul(tf.gather(EtaListNew[r], Pi[:,r]), Lambda)
+            
+            LRanLevelList[r] = tf.matmul(tf.gather(EtaListNew[r], Pi[:,r]), Lambda)
         else:
             EtaListNew[r] = Eta
 
     return EtaListNew
 
 
-def modelSpatialFull(LamInvSigLam, mu0, Alpha, iWg, np, nf, dtype=np.float64):
-    iWs = tf.reshape(
-        tf.transpose(
-            tfla.diag(tf.transpose(tf.gather(iWg, tf.cast(tf.squeeze(Alpha), dtype=tf.int64)), [1, 2, 0])),
-            [2, 0, 3, 1],
-        ),
-        [nf * np, nf * np],
-    )
-    iUEta = iWs + tf.reshape(
-        tf.transpose(tfla.diag(tf.transpose(LamInvSigLam, [1, 2, 0])), [0, 2, 1, 3]),
-        [nf * np, nf * np],
-    )
+def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64): 
+    #TODO a lot of unnecessary tanspositions - rework if considerably affects perfomance
+    iWs = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(iWg, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*np,nf*np])
+    iUEta = iWs + tf.reshape(tf.transpose(tfla.diag(tf.transpose(LamInvSigLam, [1,2,0])), [0,2,1,3]), [nf*np,nf*np])
     LiUEta = tfla.cholesky(iUEta)
-    mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf * np, 1]))
-    eta = tfla.triangular_solve(
-        LiUEta, mu1 + tfr.normal([nf * np, 1], dtype=dtype), adjoint=True
-    )
-    Eta = tf.transpose(tf.reshape(eta, [nf, np]))
+    mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf*np,1]))
+    eta = tfla.triangular_solve(LiUEta, mu1 + tfr.normal([nf*np,1], dtype=dtype), adjoint=True)
+    Eta = tf.transpose(tf.reshape(eta, [nf,np]))
     return Eta
 
 
@@ -98,51 +87,50 @@ def modelNonSpatial(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     return Eta
 
 
-def modelSpatialNNGP(
-    LamInvSigLam, mu0, Alpha, Pi, iWg, S, iSigma, np, nf, ny, dtype=np.float64
-):
-    iWs = tf.zeros([np * nf, np * nf], dtype=dtype)
+def modelSpatialNNGP(LamInvSigLam, mu0, Alpha, iWg, np, nf, dtype=np.float64):
+    raise NotImplementedError
+    # iWs = tf.zeros([np * nf, np * nf], dtype=dtype)
 
-    for h in range(nf):
+    # for h in range(nf):
 
-        '''
-        iWs = iWs + kron(
-            tf.squeeze(tfs.to_dense(tfs.slice(iWg, [1,0,0], [1, np, np]))),
-            tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
-        )
-        '''
+    #     '''
+    #     iWs = iWs + kron(
+    #         tf.squeeze(tfs.to_dense(tfs.slice(iWg, [1,0,0], [1, np, np]))),
+    #         tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
+    #     )
+    #     '''
 
-        iWs = iWs + kron(
-            # tf.gather(iWg, tf.cast(tf.squeeze(Alpha[h], -1), dtype=tf.int64)),
-            tf.gather(iWg, tf.squeeze(Alpha[h])),
-            tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
-        )
+    #     iWs = iWs + kron(
+    #         # tf.gather(iWg, tf.cast(tf.squeeze(Alpha[h], -1), dtype=tf.int64)),
+    #         tf.gather(iWg, tf.squeeze(Alpha[h])),
+    #         tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
+    #     )
 
-    P = tfs.SparseTensor(
-        tf.cast(tf.stack([tf.range(ny), Pi], axis=1), tf.int64),
-        tf.ones([ny], dtype=dtype),
-        [ny, np],
-    )
+    # P = tfs.SparseTensor(
+    #     tf.cast(tf.stack([tf.range(ny), Pi], axis=1), tf.int64),
+    #     tf.ones([ny], dtype=dtype),
+    #     [ny, np],
+    # )
 
-    fS = tf.matmul(
-        tf.matmul(tfs.to_dense(P), S, transpose_a=True),
-        tf.reshape(tf.tile(iSigma, [nf]), [nf, len(iSigma)]),
-        transpose_b=True,
-    )
+    # fS = tf.matmul(
+    #     tf.matmul(tfs.to_dense(P), S, transpose_a=True),
+    #     tf.reshape(tf.tile(iSigma, [nf]), [nf, len(iSigma)]),
+    #     transpose_b=True,
+    # )
 
-    iUEta = iWs + kron(
-        LamInvSigLam[0, :, :],
-        tf.cast(tfla.diag(tfs.reduce_sum(P, axis=0)), dtype=dtype),
-    )
+    # iUEta = iWs + kron(
+    #     LamInvSigLam[0, :, :],
+    #     tf.cast(tfla.diag(tfs.reduce_sum(P, axis=0)), dtype=dtype),
+    # )
 
-    LiUEta = tf.numpy_function(scipy_cholesky, [iUEta], tf.float64)
+    # LiUEta = tf.numpy_function(scipy_cholesky, [iUEta], tf.float64)
 
-    mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf * np, 1]))
+    # mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf * np, 1]))
 
-    eta = tfla.triangular_solve(
-        LiUEta, mu1 + tfr.normal([nf * np, 1], dtype=dtype), adjoint=True
-    )
+    # eta = tfla.triangular_solve(
+    #     LiUEta, mu1 + tfr.normal([nf * np, 1], dtype=dtype), adjoint=True
+    # )
 
-    Eta = tf.transpose(tf.reshape(eta, [nf, np]))
+    # Eta = tf.transpose(tf.reshape(eta, [nf, np]))
 
-    return Eta
+    # return Eta

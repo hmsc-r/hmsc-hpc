@@ -22,7 +22,7 @@ Experiments <- function() {
 }
 experiments <- Experiments()
 
-selected_experiment = experiments$M1
+selected_experiment = experiments$M2
 
 m = models[[selected_experiment$id]]
 
@@ -36,6 +36,17 @@ if (selected_experiment$name == experiments$M1$name) {
   nSamples = 250
   thin = 10
   transient = nSamples*thin
+  # rLSite = m$ranLevels$site
+  # rLTime = m$ranLevels$time
+  # rLSiteNew = HmscRandomLevel(units=rLSite$pi)
+  # rLTimeNew = HmscRandomLevel(units=rLTime$pi)
+  rLSiteNew = m$ranLevels$site
+  rLTimeNew = m$ranLevels$time
+  YNew = matrix(colMeans(m$Y, na.rm=TRUE), nrow(m$Y), ncol(m$Y), byrow=TRUE)
+  YNew[!is.na(m$Y)] = m$Y[!is.na(m$Y)]
+  mNew = Hmsc(Y=YNew, XFormula=m$XFormula, XData=m$XData, TrFormula=m$TrFormula, TrData=m$TrData,
+              distr=m$distr, studyDesign=m$studyDesign, ranLevels=list(site=rLSiteNew,time=rLTimeNew))
+  m = mNew
 } else if (selected_experiment$name == experiments$M3$name) {
   nChains = 8
   nSamples = 250
@@ -184,6 +195,9 @@ obj.TF$transient = transient
 # Rescaling Beta/Gamma; copied from combineParameters.R; need to revisit this section
 #
 
+nt = obj.TF[["nt"]]
+TrInterceptInd = obj.TF[["TrInterceptInd"]]
+TrScalePar = obj.TF[["TrScalePar"]]
 ncNRRR = obj.TF[["ncNRRR"]]
 ncRRR = obj.TF[["ncRRR"]]
 ncsel = obj.TF[["ncsel"]]
@@ -196,6 +210,18 @@ for (chain in seq_len(nChains)) {
     Beta = obj.TF[["postList"]][[chain]][[sample]][["Beta"]]
     Gamma = obj.TF[["postList"]][[chain]][[sample]][["Gamma"]]
     V = obj.TF[["postList"]][[chain]][[sample]][["V"]]
+    rho = obj.TF$rhopw[obj.TF[["postList"]][[chain]][[sample]][["rhoInd"]], 1]
+    
+    for(p in 1:nt){
+      m = TrScalePar[1,p]
+      s = TrScalePar[2,p]
+      if(m!=0 || s!=1){
+        Gamma[,p] = Gamma[,p]/s
+        if(!is.null(TrInterceptInd)){
+          Gamma[,TrInterceptInd] = Gamma[,TrInterceptInd] - m*Gamma[,p]
+        }
+      }
+    }
     
     for(k in 1:ncNRRR){
       m = XScalePar[1,k]
@@ -240,6 +266,7 @@ for (chain in seq_len(nChains)) {
     obj.TF[["postList"]][[chain]][[sample]][["Beta"]] = Beta
     obj.TF[["postList"]][[chain]][[sample]][["Gamma"]] = Gamma
     obj.TF[["postList"]][[chain]][[sample]][["V"]] = V
+    obj.TF[["postList"]][[chain]][[sample]][["rho"]] = rho
   }
 }
 
@@ -262,6 +289,14 @@ for(variable in 1:2){
   par(mfrow=c(2,1))
   vioplot(ma,names=names(obj.list),ylim=c(0.9,max(ma)),main=c("beta","gamma")[variable])
   vioplot(ma,names=names(obj.list),ylim=c(0.9,1.1),main=c("beta","gamma")[variable])
+}
+
+#rho
+if(!is.null(obj.R$C)){
+  mat = rbind(unlist(getPostEstimate(obj.R, "rho")), unlist(getPostEstimate(obj.TF, "rho")))
+  rownames(mat) = c("R", "TF")
+  cat("rho posterior summary\n")
+  print(mat)
 }
 
 

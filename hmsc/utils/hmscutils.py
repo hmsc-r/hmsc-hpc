@@ -69,56 +69,59 @@ def load_random_level_hyperparams(hmscModel, dataParList):
       rLPar["nfMax"] = int(hmscModel.get("rL")[rLName]["nfMax"][0])
       rLPar["sDim"] = int(hmscModel.get("rL")[rLName]["sDim"][0])
       rLPar["spatialMethod"] = np.squeeze(hmscModel.get("rL")[rLName]["spatialMethod"]) # squeezed returned string array; assumption that one spatial method per level
-      if rLPar["sDim"] > 0 and rLPar["spatialMethod"] != "Full" and rLPar["spatialMethod"] != "GPP": # skipping GPP; it has different hyperparams
+      if rLPar["sDim"] > 0:
         rLPar["alphapw"] = np.asarray(hmscModel.get("rL")[rLName]["alphapw"])
         gN = rLPar["alphapw"].shape[0]
-        
-        def get_indices(p, i, nvars):
-          indices = []
-          for j in range(nvars):
-            n = p[j + 1] - p[j]
-            for elem in range(n):
-              indices.append([i[elem + p[j]], j])
-          reordered_indices = sorted(indices, key=lambda x: x[0])
-          return reordered_indices
+        if rLPar["spatialMethod"] == "Full":
+          rLPar["Wg"] = np.reshape(dataParList["rLPar"][r]["Wg"], (gN, npVec[r], npVec[r]))
+          rLPar["iWg"] = np.reshape(dataParList["rLPar"][r]["iWg"], (gN, npVec[r], npVec[r]))
+          rLPar["LiWg"] = tfla.matrix_transpose(np.reshape(dataParList["rLPar"][r]["RiWg"], (gN, npVec[r], npVec[r])))
+          rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
+          
+        elif rLPar["spatialMethod"] != "GPP":
+          raise NotImplementedError
+          
+        elif rLPar["spatialMethod"] != "NNGP":
+          raise NotImplementedError
+          # def get_indices(p, i, nvars):
+          #   indices = []
+          #   for j in range(nvars):
+          #     n = p[j + 1] - p[j]
+          #     for elem in range(n):
+          #       indices.append([i[elem + p[j]], j])
+          #   reordered_indices = sorted(indices, key=lambda x: x[0])
+          #   return reordered_indices
 
-        def get_sparse_tensor(p, i, x):
-          nvars = len(p) - 1
-          if len(x) == 0:
-            return tfs.from_dense(tf.zeros([nvars, nvars], dtype=tf.float64))
-          return tfs.SparseTensor(
-            indices=get_indices(p, i, nvars),
-            values=x,
-            dense_shape=[nvars, nvars],
-          )
-
-        # rLPar["Wg"] = np.reshape(dataParList["rLPar"][r]["Wg"], (gN, npVec[r], npVec[r]))
-        # rLPar["iWg"] = np.reshape(dataParList["rLPar"][r]["iWg"], (gN, npVec[r], npVec[r]))
-        # rLPar["RiWg"] = np.reshape(dataParList["rLPar"][r]["RiWg"], (gN, npVec[r], npVec[r]))
-
-        iWgList = [
-          get_sparse_tensor(
-            np.squeeze(dataParList["rLPar"][r]["iWgp"][m]),
-            np.squeeze(dataParList["rLPar"][r]["iWgi"][m]),
-            np.squeeze(dataParList["rLPar"][r]["iWgx"][m]),
-          )
-          for m in range(gN)
-        ]
-        rLPar["iWg"] = tf.stack([tfs.to_dense(iWg) for iWg in iWgList])
-        #rLPar["iWg"] = tf.sparse.from_dense(tf.stack([tfs.to_dense(iWg) for iWg in iWgList]))
-
-        RiWgList = [
-          get_sparse_tensor(
-            np.squeeze(dataParList["rLPar"][r]["RiWgp"][m]),
-            np.squeeze(dataParList["rLPar"][r]["RiWgi"][m]),
-            np.squeeze(dataParList["rLPar"][r]["RiWgx"][m]),
-          )
-          for m in range(gN)
-        ]
-        rLPar["RiWg"] = tf.stack([tfs.to_dense(RiWg) for RiWg in RiWgList])
-        #rLPar["RiWg"] = tf.sparse.from_dense(tf.stack([tfs.to_dense(RiWg) for RiWg in RiWgList]))
-
-        rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
+          # def get_sparse_tensor(p, i, x):
+          #   nvars = len(p) - 1
+          #   if len(x) == 0:
+          #     return tfs.from_dense(tf.zeros([nvars, nvars], dtype=tf.float64))
+          #   return tfs.SparseTensor(
+          #     indices=get_indices(p, i, nvars),
+          #     values=x,
+          #     dense_shape=[nvars, nvars],
+          #   )  
+          
+          # iWgList = [
+          #   get_sparse_tensor(
+          #     np.squeeze(dataParList["rLPar"][r]["iWgp"][m]),
+          #     np.squeeze(dataParList["rLPar"][r]["iWgi"][m]),
+          #     np.squeeze(dataParList["rLPar"][r]["iWgx"][m]),
+          #   )
+          #   for m in range(gN)
+          # ]
+          # rLPar["iWg"] = tf.stack([tfs.to_dense(iWg) for iWg in iWgList])
+          # #rLPar["iWg"] = tf.sparse.from_dense(tf.stack([tfs.to_dense(iWg) for iWg in iWgList]))
+          # RiWgList = [
+          #   get_sparse_tensor(
+          #     np.squeeze(dataParList["rLPar"][r]["RiWgp"][m]),
+          #     np.squeeze(dataParList["rLPar"][r]["RiWgi"][m]),
+          #     np.squeeze(dataParList["rLPar"][r]["RiWgx"][m]),
+          #   )
+          #   for m in range(gN)
+          # ]
+          # rLPar["RiWg"] = tf.stack([tfs.to_dense(RiWg) for RiWg in RiWgList])
+          # #rLPar["RiWg"] = tf.sparse.from_dense(tf.stack([tfs.to_dense(RiWg) for RiWg in RiWgList]))
 
       rLParams[r] = rLPar
 
@@ -161,7 +164,7 @@ def init_params(importedInitParList, dtype=np.float64):
       PsiList = [tf.constant(Psi, dtype=dtype) for Psi in importedInitPar["Psi"]]
       DeltaList = [tf.constant(Delta, dtype=dtype) for Delta in importedInitPar["Delta"]]
       EtaList = [tf.constant(Eta, dtype=dtype) for Eta in importedInitPar["Eta"]]
-      AlphaList = [tf.cast(tf.constant(Alpha), tf.int32) - 1 for Alpha in importedInitPar["Alpha"]]
+      AlphaIndList = [tf.cast(tf.constant(AlphaInd), tf.int32) - 1 for AlphaInd in importedInitPar["Alpha"]]
       initPar = {}
       initPar["Z"] = Z
       initPar["Beta"] = Beta
@@ -173,7 +176,7 @@ def init_params(importedInitParList, dtype=np.float64):
       initPar["Psi"] = PsiList
       initPar["Delta"] = DeltaList
       initPar["Eta"] = EtaList
-      initPar["Alpha"] = AlphaList
+      initPar["AlphaInd"] = AlphaIndList
       initParList[chainInd] = initPar
 
     return initParList

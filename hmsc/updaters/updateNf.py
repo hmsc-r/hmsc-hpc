@@ -32,6 +32,7 @@ def updateNf(params, rLHyperparams, iter, dtype=np.float64):
     PsiList = params["Psi"]
     DeltaList = params["Delta"]
     EtaList = params["Eta"]
+    AlphaIndList = params["AlphaInd"]
 
     c0 = 1
     c1 = 0.0005
@@ -40,8 +41,8 @@ def updateNf(params, rLHyperparams, iter, dtype=np.float64):
     prob = 1 / tf.exp(c0 + c1 * tf.cast(iter, dtype))  # probability of adapting
 
     nr = len(LambdaList)
-    EtaNew, LambdaNew, PsiNew, DeltaNew = [[None] * nr for i in range(4)]
-    for r, (Eta, Lambda, Psi, Delta, rLPar) in enumerate(zip(EtaList, LambdaList, PsiList, DeltaList, rLHyperparams)):
+    EtaNew, LambdaNew, PsiNew, DeltaNew, AlphaIndNew = [[None] * nr for i in range(5)]
+    for r, (Lambda, Psi, Delta, Eta, AlphaInd, rLPar) in enumerate(zip(LambdaList, PsiList, DeltaList, EtaList, AlphaIndList, rLHyperparams)):
 
         nu = rLPar["nu"]
         a2 = rLPar["a2"]
@@ -53,47 +54,27 @@ def updateNf(params, rLHyperparams, iter, dtype=np.float64):
             nf = tf.shape(Lambda)[0]
             _, ns = Lambda.shape
             np = tf.shape(Eta)[0]
-            smallLoadingProp = tf.reduce_mean(
-                tf.cast(tfm.abs(Lambda) < epsilon, dtype=dtype), axis=1
-            )
+            smallLoadingProp = tf.reduce_mean(tf.cast(tfm.abs(Lambda) < epsilon, dtype=dtype), 1)
             indRedundant = smallLoadingProp >= prop
             numRedundant = tf.reduce_sum(tf.cast(indRedundant, dtype=dtype))
 
-            if (
-                nf < nfMax and iter > 20 and numRedundant == 0
-            ):  # and tf.reduce_all(smallLoadingProp < 0.995):
-                EtaNew[r] = tf.concat([Eta, tfr.normal([np, 1], dtype=dtype)], axis=1)
-                LambdaNew[r] = tf.concat(
-                    [Lambda, tf.zeros([1, ns], dtype=dtype)], axis=0
-                )
-                PsiNew[r] = tf.concat(
-                    [Psi, tfr.gamma([1, ns], nu / 2, nu / 2, dtype=dtype)], axis=0
-                )
-                DeltaNew[r] = tf.concat(
-                    [Delta, tfr.gamma([1, 1], a2, b2, dtype=dtype)], axis=0
-                )
+            if (nf < nfMax and iter > 20 and numRedundant == 0):  # and tf.reduce_all(smallLoadingProp < 0.995):
+                LambdaNew[r] = tf.concat([Lambda, tf.zeros([1,ns], dtype=dtype)], 0)
+                PsiNew[r] = tf.concat([Psi, tfr.gamma([1,ns], nu / 2, nu / 2, dtype=dtype)], 0)
+                DeltaNew[r] = tf.concat([Delta, tfr.gamma([1,1], a2, b2, dtype=dtype)], 0)
+                EtaNew[r] = tf.concat([Eta, tfr.normal([np,1], dtype=dtype)], 1)
+                AlphaIndNew[r] = tf.concat([AlphaInd, tf.zeros([1], tf.int32)], 0)
             elif nf > nfMin and numRedundant > 0:
-                indRemain = tf.cast(
-                    tf.squeeze(tf.where(tfm.logical_not(indRedundant)), -1), tf.int32
-                )
+                indRemain = tf.cast(tf.squeeze(tf.where(tfm.logical_not(indRedundant)), -1), tf.int32)
                 if tf.shape(indRemain)[0] < tf.cast(nfMin, tf.int32):
-                    indRemain = tf.concat(
-                        [
-                            indRemain,
-                            nf
-                            - 1
-                            - tf.range(
-                                tf.cast(nfMin, tf.int32) - tf.shape(indRemain)[0]
-                            ),
-                        ],
-                        axis=0,
-                    )
-                EtaNew[r] = tf.gather(Eta, indRemain, axis=1)
+                    indRemain = tf.concat([indRemain, nf - 1 - tf.range(nfMin - tf.shape(indRemain)[0])], 0)
                 LambdaNew[r] = tf.gather(Lambda, indRemain, axis=0)
                 PsiNew[r] = tf.gather(Psi, indRemain, axis=0)
                 DeltaNew[r] = tf.gather(Delta, indRemain, axis=0)
+                EtaNew[r] = tf.gather(Eta, indRemain, axis=1)
+                AlphaIndNew[r] = tf.gather(AlphaInd, indRemain, axis=0)
             else:
-                EtaNew[r], LambdaNew[r], PsiNew[r], DeltaNew[r] = Eta, Lambda, Psi, Delta
+                LambdaNew[r], PsiNew[r], DeltaNew[r], EtaNew[r], AlphaIndNew[r] = Lambda, Psi, Delta, Eta, AlphaInd
         else:
-            EtaNew[r], LambdaNew[r], PsiNew[r], DeltaNew[r] = Eta, Lambda, Psi, Delta
-    return LambdaNew, PsiNew, DeltaNew, EtaNew
+            EtaNew[r], LambdaNew[r], PsiNew[r], DeltaNew[r], AlphaIndNew[r] = Eta, Lambda, Psi, Delta, AlphaInd
+    return LambdaNew, PsiNew, DeltaNew, EtaNew, AlphaIndNew
