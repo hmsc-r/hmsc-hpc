@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-tfm, tfla, tfr = tf.math, tf.linalg, tf.random
+tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
 
 
 def updateAlpha(params, rLHyperparams, dtype=np.float64):
@@ -30,7 +30,7 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
         nf = tf.cast(tf.shape(Eta)[1], tf.int32)
         if sDim > 0:
             alphapw = rLPar["alphapw"]
-            iWg = rLPar["iWg"]
+            iWg = tfs.to_dense(rLPar["iWg"])
             detWg = rLPar["detWg"]
 
             # EtaTiWEta = tf.reduce_sum(tf.matmul(LiWg, Eta) ** 2, axis=1)

@@ -6,10 +6,14 @@ tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
 def load_model_data(hmscModel):
 
     Y = np.asarray(hmscModel.get("YScaled")).astype(float)
-    X = np.asarray(hmscModel.get("XScaled"))
     T = np.asarray(hmscModel.get("TrScaled"))
     C_import = hmscModel.get("C")
-    rhoGroup = np.asarray([0]*X.shape[1]) #TODO replace once implemented in R as well
+    if isinstance(hmscModel.get("XScaled"), dict):
+      X = [np.asarray(hmscModel.get("XScaled")[x]) for x in hmscModel.get("XScaled")]
+      rhoGroup = np.asarray([0]*X[0].shape[1]) #TODO replace once implemented in R as well
+    else:
+      X = np.asarray([np.asarray(hmscModel.get("XScaled"))])
+      rhoGroup = np.asarray([0]*X.shape[1]) #TODO replace once implemented in R as well
     # rhoGroup = np.asarray(hmscModel.get("rhoGroup")).astype(int) - 1
     Pi = np.asarray(hmscModel.get("Pi")).astype(int) - 1
     distr = np.asarray(hmscModel.get("distr")).astype(int)
@@ -78,50 +82,51 @@ def load_random_level_hyperparams(hmscModel, dataParList):
           rLPar["LiWg"] = tfla.matrix_transpose(np.reshape(dataParList["rLPar"][r]["RiWg"], (gN, npVec[r], npVec[r])))
           rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
           
-        elif rLPar["spatialMethod"] != "GPP":
+        elif rLPar["spatialMethod"] == "GPP":
           raise NotImplementedError
           
-        elif rLPar["spatialMethod"] != "NNGP":
-          raise NotImplementedError
-          # def get_indices(p, i, nvars):
-          #   indices = []
-          #   for j in range(nvars):
-          #     n = p[j + 1] - p[j]
-          #     for elem in range(n):
-          #       indices.append([i[elem + p[j]], j])
-          #   reordered_indices = sorted(indices, key=lambda x: x[0])
-          #   return reordered_indices
+        elif rLPar["spatialMethod"] == "NNGP":
+          
+          def get_indices(p, i, nvars):
+            indices = []
+            for j in range(nvars):
+              n = p[j + 1] - p[j]
+              for elem in range(n):
+                indices.append([i[elem + p[j]], j])
+            reordered_indices = sorted(indices, key=lambda x: x[0])
+            return reordered_indices
 
-          # def get_sparse_tensor(p, i, x):
-          #   nvars = len(p) - 1
-          #   if len(x) == 0:
-          #     return tfs.from_dense(tf.zeros([nvars, nvars], dtype=tf.float64))
-          #   return tfs.SparseTensor(
-          #     indices=get_indices(p, i, nvars),
-          #     values=x,
-          #     dense_shape=[nvars, nvars],
-          #   )  
+          def get_sparse_tensor(p, i, x):
+            nvars = len(p) - 1
+            if len(x) == 0:
+              return tfs.from_dense(tf.zeros([nvars, nvars], dtype=tf.float64))
+            return tfs.SparseTensor(
+              indices=get_indices(p, i, nvars),
+              values=x,
+              dense_shape=[nvars, nvars],
+            )  
           
-          # iWgList = [
-          #   get_sparse_tensor(
-          #     np.squeeze(dataParList["rLPar"][r]["iWgp"][m]),
-          #     np.squeeze(dataParList["rLPar"][r]["iWgi"][m]),
-          #     np.squeeze(dataParList["rLPar"][r]["iWgx"][m]),
-          #   )
-          #   for m in range(gN)
-          # ]
-          # rLPar["iWg"] = tf.stack([tfs.to_dense(iWg) for iWg in iWgList])
-          # #rLPar["iWg"] = tf.sparse.from_dense(tf.stack([tfs.to_dense(iWg) for iWg in iWgList]))
-          # RiWgList = [
-          #   get_sparse_tensor(
-          #     np.squeeze(dataParList["rLPar"][r]["RiWgp"][m]),
-          #     np.squeeze(dataParList["rLPar"][r]["RiWgi"][m]),
-          #     np.squeeze(dataParList["rLPar"][r]["RiWgx"][m]),
-          #   )
-          #   for m in range(gN)
-          # ]
-          # rLPar["RiWg"] = tf.stack([tfs.to_dense(RiWg) for RiWg in RiWgList])
-          # #rLPar["RiWg"] = tf.sparse.from_dense(tf.stack([tfs.to_dense(RiWg) for RiWg in RiWgList]))
+          iWgList = [
+            tfs.expand_dims(get_sparse_tensor(
+              np.squeeze(dataParList["rLPar"][r]["iWgp"][m]),
+              np.squeeze(dataParList["rLPar"][r]["iWgi"][m]),
+              np.squeeze(dataParList["rLPar"][r]["iWgx"][m]),
+            ), axis=0)
+            for m in range(gN)
+          ]
+          rLPar["iWg"] = tfs.concat(axis=0, sp_inputs=iWgList)
+
+          RiWgList = [
+            tfs.expand_dims(get_sparse_tensor(
+              np.squeeze(dataParList["rLPar"][r]["RiWgp"][m]),
+              np.squeeze(dataParList["rLPar"][r]["RiWgi"][m]),
+              np.squeeze(dataParList["rLPar"][r]["RiWgx"][m]),
+            ), axis=0)
+            for m in range(gN)
+          ]
+          rLPar["RiWg"] = tfs.concat(axis=0, sp_inputs=RiWgList)
+
+          rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
 
       rLParams[r] = rLPar
 

@@ -4,7 +4,7 @@ import tensorflow as tf
 tfm, tfla, tfr = tf.math, tf.linalg, tf.random
 
 
-def updateBetaLambda(params, data, priorHyperParams, dtype=np.float64):
+def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     """Update conditional updater(s):
     Beta - species niches, and
     Lambda - species loadings.
@@ -38,10 +38,13 @@ def updateBetaLambda(params, data, priorHyperParams, dtype=np.float64):
     C, eC, VC = data["C"], data["eC"], data["VC"]
     rhoGroup = data["rhoGroup"]
     Pi = data["Pi"]
-    rhopw = priorHyperParams["rhopw"]
+    rhopw = priorHyperparams["rhopw"]
     
-
-    ny, nc = X.shape
+    if isinstance(X, list):
+      ny, nc = X[0].shape
+    else:
+      ny, nc = X.shape
+    
     _, ns = Z.shape
     nr = len(EtaList)
     nfVec = tf.stack([tf.shape(Eta)[-1] for Eta in EtaList])
@@ -51,7 +54,11 @@ def updateBetaLambda(params, data, priorHyperParams, dtype=np.float64):
     for r, Eta in enumerate(EtaList):
       EtaListFull[r] = tf.gather(Eta, Pi[:, r])
 
-    XE = tf.concat([X] + EtaListFull, axis=-1)
+    if isinstance(X, list):
+      XE = [tf.concat([X1] + EtaListFull, axis=-1) for X1 in X]
+    else:
+      XE = tf.concat([X] + EtaListFull, axis=-1)
+
     GammaT = tf.matmul(Gamma, T, transpose_b=True)
     Mu = tf.concat([GammaT, tf.zeros([nfSum, ns], dtype)], axis=0)
     if nr > 0:
@@ -85,10 +92,21 @@ def updateBetaLambda(params, data, priorHyperParams, dtype=np.float64):
       else:
         iK = iK11_op.to_dense()
       
-      XE_iD_XET = tf.einsum("ic,j,ik->ckj", XE, sigma**-2, XE)
+      if isinstance(X, list):	
+        XE_stacked = tf.stack(XE)	
+        XE_iD_XET = tf.einsum("jic,j,jik->ckj", XE_stacked, sigma**-2, XE_stacked)	
+      else:	
+        XE_iD_XET = tf.einsum("ic,j,ik->ckj", XE, sigma**-2, XE)
+
       iU = iK + tf.reshape(tf.transpose(tfla.diag(XE_iD_XET), [0,2,1,3]), [(nc+nfSum)*ns]*2)
       LiU = tfla.cholesky(iU)
-      m0 = tf.matmul(iK, tf.reshape(Mu, [(nc+nfSum)*ns,1])) + tf.reshape(tf.matmul(XE, Z / sigma**2, transpose_a=True), [(nc+nfSum)*ns,1])
+
+      if isinstance(X, list):	
+        XE_stacked = tf.stack(XE)	
+        m0 = tf.matmul(iK, tf.reshape(Mu, [(nc+nfSum)*ns,1])) + tf.reshape(tf.matmul(XE[0], Z / sigma**2, transpose_a=True), [(nc+nfSum)*ns,1])	
+      else:
+        m0 = tf.matmul(iK, tf.reshape(Mu, [(nc+nfSum)*ns,1])) + tf.reshape(tf.matmul(XE, Z / sigma**2, transpose_a=True), [(nc+nfSum)*ns,1])
+        
       m = tfla.cholesky_solve(LiU, m0)
       BetaLambda = tf.reshape(m + tfla.triangular_solve(LiU, tfr.normal(shape=[(nc+nfSum)*ns,1], dtype=dtype), adjoint=True), [nc+nfSum,ns])
       # tf.reshape(m, [nc+nfSum,ns])

@@ -3,7 +3,7 @@ import tensorflow as tf
 
 tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
 
-from hmsc.utils.tflautils import kron, scipy_cholesky
+from hmsc.utils.tflautils import kron, scipy_cholesky, tf_sparse_matmul, tf_sparse_cholesky, scipy_sparse_solve_triangular
 
 
 def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
@@ -34,11 +34,25 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     Pi = data["Pi"]
     X = data["X"]
     ny = modelDims["ny"]
+    ns = modelDims["ns"]
     nr = modelDims["nr"]
     npVec = modelDims["np"]
     
     iD = tf.ones_like(Z) * sigma**-2
-    LFix = tf.matmul(X, Beta)
+
+    iSigma = 1 / sigma
+    
+    if isinstance(X, list):
+        for i, X1 in enumerate(X):
+            XBeta = tf.matmul(X1, tf.expand_dims(Beta[:,i], -1))
+            if i == 0:
+                LFix = XBeta
+            else:
+                LFix = tf.stack([LFix, XBeta], axis=1)
+        LFix = tf.squeeze(LFix, axis=-1)
+    else:
+        LFix = tf.matmul(X, Beta)
+
     LRanLevelList = [None] * nr
     for r, (Eta, Lambda) in enumerate(zip(EtaList, LambdaList)):
         LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
@@ -57,7 +71,7 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
                 elif rLPar["spatialMethod"] == "GPP":
                     raise NotImplementedError
                 elif rLPar["spatialMethod"] == "NNGP":
-                    EtaListNew[r] = modelSpatialNNGP(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], npVec[r], nf)
+                    EtaListNew[r] = EtaListNew[r] = modelSpatialNNGP(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], Pi, S, iSigma, ny, ns, npVec[r], nf)
             else:
                 EtaListNew[r] = modelNonSpatial(LamInvSigLam, mu0, npVec[r], nf, dtype)
             
@@ -87,50 +101,21 @@ def modelNonSpatial(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     return Eta
 
 
-def modelSpatialNNGP(LamInvSigLam, mu0, Alpha, iWg, np, nf, dtype=np.float64):
-    raise NotImplementedError
-    # iWs = tf.zeros([np * nf, np * nf], dtype=dtype)
+def modelSpatialNNGP(LamInvSigLam, mu0, AlphaInd, iWg, Pi, S, iSigma, ny, ns, np, nf, dtype=np.float64):
+    mask_values = tf.constant([True, False])
+    iWs = tfs.from_dense(tf.zeros([np * nf, np * nf], dtype=dtype))
+    
+    for h in range(nf):
+        mask = tf.where(tf.equal(iWg.indices[:, 0], tf.cast(AlphaInd[h], tf.int64)), mask_values[0], mask_values[1])
+        masked_iWg = tfs.reduce_sum(tf.sparse.retain(iWg, mask), axis=0, keepdims=True, output_is_sparse=True)
+        iWs = tfs.add(iWs, tfs.from_dense(kron(tf.squeeze(tfs.to_dense(masked_iWg)), tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)))))
+            
+    P = tfs.SparseTensor(tf.squeeze(tf.stack([tf.expand_dims(tf.range(ny, dtype=tf.int64),1), Pi], axis=1)), tf.ones([ny], dtype=dtype), [ny, np])
+    fS = tf_sparse_matmul(tf_sparse_matmul(P, tfs.from_dense(S)), tfs.from_dense(tf.transpose(tf.reshape(tf.tile(iSigma, [nf]), [nf, len(iSigma)]))))
 
-    # for h in range(nf):
+    iUEta = tfs.add(iWs, tfs.from_dense(kron(LamInvSigLam[0, :, :], tf.cast(tfla.diag(tfs.reduce_sum(P, axis=0)), dtype=dtype))))    
+    LiUEta = tf_sparse_cholesky(iUEta)
+    mu1 = tf.numpy_function(scipy_sparse_solve_triangular, [LiUEta.values, LiUEta.indices, [ny*ns,ny*ns], tf.reshape(tf.transpose(mu0), [nf * np, 1])], dtype)
+    Eta = tf.numpy_function(scipy_sparse_solve_triangular, [LiUEta.values, LiUEta.indices, [ny*ns, ny*ns], mu1 + tfr.normal([nf * np, 1], dtype=dtype)], dtype)
 
-    #     '''
-    #     iWs = iWs + kron(
-    #         tf.squeeze(tfs.to_dense(tfs.slice(iWg, [1,0,0], [1, np, np]))),
-    #         tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
-    #     )
-    #     '''
-
-    #     iWs = iWs + kron(
-    #         # tf.gather(iWg, tf.cast(tf.squeeze(Alpha[h], -1), dtype=tf.int64)),
-    #         tf.gather(iWg, tf.squeeze(Alpha[h])),
-    #         tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
-    #     )
-
-    # P = tfs.SparseTensor(
-    #     tf.cast(tf.stack([tf.range(ny), Pi], axis=1), tf.int64),
-    #     tf.ones([ny], dtype=dtype),
-    #     [ny, np],
-    # )
-
-    # fS = tf.matmul(
-    #     tf.matmul(tfs.to_dense(P), S, transpose_a=True),
-    #     tf.reshape(tf.tile(iSigma, [nf]), [nf, len(iSigma)]),
-    #     transpose_b=True,
-    # )
-
-    # iUEta = iWs + kron(
-    #     LamInvSigLam[0, :, :],
-    #     tf.cast(tfla.diag(tfs.reduce_sum(P, axis=0)), dtype=dtype),
-    # )
-
-    # LiUEta = tf.numpy_function(scipy_cholesky, [iUEta], tf.float64)
-
-    # mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf * np, 1]))
-
-    # eta = tfla.triangular_solve(
-    #     LiUEta, mu1 + tfr.normal([nf * np, 1], dtype=dtype), adjoint=True
-    # )
-
-    # Eta = tf.transpose(tf.reshape(eta, [nf, np]))
-
-    # return Eta
+    return tf.transpose(tf.reshape(Eta, [nf, np]))
