@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from tensorflow.python.ops.random_ops import parameterized_truncated_normal
 tfd = tfp.distributions
 tfm, tfr = tf.math, tf.random
 
@@ -62,12 +63,15 @@ def updateZ(params, data, dtype=np.float64):
     # norm = tfd.Normal(LP, sigmaP)
     # samUnif = tf.random.uniform(YP.shape, norm.cdf(low), norm.cdf(high), dtype=dtype)
     # ZP = norm.quantile(samUnif)
-    low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(float("-1e+9"), dtype), tf.zeros_like(YP))
-    high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(float("1e+9"), dtype), tf.zeros_like(YP))
-    ZP = tfd.TruncatedNormal(loc=LP, scale=sigmaP, low=low, high=high).sample()
+    low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(-1e+9, dtype), tf.zeros_like(YP))
+    high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(1e+9, dtype), tf.zeros_like(YP))
+    # ZP = tfd.TruncatedNormal(loc=LP, scale=sigmaP, low=low, high=high).sample()
+    nsP = tf.shape(YP)[1]
+    samTN = parameterized_truncated_normal(shape=[ny*nsP], means=tf.reshape(LP,[ny*nsP]), stddevs=tf.tile(sigmaP, [ny]), 
+                                           minvals=tf.reshape(low,[ny*nsP]), maxvals=tf.reshape(high,[ny*nsP]), dtype=dtype)
+    ZP = tf.reshape(samTN, [ny,nsP])
 
     ZStack = tf.concat([ZN, ZP], -1)
     indColStack = tf.concat([indColNormal, indColProbit], 0)
-    # ZNew = tf.transpose(tf.scatter_nd(indColStack[:,None], tf.transpose(ZStack), Y.shape[::-1]))
     ZNew = tf.gather(ZStack, tf.argsort(indColStack), axis=-1)
     return ZNew
