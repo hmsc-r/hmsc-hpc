@@ -83,7 +83,7 @@ class GibbsSampler(tf.Module):
             outStr += " transient"
         sys.stdout.write("\r" + outStr)
 
-    @tf.function
+    #@tf.function
     def sampling_routine(
         self,
         paramsInput,

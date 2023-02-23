@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
+tfla, tfm, tfr, tfs = tf.linalg, tf.math, tf.random, tf.sparse
 
 from hmsc.utils.tflautils import kron, scipy_cholesky, tf_sparse_matmul, tf_sparse_cholesky, scipy_sparse_solve_triangular
 
@@ -33,6 +33,7 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     AlphaIndList = params["AlphaInd"]
     Pi = data["Pi"]
     X = data["X"]
+    Y = data["Y"]
     ny = modelDims["ny"]
     ns = modelDims["ns"]
     nr = modelDims["nr"]
@@ -62,18 +63,16 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
         nf = tf.cast(tf.shape(Lambda)[-2], tf.int64)
         if nf > 0:
             S = Z - LFix - sum([LRanLevelList[rInd] for rInd in np.setdiff1d(np.arange(nr), r)])
-            LamInvSigLam = tf.scatter_nd(Pi[:,r,None], tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [npVec[r],nf,nf])
-            mu0 = tf.scatter_nd(Pi[:,r,None], tf.matmul(iD * S, Lambda, transpose_b=True), [npVec[r],nf])
     
             if rLPar["sDim"] > 0:
                 if rLPar["spatialMethod"] == "Full":
-                    EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], npVec[r], nf)
+                    EtaListNew[r] = modelSpatialFull(S, iD, Pi[:,r,None], Lambda, AlphaInd, rLPar["iWg"], npVec[r], nf)
                 elif rLPar["spatialMethod"] == "GPP":
-                    raise NotImplementedError
+                    EtaListNew[r] = modelSpatialGPP(Y, S, Lambda, iSigma, rLPar["xDim"], ny, ns, npVec[r], nf)
                 elif rLPar["spatialMethod"] == "NNGP":
-                    EtaListNew[r] = EtaListNew[r] = modelSpatialNNGP(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], Pi, S, iSigma, ny, ns, npVec[r], nf)
+                    EtaListNew[r] = EtaListNew[r] = modelSpatialNNGP(S, iD, Pi[:,r,None], Lambda, AlphaInd, rLPar["iWg"], iSigma, ny, ns, npVec[r], nf)
             else:
-                EtaListNew[r] = modelNonSpatial(LamInvSigLam, mu0, npVec[r], nf, dtype)
+                EtaListNew[r] = modelNonSpatial(S, iD, Pi[:,r,None], Lambda, npVec[r], nf, dtype)
             
             LRanLevelList[r] = tf.matmul(tf.gather(EtaListNew[r], Pi[:,r]), Lambda)
         else:
@@ -82,8 +81,10 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     return EtaListNew
 
 
-def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64): 
+def modelSpatialFull(S, iD, Pi, Lambda, AlphaInd, iWg, np, nf, dtype=np.float64): 
     #TODO a lot of unnecessary tanspositions - rework if considerably affects perfomance
+    LamInvSigLam = tf.scatter_nd(Pi, tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [np,nf,nf])
+    mu0 = tf.scatter_nd(Pi, tf.matmul(iD * S, Lambda, transpose_b=True), [np,nf])
     iWs = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(iWg, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*np,nf*np])
     iUEta = iWs + tf.reshape(tf.transpose(tfla.diag(tf.transpose(LamInvSigLam, [1,2,0])), [0,2,1,3]), [nf*np,nf*np])
     LiUEta = tfla.cholesky(iUEta)
@@ -93,7 +94,9 @@ def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64)
     return Eta
 
 
-def modelNonSpatial(LamInvSigLam, mu0, np, nf, dtype=np.float64):
+def modelNonSpatial(S, iD, Pi, Lambda, np, nf, dtype=np.float64):
+    LamInvSigLam = tf.scatter_nd(Pi, tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [np,nf,nf])
+    mu0 = tf.scatter_nd(Pi, tf.matmul(iD * S, Lambda, transpose_b=True), [np,nf])
     iV = tf.eye(nf, dtype=dtype) + LamInvSigLam
     LiV = tfla.cholesky(iV)
     mu1 = tfla.triangular_solve(LiV, tf.expand_dims(mu0, -1))
@@ -101,7 +104,10 @@ def modelNonSpatial(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     return Eta
 
 
-def modelSpatialNNGP(LamInvSigLam, mu0, AlphaInd, iWg, Pi, S, iSigma, ny, ns, np, nf, dtype=np.float64):
+def modelSpatialNNGP(S, iD, Pi, Lambda, AlphaInd, iWg, iSigma, ny, ns, np, nf, dtype=np.float64):
+    LamInvSigLam = tf.scatter_nd(Pi, tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [np,nf,nf])
+    mu0 = tf.scatter_nd(Pi, tf.matmul(iD * S, Lambda, transpose_b=True), [np,nf])
+
     mask_values = tf.constant([True, False])
     iWs = tfs.from_dense(tf.zeros([np * nf, np * nf], dtype=dtype))
     
@@ -119,3 +125,23 @@ def modelSpatialNNGP(LamInvSigLam, mu0, AlphaInd, iWg, Pi, S, iSigma, ny, ns, np
     Eta = tf.numpy_function(scipy_sparse_solve_triangular, [LiUEta.values, LiUEta.indices, [ny*ns, ny*ns], mu1 + tfr.normal([nf * np, 1], dtype=dtype)], dtype)
 
     return tf.transpose(tf.reshape(Eta, [nf, np]))
+
+def modelSpatialGPP(Y, S, Lambda, iSigma, xDim, ny, ns, np, nf, dtype=tf.float64):
+        nyFull = tf.reduce_sum(tf.where(tf.reduce_sum(tf.cast(~tfm.is_nan(Y), tf.uint8), axis=1) == ns, 1, 0))
+
+        if xDim != 0:
+            raise NotImplementedError
+        if np != ny:
+            pass
+        if nyFull <= 0:
+            pass
+        
+        LamInvSigLam = tf.einsum("ij,j,kj->kj", Lambda, iSigma**-2, Lambda)
+        mu0 = tf.einsum("ij,kj->ik", S, tf.einsum("ij,i->ij", Lambda, iSigma))
+        iV = tf.eye(nf, dtype=dtype) + LamInvSigLam
+        LiV = tfla.cholesky(iV)
+        mu1 = tfla.triangular_solve(LiV, tf.expand_dims(mu0, -1))
+        Eta = tf.squeeze(tfla.triangular_solve(LiV, mu1 + tfr.normal([np,nf,1], dtype=dtype), adjoint=True), -1)
+
+        return Eta
+

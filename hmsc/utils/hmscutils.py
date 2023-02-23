@@ -12,7 +12,7 @@ def load_model_data(hmscModel):
       X = [np.asarray(hmscModel.get("XScaled")[x]) for x in hmscModel.get("XScaled")]
       rhoGroup = np.asarray([0]*X[0].shape[1]) #TODO replace once implemented in R as well
     else:
-      X = np.asarray([np.asarray(hmscModel.get("XScaled"))])
+      X = np.asarray(hmscModel.get("XScaled"))
       rhoGroup = np.asarray([0]*X.shape[1]) #TODO replace once implemented in R as well
     # rhoGroup = np.asarray(hmscModel.get("rhoGroup")).astype(int) - 1
     Pi = np.asarray(hmscModel.get("Pi")).astype(int) - 1
@@ -58,7 +58,7 @@ def load_model_dims(hmscModel):
 def load_random_level_hyperparams(hmscModel, dataParList):
 
     nr = int(np.squeeze(hmscModel.get("nr")))
-    npVec = (np.squeeze(hmscModel.get("np"))).astype(int)
+    npVec = hmscModel.get("np")
     
     rLParams = [None] * nr
     for r in range(nr):
@@ -72,6 +72,7 @@ def load_random_level_hyperparams(hmscModel, dataParList):
       rLPar["nfMin"] = int(hmscModel.get("rL")[rLName]["nfMin"][0])
       rLPar["nfMax"] = int(hmscModel.get("rL")[rLName]["nfMax"][0])
       rLPar["sDim"] = int(hmscModel.get("rL")[rLName]["sDim"][0])
+      rLPar["xDim"] = int(hmscModel.get("rL")[rLName]["xDim"][0])
       rLPar["spatialMethod"] = np.squeeze(hmscModel.get("rL")[rLName]["spatialMethod"]) # squeezed returned string array; assumption that one spatial method per level
       if rLPar["sDim"] > 0:
         rLPar["alphapw"] = np.asarray(hmscModel.get("rL")[rLName]["alphapw"])
@@ -83,8 +84,13 @@ def load_random_level_hyperparams(hmscModel, dataParList):
           rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
           
         elif rLPar["spatialMethod"] == "GPP":
-          raise NotImplementedError
-          
+          nK = int(dataParList["rLPar"][r]["nK"][0])        
+          rLPar["idDg"] = np.asarray(dataParList["rLPar"][r]["idDg"])
+          rLPar["idDW12g"] = np.reshape(dataParList["rLPar"][r]["idDW12g"], (gN, nK, npVec[r]))
+          rLPar["Fg"] = np.reshape(dataParList["rLPar"][r]["Fg"], (gN, nK, nK))
+          rLPar["iFg"] = np.reshape(dataParList["rLPar"][r]["iFg"], (gN, nK, nK))
+          rLPar["detDg"] = np.asarray(dataParList["rLPar"][r]["detDg"])
+
         elif rLPar["spatialMethod"] == "NNGP":
           
           def get_indices(p, i, nvars):

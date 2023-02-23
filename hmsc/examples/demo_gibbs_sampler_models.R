@@ -22,7 +22,7 @@ Experiments <- function() {
 }
 experiments <- Experiments()
 
-selected_experiment = experiments$M2
+selected_experiment = experiments$M6
 
 m = models[[selected_experiment$id]]
 
@@ -59,16 +59,17 @@ if (selected_experiment$name == experiments$M1$name) {
   nChains = 8
   nSamples = 250
   thin = 1
-  m$X = 0.5*(m$X[[1]] + m$X[[2]])
-  m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
-  m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
+  #m$X = 0.5*(m$X[[1]] + m$X[[2]])
+  #m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
+  #m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
+  transient = nSamples*thin
 } else if (selected_experiment$name == experiments$M6$name) {
   nChains = 8
   nSamples = 250
   thin = 1
-  m$X = 0.5*(m$X[[1]] + m$X[[2]])
-  m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
-  m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
+  #m$X = 0.5*(m$X[[1]] + m$X[[2]])
+  #m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
+  #m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
 } else if (selected_experiment$name == experiments$M7$name) {
   print("Not Implemented: XScaled not found error for engine=pass")
 }
@@ -117,6 +118,9 @@ for (r in seq_len(nr)) {
       }
       init_obj[["dataParList"]][["rLPar"]][[r]][["iWg"]] = NULL
       init_obj[["dataParList"]][["rLPar"]][[r]][["RiWg"]] = NULL  
+    }
+    else if (spatialMethod == "GPP") {
+      init_obj[["dataParList"]][["rLPar"]][[r]][["nK"]] = nrow(init_obj[["dataParList"]][["rLPar"]][[1]][["Fg"]])
     }
   }
   else {}
