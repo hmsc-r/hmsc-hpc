@@ -1,10 +1,9 @@
 import numpy as np
 import tensorflow as tf
+from scipy.sparse import csc_matrix, coo_matrix, block_diag, kron
+from scipy.sparse.linalg import splu, spsolve_triangular
 
 tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
-
-from hmsc.utils.tflautils import kron, scipy_cholesky
-
 
 def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     """Update conditional updater(s):
@@ -33,9 +32,10 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     AlphaIndList = params["AlphaInd"]
     Pi = data["Pi"]
     X = data["X"]
-    ny = modelDims["ny"]
     nr = modelDims["nr"]
     npVec = modelDims["np"]
+    
+    
     
     iD = tf.ones_like(Z) * sigma**-2
     LFix = tf.matmul(X, Beta)
@@ -57,7 +57,10 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
                 elif rLPar["spatialMethod"] == "GPP":
                     raise NotImplementedError
                 elif rLPar["spatialMethod"] == "NNGP":
-                    EtaListNew[r] = modelSpatialNNGP(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], npVec[r], nf)
+                    modelSpatialNNGP_local = lambda LamInvSigLam, mu0, Alpha, nf: modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, rLPar["iWList_csc"], npVec[r], nf)
+                    # EtaListNew[r] = modelSpatialNNGP_local(LamInvSigLam, mu0, AlphaInd, nf)
+                    Eta = tf.numpy_function(modelSpatialNNGP_local, [LamInvSigLam, mu0, AlphaInd, nf], dtype)
+                    EtaListNew[r] = tf.ensure_shape(Eta, [npVec[r], None])
             else:
                 EtaListNew[r] = modelNonSpatial(LamInvSigLam, mu0, npVec[r], nf, dtype)
             
@@ -87,50 +90,24 @@ def modelNonSpatial(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     return Eta
 
 
-def modelSpatialNNGP(LamInvSigLam, mu0, Alpha, iWg, np, nf, dtype=np.float64):
-    raise NotImplementedError
-    # iWs = tf.zeros([np * nf, np * nf], dtype=dtype)
-
-    # for h in range(nf):
-
-    #     '''
-    #     iWs = iWs + kron(
-    #         tf.squeeze(tfs.to_dense(tfs.slice(iWg, [1,0,0], [1, np, np]))),
-    #         tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
-    #     )
-    #     '''
-
-    #     iWs = iWs + kron(
-    #         # tf.gather(iWg, tf.cast(tf.squeeze(Alpha[h], -1), dtype=tf.int64)),
-    #         tf.gather(iWg, tf.squeeze(Alpha[h])),
-    #         tf.linalg.diag(tf.cast(tf.one_hot(h, tf.cast(nf, tf.int32)), dtype)),
-    #     )
-
-    # P = tfs.SparseTensor(
-    #     tf.cast(tf.stack([tf.range(ny), Pi], axis=1), tf.int64),
-    #     tf.ones([ny], dtype=dtype),
-    #     [ny, np],
-    # )
-
-    # fS = tf.matmul(
-    #     tf.matmul(tfs.to_dense(P), S, transpose_a=True),
-    #     tf.reshape(tf.tile(iSigma, [nf]), [nf, len(iSigma)]),
-    #     transpose_b=True,
-    # )
-
-    # iUEta = iWs + kron(
-    #     LamInvSigLam[0, :, :],
-    #     tf.cast(tfla.diag(tfs.reduce_sum(P, axis=0)), dtype=dtype),
-    # )
-
-    # LiUEta = tf.numpy_function(scipy_cholesky, [iUEta], tf.float64)
-
-    # mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf * np, 1]))
-
-    # eta = tfla.triangular_solve(
-    #     LiUEta, mu1 + tfr.normal([nf * np, 1], dtype=dtype), adjoint=True
-    # )
-
-    # Eta = tf.transpose(tf.reshape(eta, [nf, np]))
-
-    # return Eta
+def modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, iWList, nu, nf, dtype=np.float64):
+    LamInvSigLam_bdiag = block_diag([LamInvSigLam[i] for i in range(nu)], dtype=dtype)
+    dataList, colList, rowList = [None]*nf, [None]*nf, [None]*nf
+    for h, a in enumerate(Alpha):
+      iW = coo_matrix(iWList[a])
+      dataList[h] = iW.data
+      colList[h] = iW.col + h
+      rowList[h] = iW.row + h
+    dataArray = np.concatenate(dataList)
+    colArray = np.concatenate(colList)
+    rowArray = np.concatenate(rowList)
+    iUEta = csc_matrix(coo_matrix((dataArray,(colArray,rowArray)), [nu*nf,nu*nf])) + LamInvSigLam_bdiag
+    # iWs = [kron(iWList[a], csc_matrix(coo_matrix(([1],([h],[h])), [nf,nf]))) for h, a in enumerate(Alpha)] #TODO redo with indices?
+    # iUEta = sum(iWs) + LamInvSigLam_bdiag
+    LU_factor = splu(iUEta)
+    LiUEta = LU_factor.L.multiply(np.sqrt(LU_factor.U.diagonal()))
+    mu1 = spsolve_triangular(LiUEta, np.reshape(mu0, [nu*nf]))
+    eta = spsolve_triangular(LiUEta.transpose(), mu1 + np.random.normal(dtype(0), dtype(1), size=[nf*nu]), lower=False)
+    Eta = np.reshape(eta, [nu,nf])
+    return Eta
+    
