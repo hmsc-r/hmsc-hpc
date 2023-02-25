@@ -84,7 +84,9 @@ def load_random_level_hyperparams(hmscModel, dataParList):
           rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
           
         elif rLPar["spatialMethod"] == "GPP":
-          nK = int(dataParList["rLPar"][r]["nK"][0])        
+          nK = int(dataParList["rLPar"][r]["nK"][0])
+
+          rLPar["nK"] = nK
           rLPar["idDg"] = np.asarray(dataParList["rLPar"][r]["idDg"])
           rLPar["idDW12g"] = np.reshape(dataParList["rLPar"][r]["idDW12g"], (gN, nK, npVec[r]))
           rLPar["Fg"] = np.reshape(dataParList["rLPar"][r]["Fg"], (gN, nK, nK))

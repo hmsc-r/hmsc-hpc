@@ -10,9 +10,10 @@ def scipy_cholesky(X):
     return cholesky(X)
 
 def kron(A, B):
-    tmp1 = A[:, :, None, None] * B[None, None, :, :]
-    shape = [tf.shape(A)[0] * tf.shape(B)[0], tf.shape(A)[1] * tf.shape(B)[1]]
-    return tf.reshape(tf.transpose(tmp1, [0, 2, 1, 3]), shape)
+    # tmp1 = A[:, :, None, None] * B[None, None, :, :]
+    # shape = [tf.shape(A)[0] * tf.shape(B)[0], tf.shape(A)[1] * tf.shape(B)[1]]
+    # return tf.reshape(tf.transpose(tmp1, [0, 2, 1, 3]), shape)
+    return tf.reshape(tf.einsum("ik,jl", A, B), shape = [tf.shape(A)[0] * tf.shape(B)[0], tf.shape(A)[1] * tf.shape(B)[1]]) 
 
 def tf_sparse_matmul(A: tf.SparseTensor, B: tf.SparseTensor, dtype=tf.float64):
     A_sm = sparse_csr_matrix_ops.sparse_tensor_to_csr_sparse_matrix(A.indices, A.values, A.dense_shape)
