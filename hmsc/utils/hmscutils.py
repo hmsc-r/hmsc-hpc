@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from scipy.sparse import coo_matrix, csc_matrix
 tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
 
 
@@ -55,7 +56,7 @@ def load_model_dims(hmscModel):
     return modelDims
 
 
-def load_random_level_hyperparams(hmscModel, dataParList):
+def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
 
     nr = int(np.squeeze(hmscModel.get("nr")))
     npVec = hmscModel.get("np")
@@ -75,13 +76,13 @@ def load_random_level_hyperparams(hmscModel, dataParList):
       rLPar["xDim"] = int(hmscModel.get("rL")[rLName]["xDim"][0])
       rLPar["spatialMethod"] = np.squeeze(hmscModel.get("rL")[rLName]["spatialMethod"]) # squeezed returned string array; assumption that one spatial method per level
       if rLPar["sDim"] > 0:
-        rLPar["alphapw"] = np.asarray(hmscModel.get("rL")[rLName]["alphapw"])
+        rLPar["alphapw"] = np.array(hmscModel.get("rL")[rLName]["alphapw"])
         gN = rLPar["alphapw"].shape[0]
         if rLPar["spatialMethod"] == "Full":
           rLPar["Wg"] = np.reshape(dataParList["rLPar"][r]["Wg"], (gN, npVec[r], npVec[r]))
           rLPar["iWg"] = np.reshape(dataParList["rLPar"][r]["iWg"], (gN, npVec[r], npVec[r]))
           rLPar["LiWg"] = tfla.matrix_transpose(np.reshape(dataParList["rLPar"][r]["RiWg"], (gN, npVec[r], npVec[r])))
-          rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
+          rLPar["detWg"] = np.array(dataParList["rLPar"][r]["detWg"])
           
         elif rLPar["spatialMethod"] == "GPP":
           nK = int(dataParList["rLPar"][r]["nK"][0])

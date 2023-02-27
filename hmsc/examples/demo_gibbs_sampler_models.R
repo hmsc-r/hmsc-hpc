@@ -17,12 +17,12 @@ Experiments <- function() {
     M4=list(name="model4",id=4),
     M5=list(name="model5",id=5),
     M6=list(name="model6",id=6),
-    M7=list(name="model6",id=7)
+    M7=list(name="model7",id=7)
     )
 }
 experiments <- Experiments()
 
-selected_experiment = experiments$M6
+selected_experiment = experiments$M5
 
 m = models[[selected_experiment$id]]
 

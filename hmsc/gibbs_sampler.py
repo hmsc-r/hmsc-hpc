@@ -115,7 +115,7 @@ class GibbsSampler(tf.Module):
         
         step_num = sample_burnin + num_samples * sample_thining
         print("Iterations %d" % step_num)
-        for n in tf.range(step_num):
+        for n in range(step_num):
             tf.autograph.experimental.set_loop_options(
                 shape_invariants=[
                     (params["Eta"], [tf.TensorShape([None, None]) for r in range(nr)]),
