@@ -51,7 +51,7 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
                 # EtaTiWEta = tf.reduce_sum(tf.matmul(LiWg, Eta) ** 2, axis=1)
                 EtaTiWEta = tf.einsum("ah,gab,bh->hg", Eta, iWg, Eta)
                 logLike = tfm.log(alphapw[:,1]) - 0.5 * detWg - 0.5 * EtaTiWEta
-                AlphaList[r] = tf.squeeze(tfr.categorical(logLike, nf, dtype=tf.int32))
+                AlphaList[r] = tf.squeeze(tfr.categorical(logLike, 1, dtype=tf.int32))
 
             else:
                 detWg = rLPar["detWg"]
@@ -59,7 +59,7 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
                 # EtaTiWEta = tf.reduce_sum(tf.matmul(LiWg, Eta) ** 2, axis=1)
                 EtaTiWEta = tf.einsum("ah,gab,bh->hg", Eta, iWg, Eta)
                 logLike = tfm.log(alphapw[:,1]) - 0.5 * detWg - 0.5 * EtaTiWEta
-                AlphaList[r] = tf.squeeze(tfr.categorical(logLike, nf, dtype=tf.int32))
+                AlphaList[r] = tf.squeeze(tfr.categorical(logLike, 1, dtype=tf.int32))
         else:
             AlphaList[r] = tf.zeros([nf], dtype=tf.int32)
 

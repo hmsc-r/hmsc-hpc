@@ -111,9 +111,9 @@ def modelSpatialNNGP(S, iD, Pi, Lambda, AlphaInd, iWg, iSigma, ny, ns, nu, nf, d
     mask_values = tf.constant([True, False])
     def tf_sparse_gather(A, Ind):
         def single_iter(x):
-            mask = tf.where(tf.equal(A.indices[:, 0], tf.cast(x, tf.int64)), mask_values[0], mask_values[1])
+            mask = tf.where(tf.equal(A.indices[:, 0], tf.cast(Ind[x], dtype=tf.int64)), mask_values[0], mask_values[1])
             return tfs.to_dense(tfs.reduce_sum(tf.sparse.retain(A, mask), axis=0, keepdims=True, output_is_sparse=True))[-1, :, :]
-        return tfs.from_dense(tf.map_fn(single_iter, Ind, fn_output_signature=dtype))
+        return tfs.from_dense(tf.map_fn(single_iter, tf.range(nf), fn_output_signature=dtype))
 
     def tf_sparse_block_diag(A, n, nx, ny):
         def tf_sparse_update_indices():
