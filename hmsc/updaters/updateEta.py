@@ -3,8 +3,9 @@ import tensorflow as tf
 
 tfla, tfm, tfr, tfs = tf.linalg, tf.math, tf.random, tf.sparse
 
-from hmsc.utils.tflautils import kron, scipy_cholesky, tf_sparse_matmul, tf_sparse_cholesky, scipy_sparse_solve_triangular
+from hmsc.utils.tflautils import kron, scipy_cholesky, tf_sparse_matmul, tf_sparse_cholesky, scipy_sparse_solve_triangular, convert_sparse_tensor_to_sparse_csc_matrix
 
+from scipy.sparse.linalg import splu, spsolve_triangular
 
 def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     """Update conditional updater(s):
@@ -124,13 +125,28 @@ def modelSpatialNNGP(S, iD, Pi, Lambda, AlphaInd, iWg, iSigma, ny, ns, nu, nf, d
 
     LamInvSigLam_bdiag = tf_sparse_block_diag(LamInvSigLam, nu, nf, nf)
     iWg_bdiag = tf_sparse_block_diag(tf_sparse_gather(iWg, AlphaInd), nf, nu, nu)
-    iUEta = tfs.add(iWg_bdiag, LamInvSigLam_bdiag)
-    LiUEta = tf_sparse_cholesky(iUEta)
+    iUEta = tfs.add(tfs.add(iWg_bdiag, LamInvSigLam_bdiag), tfs.eye(nu*nf, dtype=dtype))   
 
-    mu1 = tf.numpy_function(scipy_sparse_solve_triangular, [LiUEta.values, LiUEta.indices, [ny*ns,ny*ns], tf.reshape(tf.transpose(mu0), [nf * nu, 1])], dtype)
-    Eta = tf.numpy_function(scipy_sparse_solve_triangular, [LiUEta.values, LiUEta.indices, [ny*ns, ny*ns], mu1 + tfr.normal([nf * nu, 1], dtype=dtype)], dtype)
+    def modelSpatialNNGP_scipy(Ax, Ai, Ashape, mu0, nu, nf, dtype=np.float64):
+        iUEta_csc = convert_sparse_tensor_to_sparse_csc_matrix(Ax, Ai, Ashape)
+        LU_factor = splu(iUEta_csc)
+        LiUEta = LU_factor.L.multiply(np.sqrt(LU_factor.U.diagonal()))
+        mu1 = spsolve_triangular(LiUEta, np.reshape(mu0, [nu*nf]))
+        eta = spsolve_triangular(LiUEta.transpose(), mu1 + np.random.normal(dtype(0), dtype(1), size=[nf*nu]), lower=False)
+        Eta = np.reshape(eta, [nu,nf])
+        return Eta
 
-    return tf.transpose(tf.reshape(Eta, [nf, nu]))
+    #modelSpatialNNGP_local = lambda iUEta_csr, mu0, nu, nf: modelSpatialNNGP_scipy(iUEta_csr, mu0, nu, nf)
+    Eta = tf.numpy_function(modelSpatialNNGP_scipy, [iUEta.values, iUEta.indices, [ny*ns, ny*ns], mu0, nu, nf], dtype)
+    Eta = tf.ensure_shape(Eta, [nu, None])
+
+    return Eta
+
+    # LiUEta = tf_sparse_cholesky(iUEta)
+    # mu1 = tf.numpy_function(scipy_sparse_solve_triangular, [LiUEta.values, LiUEta.indices, [ny*ns, ny*ns], tf.reshape(tf.transpose(mu0), [nf * nu, 1])], dtype)
+    # Eta = tf.numpy_function(scipy_sparse_solve_triangular, [LiUEta.values, LiUEta.indices, [ny*ns, ny*ns], mu1 + tfr.normal([nf * nu, 1], dtype=dtype)], dtype)
+
+    #return tf.transpose(tf.reshape(Eta, [nf, nu]))
 
 def modelSpatialGPP(Y, S, Pi, Lambda, AlphaInd, iSigma, Fg, idDg, idDW12g, xDim, ny, ns, nu, nf, nK, dtype=tf.float64):
 

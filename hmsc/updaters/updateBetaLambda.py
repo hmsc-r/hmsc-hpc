@@ -39,7 +39,7 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     rhoGroup = data["rhoGroup"]
     Pi = data["Pi"]
     rhopw = priorHyperparams["rhopw"]
-    
+
     if isinstance(X, list):
       ny, nc = X[0].shape
     else:
@@ -99,7 +99,8 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         XE_iD_XET = tf.einsum("ic,j,ik->ckj", XE, sigma**-2, XE)
 
       iU = iK + tf.reshape(tf.transpose(tfla.diag(XE_iD_XET), [0,2,1,3]), [(nc+nfSum)*ns]*2)
-      LiU = tfla.cholesky(iU)
+      LiU = tf.where(tfm.logical_or(iU > 1e-14, iU < -1e-14), iU, 1e-14*tf.ones_like(iU))
+      # LiU = tfla.cholesky(iU)
 
       if isinstance(X, list):	
         XE_stacked = tf.stack(XE)	

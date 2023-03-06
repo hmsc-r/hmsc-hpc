@@ -3,7 +3,7 @@ import tensorflow as tf
 from scipy.linalg import cholesky
 from tensorflow.python.ops.linalg.sparse import sparse_csr_matrix_ops
 
-from scipy.sparse import csr_matrix
+from scipy.sparse import csr_matrix, csc_matrix, coo_matrix
 from scipy.sparse.linalg import spsolve_triangular
 
 def scipy_cholesky(X):
@@ -33,6 +33,9 @@ def tf_sparse_cholesky(A: tf.SparseTensor, dtype=tf.float64):
 
 def convert_sparse_tensor_to_sparse_matrix(x, i, shape):
     return csr_matrix((x, (i[:,0], i[:,1])), shape=shape)
+
+def convert_sparse_tensor_to_sparse_csc_matrix(x, i, shape):
+    return csc_matrix(coo_matrix((x, (i[:,1], i[:,0])), shape=shape))
 
 def scipy_sparse_solve_triangular(A_x, A_i, A_shape, B):
     return spsolve_triangular(convert_sparse_tensor_to_sparse_matrix(A_x, A_i, A_shape), B)
