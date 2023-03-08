@@ -98,7 +98,6 @@ def modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, iWList, nu, nf, dtype=np.fl
     # iWs = [kron(iWList[a], csc_matrix(coo_matrix(([1],([h],[h])), [nf,nf]))) for h, a in enumerate(Alpha)] #TODO redo with indices?
     # iUEta = sum(iWs) + LamInvSigLam_bdiag
     LU_factor = splu(iUEta)
-    print(sum(LU_factor.U.diagonal() < 0))
     LiUEta = LU_factor.L.multiply(np.sqrt(LU_factor.U.diagonal()))
     mu1 = spsolve_triangular(LiUEta, np.reshape(mu0, [nu*nf]))
     eta = spsolve_triangular(LiUEta.transpose(), mu1 + np.random.normal(dtype(0), dtype(1), size=[nf*nu]), lower=False)
