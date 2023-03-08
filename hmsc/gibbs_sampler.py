@@ -135,7 +135,7 @@ class GibbsSampler(tf.Module):
             params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
             params["Eta"] = updateEta(params, self.modelData, self.modelDims, self.rLHyperparams)
             params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
-            
+
             if n < sample_burnin:
                 params["Lambda"], params["Psi"], params["Delta"], params["Eta"], params["AlphaInd"] = updateNf(params, self.rLHyperparams, n)
 

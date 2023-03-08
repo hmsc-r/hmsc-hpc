@@ -44,13 +44,7 @@ def updateSigma(params, data, priorHyperparameters, dtype=np.float64):
     indVarSigma = tf.cast(tf.equal(distr[:,1], 1), dtype)
     
     if isinstance(X, list):
-        for i, X1 in enumerate(X):
-            XBeta = tf.matmul(X1, tf.expand_dims(Beta[:,i], -1))
-            if i == 0:
-                LFix = XBeta
-            else:
-                LFix = tf.stack([LFix, XBeta], axis=1)
-        LFix = tf.squeeze(LFix, axis=-1)
+        LFix = tf.einsum("ijk,ki->ji", tf.stack(X), Beta)
     else:
         LFix = tf.matmul(X, Beta)
 

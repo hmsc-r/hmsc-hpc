@@ -95,7 +95,37 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
           rLPar["detDg"] = np.asarray(dataParList["rLPar"][r]["detDg"])
 
         elif rLPar["spatialMethod"] == "NNGP":
-          
+          iWList = [
+            tfs.reorder(tfs.SparseTensor(
+              np.stack([dataParList["rLPar"][r]["iWgi"][g], dataParList["rLPar"][r]["iWgj"][g]], 1), 
+              tf.constant(dataParList["rLPar"][r]["iWgx"][g], dtype),
+              [npVec[r], npVec[r]],
+            ))
+            for g in range(gN)
+          ]
+          iWList_csc = [
+            csc_matrix(coo_matrix(
+              (np.array(dataParList["rLPar"][r]["iWgx"][g], dtype),
+              (dataParList["rLPar"][r]["iWgi"][g], dataParList["rLPar"][r]["iWgj"][g])),
+              [npVec[r], npVec[r]],
+            ))
+            for g in range(gN)
+          ]
+          RiWList = [ # these are Right factors, but lower triangular, so different from Cholesky
+            tfs.reorder(tfs.SparseTensor(
+              np.stack([dataParList["rLPar"][r]["RiWgi"][g], dataParList["rLPar"][r]["RiWgj"][g]], 1), 
+              tf.constant(dataParList["rLPar"][r]["RiWgx"][g], dtype),
+              [npVec[r], npVec[r]],
+            ))
+            for g in range(gN)
+          ]
+          # rLPar["iWg"] = tfs.concat(0, [tfs.expand_dims(iW,0) for iW in iWList])
+          rLPar["iWList"] = iWList
+          rLPar["iWList_csc"] = iWList_csc
+          rLPar["RiWList"] = RiWList
+          rLPar["detWg"] = np.array(dataParList["rLPar"][r]["detWg"])
+
+          '''
           def get_indices(p, i, nvars):
             indices = []
             for j in range(nvars):
@@ -136,7 +166,7 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
           rLPar["RiWg"] = tfs.concat(axis=0, sp_inputs=RiWgList)
 
           rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
-
+          '''
       rLParams[r] = rLPar
 
     return rLParams
