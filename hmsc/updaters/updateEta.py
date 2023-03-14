@@ -1,12 +1,14 @@
 import numpy as np
 import tensorflow as tf
+from scipy.sparse import csc_matrix, coo_matrix, block_diag, kron
+from scipy.sparse.linalg import splu, spsolve_triangular
 
 tfla, tfm, tfr, tfs = tf.linalg, tf.math, tf.random, tf.sparse
 
-#from hmsc.utils.tflautils import kron, scipy_cholesky, tf_sparse_matmul, tf_sparse_cholesky, scipy_sparse_solve_triangular, convert_sparse_tensor_to_sparse_csc_matrix
+from hmsc.utils.tflautils import kron, tf_sparse_matmul, tf_sparse_cholesky, scipy_sparse_solve_triangular
 
 from scipy.sparse.linalg import splu, spsolve_triangular
-from scipy.sparse import csc_matrix, coo_matrix, block_diag, kron
+from scipy.sparse import csc_matrix, coo_matrix, block_diag
 
 def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     """Update conditional updater(s):
@@ -67,9 +69,9 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
                     EtaListNew[r] = modelSpatialGPP(Y, S, Pi[:,r,None], Lambda, AlphaInd, iSigma, rLPar["Fg"], rLPar["idDg"], rLPar["idDW12g"], rLPar["xDim"], ny, ns, npVec[r], nf, rLPar["nK"])
                 elif rLPar["spatialMethod"] == "NNGP":
                     # EtaListNew[r] = modelSpatialNNGP(S, iD, Pi[:,r,None], Lambda, AlphaInd, rLPar["iWg"], iSigma, ny, ns, npVec[r], nf)
-
                     LamInvSigLam = tf.scatter_nd(Pi[:,r,None], tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [npVec[r],nf,nf])
                     mu0 = tf.scatter_nd(Pi[:,r,None], tf.matmul(iD * S, Lambda, transpose_b=True), [npVec[r],nf])
+                    
                     modelSpatialNNGP_local = lambda LamInvSigLam, mu0, Alpha, nf: modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, rLPar["iWList_csc"], npVec[r], nf)
                     # EtaListNew[r] = modelSpatialNNGP_local(LamInvSigLam, mu0, AlphaInd, nf)
                     Eta = tf.numpy_function(modelSpatialNNGP_local, [LamInvSigLam, mu0, AlphaInd, nf], dtype)
@@ -116,7 +118,6 @@ def modelSpatialFull(S, iD, Pi, Lambda, AlphaInd, iWg, nu, nf, dtype=np.float64)
     Eta = tf.transpose(tf.reshape(eta, [nf,nu]))
     return Eta
 
-
 def modelNonSpatial(S, iD, Pi, Lambda, nu, nf, dtype=np.float64):
     LamInvSigLam = tf.scatter_nd(Pi, tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [nu,nf,nf])
     mu0 = tf.scatter_nd(Pi, tf.matmul(iD * S, Lambda, transpose_b=True), [nu,nf])
@@ -125,7 +126,6 @@ def modelNonSpatial(S, iD, Pi, Lambda, nu, nf, dtype=np.float64):
     mu1 = tfla.triangular_solve(LiV, tf.expand_dims(mu0, -1))
     Eta = tf.squeeze(tfla.triangular_solve(LiV, mu1 + tfr.normal([nu,nf,1], dtype=dtype), adjoint=True), -1)
     return Eta
-
 
 def modelSpatialNNGP(S, iD, Pi, Lambda, AlphaInd, iWg, iSigma, ny, ns, nu, nf, dtype=np.float64):
     LamInvSigLam = tfs.from_dense(tf.scatter_nd(Pi, tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [nu,nf,nf]))
@@ -220,4 +220,3 @@ def modelSpatialGPP(Y, S, Pi, Lambda, AlphaInd, iSigma, Fg, idDg, idDW12g, xDim,
             Eta = tfs.to_dense(tfs.reshape(tfs.add(tfs.add(mu1, mu2), etaR), shape=[nu,nf]))
 
         return Eta
-

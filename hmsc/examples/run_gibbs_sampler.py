@@ -181,13 +181,13 @@ if __name__ == "__main__":
         default="TF-postList-obj.json",
         help="output JSON file with recorded posterier samples",
     )
-    # argParser.add_argument(
-    #     "-p",
-    #     "--path",
-    #     type=str,
-    #     default="..",
-    #     help="path to hmsc-hpc source code",
-    # )
+    argParser.add_argument(
+        "-p",
+        "--path",
+        type=str,
+        default="..",
+        help="path to hmsc-hpc source code",
+    )
     argParser.add_argument(
         "-v",
         "--verbose",
@@ -229,5 +229,7 @@ if __name__ == "__main__":
 
 
 # runfile('/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples/run_gibbs_sampler.py',
-#         args="--samples 250 --transient 25 --thin 1 --verbose 100 --input TF-init-obj.json --output TF-postList-obj.json --path '/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples/..'",
-#         wdir='/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples')
+#   args="--samples 250 --transient 25 --thin 1 --verbose 100 " + 
+#     "--input TF-init-obj-model5.json --output TF-postList-obj-model5.json " + 
+#     "--path '/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples/..'",
+#   wdir='/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples')

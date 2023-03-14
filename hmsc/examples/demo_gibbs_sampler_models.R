@@ -30,12 +30,10 @@ if (selected_experiment$name == experiments$M1$name) {
   nChains = 8
   nSamples = 250
   thin = 10
-  transient = nSamples*thin
 } else if (selected_experiment$name == experiments$M2$name) {
   nChains = 8
   nSamples = 250
-  thin = 10
-  transient = nSamples*thin
+  thin = 1
   # rLSite = m$ranLevels$site
   # rLTime = m$ranLevels$time
   # rLSiteNew = HmscRandomLevel(units=rLSite$pi)
@@ -73,6 +71,7 @@ if (selected_experiment$name == experiments$M1$name) {
 } else if (selected_experiment$name == experiments$M7$name) {
   print("Not Implemented: XScaled not found error for engine=pass")
 }
+transient = nSamples*thin
 verbose = thin*10
 
 #
@@ -102,22 +101,22 @@ for (r in seq_len(nr)) {
   
   if (!is.null(spatialMethod)) {
     if (spatialMethod == "NNGP") {
-      len = length(init_obj[["dataParList"]][["rLPar"]][[r]][["iWg"]])
+      gN = length(init_obj[["dataParList"]][["rLPar"]][[r]][["iWg"]])
   
-      for (i in seq_len(len)) {
-        t1 = init_obj[["dataParList"]][["rLPar"]][[r]][["iWg"]][[i]]
-        t2 = init_obj[["dataParList"]][["rLPar"]][[r]][["RiWg"]][[i]]
+      for (i in seq_len(gN)) {
+        iWg = as(init_obj[["dataParList"]][["rLPar"]][[r]][["iWg"]][[i]], "dgTMatrix")
+        RiWg = as(init_obj[["dataParList"]][["rLPar"]][[r]][["RiWg"]][[i]], "dgTMatrix")
+
+        init_obj[["dataParList"]][["rLPar"]][[r]][["iWgi"]][[i]] = iWg@i
+        init_obj[["dataParList"]][["rLPar"]][[r]][["iWgj"]][[i]] = iWg@j
+        init_obj[["dataParList"]][["rLPar"]][[r]][["iWgx"]][[i]] = iWg@x
     
-        init_obj[["dataParList"]][["rLPar"]][[r]][["iWgi"]][[i]] = t1@i
-        init_obj[["dataParList"]][["rLPar"]][[r]][["iWgp"]][[i]] = t1@p
-        init_obj[["dataParList"]][["rLPar"]][[r]][["iWgx"]][[i]] = t1@x
-    
-        init_obj[["dataParList"]][["rLPar"]][[r]][["RiWgi"]][[i]] = t2@i
-        init_obj[["dataParList"]][["rLPar"]][[r]][["RiWgp"]][[i]] = t2@p
-        init_obj[["dataParList"]][["rLPar"]][[r]][["RiWgx"]][[i]] = t2@x
+        init_obj[["dataParList"]][["rLPar"]][[r]][["RiWgi"]][[i]] = RiWg@i
+        init_obj[["dataParList"]][["rLPar"]][[r]][["RiWgj"]][[i]] = RiWg@j
+        init_obj[["dataParList"]][["rLPar"]][[r]][["RiWgx"]][[i]] = RiWg@x
       }
       init_obj[["dataParList"]][["rLPar"]][[r]][["iWg"]] = NULL
-      init_obj[["dataParList"]][["rLPar"]][[r]][["RiWg"]] = NULL  
+      init_obj[["dataParList"]][["rLPar"]][[r]][["RiWg"]] = NULL
     }
     else if (spatialMethod == "GPP") {
       init_obj[["dataParList"]][["rLPar"]][[r]][["nK"]] = nrow(init_obj[["dataParList"]][["rLPar"]][[1]][["Fg"]])
@@ -134,15 +133,15 @@ write(to_json(init_obj), file = init_file_path)
 ptm <- proc.time()
 obj.R = sampleMcmc(m, samples = nSamples, thin = thin,
                    transient = transient, 
-                   nChains = nChains, #nParallel=nChains,
+                   nChains = nChains, nParallel=nChains,
                    verbose = verbose, updater=list(Gamma2=FALSE, GammaEta=FALSE)) #fitted by R
 print(proc.time() - ptm)
-
+aaa
 #
 # Set RStudio to TF env
 #
-my_conda_env_name = "tensorflow" # name of my conda TF env
-#my_conda_env_name = "tf_241" # name of my conda TF env
+# my_conda_env_name = "tensorflow" # name of my conda TF env
+# my_conda_env_name = "tf_241" # name of my conda TF env
 
 # Start one-time python setup
 # INFO. one-time steps to set python for RStudio/reticulate
@@ -183,6 +182,10 @@ system(python_cmd, wait=TRUE) # run TF gibbs sampler
 #
 
 postList.TF <- from_json(postList_file_path)
+# postList_file_str <- paste(readLines(postList_file_path), collapse="\n")
+# s = '{"0":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"1":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"2":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"3":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"4":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"5":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"6":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"7":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}}}'
+# from_json(s)
+
 names(postList.TF) = NULL
 for (chain in seq_len(nChains)) {
   names(postList.TF[[chain]]) = NULL

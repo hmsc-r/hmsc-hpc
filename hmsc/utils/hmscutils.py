@@ -59,7 +59,9 @@ def load_model_dims(hmscModel):
 def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
 
     nr = int(np.squeeze(hmscModel.get("nr")))
+
     npVec = hmscModel.get("np")
+    #npVec = (np.array(hmscModel.get("np"))).astype(int)
     
     rLParams = [None] * nr
     for r in range(nr):
@@ -124,49 +126,38 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
           rLPar["iWList_csc"] = iWList_csc
           rLPar["RiWList"] = RiWList
           rLPar["detWg"] = np.array(dataParList["rLPar"][r]["detWg"])
-
-          '''
-          def get_indices(p, i, nvars):
-            indices = []
-            for j in range(nvars):
-              n = p[j + 1] - p[j]
-              for elem in range(n):
-                indices.append([i[elem + p[j]], j])
-            reordered_indices = sorted(indices, key=lambda x: x[0])
-            return reordered_indices
-
-          def get_sparse_tensor(p, i, x):
-            nvars = len(p) - 1
-            if len(x) == 0:
-              return tfs.from_dense(tf.zeros([nvars, nvars], dtype=tf.float64))
-            return tfs.SparseTensor(
-              indices=get_indices(p, i, nvars),
-              values=x,
-              dense_shape=[nvars, nvars],
-            )  
           
-          iWgList = [
-            tfs.expand_dims(get_sparse_tensor(
-              np.squeeze(dataParList["rLPar"][r]["iWgp"][m]),
-              np.squeeze(dataParList["rLPar"][r]["iWgi"][m]),
-              np.squeeze(dataParList["rLPar"][r]["iWgx"][m]),
-            ), axis=0)
-            for m in range(gN)
+        elif rLPar["spatialMethod"] == "NNGP":
+          iWList = [
+            tfs.reorder(tfs.SparseTensor(
+              np.stack([dataParList["rLPar"][r]["iWgi"][g], dataParList["rLPar"][r]["iWgj"][g]], 1), 
+              tf.constant(dataParList["rLPar"][r]["iWgx"][g], dtype),
+              [npVec[r], npVec[r]],
+            ))
+            for g in range(gN)
           ]
-          rLPar["iWg"] = tfs.concat(axis=0, sp_inputs=iWgList)
-
-          RiWgList = [
-            tfs.expand_dims(get_sparse_tensor(
-              np.squeeze(dataParList["rLPar"][r]["RiWgp"][m]),
-              np.squeeze(dataParList["rLPar"][r]["RiWgi"][m]),
-              np.squeeze(dataParList["rLPar"][r]["RiWgx"][m]),
-            ), axis=0)
-            for m in range(gN)
+          iWList_csc = [
+            csc_matrix(coo_matrix(
+              (np.array(dataParList["rLPar"][r]["iWgx"][g], dtype),
+              (dataParList["rLPar"][r]["iWgi"][g], dataParList["rLPar"][r]["iWgj"][g])),
+              [npVec[r], npVec[r]],
+            ))
+            for g in range(gN)
           ]
-          rLPar["RiWg"] = tfs.concat(axis=0, sp_inputs=RiWgList)
-
-          rLPar["detWg"] = np.asarray(dataParList["rLPar"][r]["detWg"])
-          '''
+          RiWList = [ # these are Right factors, but lower triangular, so different from Cholesky
+            tfs.reorder(tfs.SparseTensor(
+              np.stack([dataParList["rLPar"][r]["RiWgi"][g], dataParList["rLPar"][r]["RiWgj"][g]], 1), 
+              tf.constant(dataParList["rLPar"][r]["RiWgx"][g], dtype),
+              [npVec[r], npVec[r]],
+            ))
+            for g in range(gN)
+          ]
+          # rLPar["iWg"] = tfs.concat(0, [tfs.expand_dims(iW,0) for iW in iWList])
+          rLPar["iWList"] = iWList
+          rLPar["iWList_csc"] = iWList_csc
+          rLPar["RiWList"] = RiWList
+          rLPar["detWg"] = np.array(dataParList["rLPar"][r]["detWg"])
+          
       rLParams[r] = rLPar
 
     return rLParams

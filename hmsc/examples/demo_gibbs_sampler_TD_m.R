@@ -7,9 +7,9 @@ library(vioplot)
 rm(list=ls())
 path = file.path(utils::getSrcDirectory(function(){}), "..")
 
-nChains = 50
+nChains = 8
 nSamples = 250
-thin = 100
+thin = 10
 transient = nSamples*thin
 verbose = thin*10
 #
@@ -31,7 +31,7 @@ rLSample = HmscRandomLevel(units=TD$studyDesign$sample)
 rLPlot = HmscRandomLevel(units=levels(TD$studyDesign$plot))
 ranLevels = list(sample=rLSample, plot=rLPlot)  #sample=rLSample, plot=rLPlot
 m = Hmsc(Y=TD$Y, XFormula = ~x1+x2, XData = XData, studyDesign = TD$studyDesign,
-         TrFormula = ~T1+T2, TrData = TrData, C=TD$C, distr = "probit", ranLevels=ranLevels)
+         TrFormula = ~T1+T2, TrData = TrData, C=NULL, distr = "probit", ranLevels=ranLevels)
 
 ###
 
@@ -74,15 +74,15 @@ write(to_json(init_obj), file = init_file_path)
 ptm <- proc.time()
 obj.R = sampleMcmc(m, samples = nSamples, thin = thin,
                    transient = transient, 
-                   nChains = nChains, nParallel=min(nChains,6),
+                   nChains = nChains, nParallel=min(nChains,8),
                    verbose = verbose, updater=list(Gamma2=FALSE, GammaEta=FALSE)) #fitted by R
 print(proc.time() - ptm)
-aaa
+
 #
 # Set RStudio to TF env
 #
 # my_conda_env_name = "tensorflow" # name of my conda TF env
-my_conda_env_name = "tf_241" # name of my conda TF env
+# my_conda_env_name = "tf_241" # name of my conda TF env
 
 # Start one-time python setup
 # INFO. one-time steps to set python for RStudio/reticulate
@@ -114,6 +114,9 @@ python_cmd = paste("python", sprintf("'%s'",python_file_path),
                    "--output", postList_file_name,
                    "--path", sprintf("'%s'",path))
 
+print(python_cmd)
+
+aaaa
 system(paste("chmod a+x", sprintf("'%s'",python_file_path))) # set file permissions for shell execution
 system("python --version", wait=TRUE)
 system(python_cmd, wait=TRUE) # run TF gibbs sampler
