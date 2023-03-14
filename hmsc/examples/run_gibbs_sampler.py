@@ -88,6 +88,7 @@ def load_params(file_path, dtype=np.float64):
     initParList = init_params(hmscImport.get("initParList"))
 
     nChains = int(hmscImport.get("nChains")[0])
+    
     return modelDims, modelData, priorHyperparams, rLHyperparams, initParList, nChains
 
 

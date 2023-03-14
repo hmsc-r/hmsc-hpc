@@ -31,8 +31,9 @@ def save_postList_to_json(postList, postList_file_path, chain):
         sample_data["Delta"] = [par.numpy().tolist() for par in params["Delta"]]
         sample_data["Eta"] = [par.numpy().tolist() for par in params["Eta"]]
         sample_data["Alpha"] = [par.numpy().tolist() for par in params["AlphaInd"]]
+        
+        sample_data["wRRR"] = sample_data["PsiRRR"] = sample_data["DeltaRRR"] = None
 
-        sample_data["wRRR"] = ssample_data["PsiRRR"] = sample_data["DeltaRRR"] = None
         json_data[i] = sample_data
 
     postList_file_path = (

@@ -118,15 +118,15 @@ class GibbsSampler(tf.Module):
         for n in tf.range(step_num):
             tf.autograph.experimental.set_loop_options(
                 shape_invariants=[
-                    (params["Eta"], [tf.TensorShape([npVec[r], None]) for r in range(nr)]),
+                    (params["Eta"], [tf.TensorShape([None, None]) for r in range(nr)]),
                     (params["Beta"], tf.TensorShape([nc, ns])),
                     (params["Lambda"], [tf.TensorShape([None, ns])] * nr),
                     (params["Psi"], [tf.TensorShape([None, ns])] * nr),
                     (params["Delta"], [tf.TensorShape([None, 1])] * nr),
-                    (params["AlphaInd"], [tf.TensorShape([None])] * nr),
+                    (params["AlphaInd"], [tf.TensorShape(None)] * nr),
                 ]
             )
-            
+
             params["Z"] = updateZ(params, self.modelData)
             params["Beta"], params["Lambda"] = updateBetaLambda(params, self.modelData, self.priorHyperparams)
             params["Gamma"], params["V"] = updateGammaV(params, self.modelData, self.priorHyperparams)
@@ -135,7 +135,7 @@ class GibbsSampler(tf.Module):
             params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
             params["Eta"] = updateEta(params, self.modelData, self.modelDims, self.rLHyperparams)
             params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
-            
+
             if n < sample_burnin:
                 params["Lambda"], params["Psi"], params["Delta"], params["Eta"], params["AlphaInd"] = updateNf(params, self.rLHyperparams, n)
 

@@ -7,10 +7,14 @@ tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
 def load_model_data(hmscModel):
 
     Y = np.asarray(hmscModel.get("YScaled")).astype(float)
-    X = np.asarray(hmscModel.get("XScaled"))
     T = np.asarray(hmscModel.get("TrScaled"))
     C_import = hmscModel.get("C")
-    rhoGroup = np.asarray([0]*X.shape[1]) #TODO replace once implemented in R as well
+    if isinstance(hmscModel.get("XScaled"), dict):
+      X = [np.asarray(hmscModel.get("XScaled")[x]) for x in hmscModel.get("XScaled")]
+      rhoGroup = np.asarray([0]*X[0].shape[1]) #TODO replace once implemented in R as well
+    else:
+      X = np.asarray(hmscModel.get("XScaled"))
+      rhoGroup = np.asarray([0]*X.shape[1]) #TODO replace once implemented in R as well
     # rhoGroup = np.asarray(hmscModel.get("rhoGroup")).astype(int) - 1
     Pi = np.asarray(hmscModel.get("Pi")).astype(int) - 1
     distr = np.asarray(hmscModel.get("distr")).astype(int)
@@ -55,7 +59,9 @@ def load_model_dims(hmscModel):
 def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
 
     nr = int(np.squeeze(hmscModel.get("nr")))
-    npVec = (np.array(hmscModel.get("np"))).astype(int)
+
+    npVec = hmscModel.get("np")
+    #npVec = (np.array(hmscModel.get("np"))).astype(int)
     
     rLParams = [None] * nr
     for r in range(nr):
@@ -69,6 +75,7 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
       rLPar["nfMin"] = int(hmscModel.get("rL")[rLName]["nfMin"][0])
       rLPar["nfMax"] = int(hmscModel.get("rL")[rLName]["nfMax"][0])
       rLPar["sDim"] = int(hmscModel.get("rL")[rLName]["sDim"][0])
+      rLPar["xDim"] = int(hmscModel.get("rL")[rLName]["xDim"][0])
       rLPar["spatialMethod"] = np.squeeze(hmscModel.get("rL")[rLName]["spatialMethod"]) # squeezed returned string array; assumption that one spatial method per level
       if rLPar["sDim"] > 0:
         rLPar["alphapw"] = np.array(hmscModel.get("rL")[rLName]["alphapw"])
@@ -80,7 +87,45 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
           rLPar["detWg"] = np.array(dataParList["rLPar"][r]["detWg"])
           
         elif rLPar["spatialMethod"] == "GPP":
-          raise NotImplementedError
+          nK = int(dataParList["rLPar"][r]["nK"][0])
+
+          rLPar["nK"] = nK
+          rLPar["idDg"] = np.asarray(dataParList["rLPar"][r]["idDg"])
+          rLPar["idDW12g"] = np.reshape(dataParList["rLPar"][r]["idDW12g"], (gN, nK, npVec[r]))
+          rLPar["Fg"] = np.reshape(dataParList["rLPar"][r]["Fg"], (gN, nK, nK))
+          rLPar["iFg"] = np.reshape(dataParList["rLPar"][r]["iFg"], (gN, nK, nK))
+          rLPar["detDg"] = np.asarray(dataParList["rLPar"][r]["detDg"])
+
+        elif rLPar["spatialMethod"] == "NNGP":
+          iWList = [
+            tfs.reorder(tfs.SparseTensor(
+              np.stack([dataParList["rLPar"][r]["iWgi"][g], dataParList["rLPar"][r]["iWgj"][g]], 1), 
+              tf.constant(dataParList["rLPar"][r]["iWgx"][g], dtype),
+              [npVec[r], npVec[r]],
+            ))
+            for g in range(gN)
+          ]
+          iWList_csc = [
+            csc_matrix(coo_matrix(
+              (np.array(dataParList["rLPar"][r]["iWgx"][g], dtype),
+              (dataParList["rLPar"][r]["iWgi"][g], dataParList["rLPar"][r]["iWgj"][g])),
+              [npVec[r], npVec[r]],
+            ))
+            for g in range(gN)
+          ]
+          RiWList = [ # these are Right factors, but lower triangular, so different from Cholesky
+            tfs.reorder(tfs.SparseTensor(
+              np.stack([dataParList["rLPar"][r]["RiWgi"][g], dataParList["rLPar"][r]["RiWgj"][g]], 1), 
+              tf.constant(dataParList["rLPar"][r]["RiWgx"][g], dtype),
+              [npVec[r], npVec[r]],
+            ))
+            for g in range(gN)
+          ]
+          # rLPar["iWg"] = tfs.concat(0, [tfs.expand_dims(iW,0) for iW in iWList])
+          rLPar["iWList"] = iWList
+          rLPar["iWList_csc"] = iWList_csc
+          rLPar["RiWList"] = RiWList
+          rLPar["detWg"] = np.array(dataParList["rLPar"][r]["detWg"])
           
         elif rLPar["spatialMethod"] == "NNGP":
           iWList = [
@@ -112,7 +157,7 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
           rLPar["iWList_csc"] = iWList_csc
           rLPar["RiWList"] = RiWList
           rLPar["detWg"] = np.array(dataParList["rLPar"][r]["detWg"])
-
+          
       rLParams[r] = rLPar
 
     return rLParams

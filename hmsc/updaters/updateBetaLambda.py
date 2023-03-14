@@ -1,10 +1,10 @@
 import numpy as np
 import tensorflow as tf
 
-tfm, tfla, tfr = tf.math, tf.linalg, tf.random
+tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
 
 
-def updateBetaLambda(params, data, priorHyperParams, dtype=np.float64):
+def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     """Update conditional updater(s):
     Beta - species niches, and
     Lambda - species loadings.
@@ -38,20 +38,29 @@ def updateBetaLambda(params, data, priorHyperParams, dtype=np.float64):
     C, eC, VC = data["C"], data["eC"], data["VC"]
     rhoGroup = data["rhoGroup"]
     Pi = data["Pi"]
-    rhopw = priorHyperParams["rhopw"]
-    
+    rhopw = priorHyperparams["rhopw"]
 
-    ny, nc = X.shape
+    if isinstance(X, list):
+      ny, nc = X[0].shape
+    else:
+      ny, nc = X.shape
+    
     _, ns = Z.shape
     nr = len(EtaList)
     nfVec = tf.stack([tf.shape(Eta)[-1] for Eta in EtaList])
     nfSum = tf.cast(tf.reduce_sum(nfVec), tf.int32)
+    n1 = nc + nfSum
+    n2 = n1 * ns
 
     EtaListFull = [None] * nr
     for r, Eta in enumerate(EtaList):
       EtaListFull[r] = tf.gather(Eta, Pi[:, r])
 
-    XE = tf.concat([X] + EtaListFull, axis=-1)
+    if isinstance(X, list):
+      XE = tf.stack([tf.concat([X1] + EtaListFull, axis=-1) for X1 in X])
+    else:
+      XE = tf.concat([X] + EtaListFull, axis=-1)
+
     GammaT = tf.matmul(Gamma, T, transpose_b=True)
     Mu = tf.concat([GammaT, tf.zeros([nfSum, ns], dtype)], axis=0)
     if nr > 0:
@@ -69,7 +78,7 @@ def updateBetaLambda(params, data, priorHyperParams, dtype=np.float64):
       LiU = tfla.cholesky(iU)
       A = tf.matmul(iK, tf.transpose(Mu)[:,:,None]) + (tf.matmul(Z / sigma**2, XE, transpose_a=True))[:,:,None]
       M = tfla.cholesky_solve(LiU, A)
-      BetaLambda = tf.transpose(tf.squeeze(M + tfla.triangular_solve(LiU, tfr.normal(shape=[ns,nc+nfSum,1], dtype=dtype), adjoint=True), -1))
+      BetaLambda = tf.transpose(tf.squeeze(M + tfla.triangular_solve(LiU, tfr.normal(shape=[ns,n1,1], dtype=dtype), adjoint=True), -1))
       # tf.transpose(tf.squeeze(M))
     else:
       rhoVec = tf.gather(rhopw[:,0], tf.gather(rhoInd, rhoGroup))
@@ -85,12 +94,25 @@ def updateBetaLambda(params, data, priorHyperParams, dtype=np.float64):
       else:
         iK = iK11_op.to_dense()
       
-      XE_iD_XET = tf.einsum("ic,j,ik->ckj", XE, sigma**-2, XE)
-      iU = iK + tf.reshape(tf.transpose(tfla.diag(XE_iD_XET), [0,2,1,3]), [(nc+nfSum)*ns]*2)
+      if isinstance(X, list):	
+        XE_iD_XET = tf.reshape(tf.einsum("jic,j,jik->jck", XE, sigma**-2, XE), shape=[n2,n1])
+        ind1 = tf.concat([tf.repeat(tf.range(0,n2,2,dtype=tf.int64),n1),tf.repeat(tf.range(1,n2,2,dtype=tf.int64),n1)], axis=0)
+        ind2 = tf.concat([tf.tile(tf.range(0,n2,2,dtype=tf.int64),[n1]), tf.tile(tf.range(1,n2,2,dtype=tf.int64),[n1])], axis=0)
+        iU = iK + tfs.to_dense(tfs.reorder(tfs.SparseTensor(indices=tf.transpose(tf.stack([ind1,ind2])), values=tf.reshape(XE_iD_XET, [-1]), dense_shape=[n2,n2])))
+      else:	
+        XE_iD_XET = tf.einsum("ic,j,ik->ckj", XE, sigma**-2, XE)
+        iU = iK + tf.reshape(tf.transpose(tfla.diag(XE_iD_XET), [0,2,1,3]), [n2]*2)
+
+      #LiU = tfla.cholesky(tf.where(iU > 1e-14, iU, 1e-14*tf.zeros_like(iU)))
       LiU = tfla.cholesky(iU)
-      m0 = tf.matmul(iK, tf.reshape(Mu, [(nc+nfSum)*ns,1])) + tf.reshape(tf.matmul(XE, Z / sigma**2, transpose_a=True), [(nc+nfSum)*ns,1])
+
+      if isinstance(X, list):	
+        m0 = tf.matmul(iK, tf.reshape(Mu, [n2,1])) + tf.reshape(tf.einsum("cji,jk,k->ik", XE, Z, sigma**-2), [n2,1])
+      else:
+        m0 = tf.matmul(iK, tf.reshape(Mu, [n2,1])) + tf.reshape(tf.matmul(XE, Z / sigma**2, transpose_a=True), [n2,1])
+        
       m = tfla.cholesky_solve(LiU, m0)
-      BetaLambda = tf.reshape(m + tfla.triangular_solve(LiU, tfr.normal(shape=[(nc+nfSum)*ns,1], dtype=dtype), adjoint=True), [nc+nfSum,ns])
+      BetaLambda = tf.reshape(m + tfla.triangular_solve(LiU, tfr.normal(shape=[n2,1], dtype=dtype), adjoint=True), [n1,ns])
       # tf.reshape(m, [nc+nfSum,ns])
     
     if nr > 0:

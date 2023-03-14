@@ -63,7 +63,8 @@ def updateNf(params, rLHyperparams, iter, dtype=np.float64):
                 PsiNew[r] = tf.concat([Psi, tfr.gamma([1,ns], nu / 2, nu / 2, dtype=dtype)], 0)
                 DeltaNew[r] = tf.concat([Delta, tfr.gamma([1,1], a2, b2, dtype=dtype)], 0)
                 EtaNew[r] = tf.concat([Eta, tfr.normal([np,1], dtype=dtype)], 1)
-                AlphaIndNew[r] = tf.concat([AlphaInd, tf.zeros([1], tf.int32)], 0)
+                AlphaIndNew[r] = tf.concat([AlphaInd, tf.zeros([1], tf.int32)], 0) # fails to build autograph for Model 5/6
+                #AlphaIndNew[r] = tf.pad(AlphaInd, tf.constant([[0, 0,], [0, 1]]), mode="CONSTANT") # no support
             elif nf > nfMin and numRedundant > 0:
                 indRemain = tf.cast(tf.squeeze(tf.where(tfm.logical_not(indRedundant)), -1), tf.int32)
                 if tf.shape(indRemain)[0] < tf.cast(nfMin, tf.int32):

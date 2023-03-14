@@ -48,5 +48,4 @@ def updateRhoInd(params, data, priorHyperparams, dtype=np.float64):
       logLike = tfm.log(rhopw[:,1]) - 0.5*logDet - 0.5*qF
       indNew = tf.squeeze(tfr.categorical(logLike[None,:], 1, dtype=tf.int32), -1)
       rhoInd = tf.tensor_scatter_nd_update(rhoInd, [[k]], indNew)
-  
   return rhoInd

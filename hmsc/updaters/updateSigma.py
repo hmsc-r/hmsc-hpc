@@ -42,7 +42,12 @@ def updateSigma(params, data, priorHyperparameters, dtype=np.float64):
 
     nr = len(EtaList)
     indVarSigma = tf.cast(tf.equal(distr[:,1], 1), dtype)
-    LFix = tf.matmul(X, Beta)
+    
+    if isinstance(X, list):
+        LFix = tf.einsum("ijk,ki->ji", tf.stack(X), Beta)
+    else:
+        LFix = tf.matmul(X, Beta)
+
     LRanLevelList = [None] * nr
     for r, (Eta, Lambda) in enumerate(zip(EtaList, LambdaList)):
         LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:, r]), Lambda)
