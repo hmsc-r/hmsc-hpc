@@ -72,6 +72,7 @@ def updateZ(params, data, dtype=np.float64):
     high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(1e+9, dtype), tf.zeros_like(YP))
     # ZP = tfd.TruncatedNormal(loc=LP, scale=sigmaP, low=low, high=high).sample()
     nsP = tf.shape(YP)[1]
+
     samTN = parameterized_truncated_normal(shape=[ny*nsP], means=tf.reshape(LP,[ny*nsP]), stddevs=tf.tile(sigmaP, [ny]), 
                                            minvals=tf.reshape(low,[ny*nsP]), maxvals=tf.reshape(high,[ny*nsP]), dtype=dtype)
     ZP = tf.reshape(samTN, [ny,nsP])

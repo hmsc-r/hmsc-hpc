@@ -10,3 +10,4 @@ from hmsc.updaters.updateNf import updateNf
 from hmsc.updaters.updateGammaV import updateGammaV
 from hmsc.updaters.updateSigma import updateSigma
 from hmsc.updaters.updateZ import updateZ
+from hmsc.updaters.updateRhoInd import updateRhoInd
