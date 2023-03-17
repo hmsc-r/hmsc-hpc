@@ -41,13 +41,17 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
                 iFg = rLPar["iFg"]
                 idDg = rLPar["idDg"]
                 idDW12g = rLPar["idDW12g"]
+                
+                tmpMat1 = tf.einsum("lij,jk->lik", idDW12g, Eta)
+                tmpMat2 = tf.einsum("lij,ljk->lik", iFg, tmpMat1)
+                tmpMat3 = tf.einsum("lji,ljk->lik", tmpMat1, tmpMat2)
 
-                #tmpMat1 = tf.einsum("ji,lkj->lik", Eta, idDW12g)
-                #tmpMat2 = tf.einsum("lij,ljk->lik", tmpMat1, iFg)
-                #tmpMat3 = tf.einsum("lij,lkj->lik", tmpMat2, tmpMat1)
-                EtaTidDEta = tf.einsum("ij,ik,ij->k", Eta, idDg, Eta)
-                logLike = tfm.log(alphapw[:,1]) - 0.5 * detDg - 0.5 * EtaTidDEta
-                AlphaList[r] = tf.squeeze(tfr.categorical([logLike], nf, dtype=tf.int32))   
+                tmpMat4 = tf.einsum("ij,ik->ijk", Eta, idDg)
+                EtaTidDEta = tf.einsum("ij,ijk->jk", Eta, tmpMat4)
+                
+                logLike = tf.tile(tfm.log(alphapw[:,1])[None,:], [nf,1]) - 0.5 * tf.tile(detDg[None,:], [nf,1]) - 0.5 * (EtaTidDEta - tf.transpose(tfla.diag_part(tmpMat3)))
+                AlphaList[r] = tf.squeeze(tfr.categorical(logLike, 1, dtype=tf.int32))
+
             elif spatialMethod == "NNGP":
                 detWg = rLPar["detWg"]
                 RiWList = rLPar["RiWList"]
