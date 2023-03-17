@@ -32,6 +32,7 @@ from hmsc.updaters.updateGammaV import updateGammaV
 from hmsc.updaters.updateRhoInd import updateRhoInd
 from hmsc.updaters.updateSigma import updateSigma
 from hmsc.updaters.updateZ import updateZ
+tfm = tf.math
 
 
 class GibbsParameter:
@@ -118,7 +119,7 @@ class GibbsSampler(tf.Module):
         for n in tf.range(step_num):
             tf.autograph.experimental.set_loop_options(
                 shape_invariants=[
-                    (params["Eta"], [tf.TensorShape([None, None]) for r in range(nr)]),
+                    (params["Eta"], [tf.TensorShape([npVec[r], None]) for r in range(nr)]),
                     (params["Beta"], tf.TensorShape([nc, ns])),
                     (params["Lambda"], [tf.TensorShape([None, ns])] * nr),
                     (params["Psi"], [tf.TensorShape([None, ns])] * nr),
@@ -126,14 +127,34 @@ class GibbsSampler(tf.Module):
                     (params["AlphaInd"], [tf.TensorShape(None)] * nr),
                 ]
             )
-
+            debugPrintFlag = False
+            
             params["Z"] = updateZ(params, self.modelData)
+            if debugPrintFlag:
+              tf.print("Z", tf.reduce_sum(tf.cast(tfm.is_nan(params["Z"]), tf.int32)))
+            
             params["Beta"], params["Lambda"] = updateBetaLambda(params, self.modelData, self.priorHyperparams)
+            if debugPrintFlag:
+              tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
+              tf.print("Lambda0", tf.reduce_sum(tf.cast(tfm.is_nan(params["Lambda"][0]), tf.int32)))
+            
             params["Gamma"], params["V"] = updateGammaV(params, self.modelData, self.priorHyperparams)
+            if debugPrintFlag:
+              tf.print("Gamma", tf.reduce_sum(tf.cast(tfm.is_nan(params["Gamma"]) | (tf.abs(params["Gamma"]) > 1e9), tf.int32)))
+              tf.print("V", tf.reduce_sum(tf.cast(tfm.is_nan(params["V"]) | (tf.abs(params["V"]) > 1e9), tf.int32)))
+            
             params["rhoInd"] = updateRhoInd(params, self.modelData, self.priorHyperparams)
+            
             params["sigma"] = updateSigma(params, self.modelData, self.priorHyperparams)
+            if debugPrintFlag:
+              tf.print("sigma", tf.reduce_sum(tf.cast(tfm.is_nan(params["sigma"]), tf.int32)))
+            
             params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
+            
             params["Eta"] = updateEta(params, self.modelData, self.modelDims, self.rLHyperparams)
+            if debugPrintFlag:
+              tf.print("Eta0", tf.reduce_sum(tf.cast(tfm.is_nan(params["Eta"][0]), tf.int32)))
+            
             params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
 
             if n < sample_burnin:

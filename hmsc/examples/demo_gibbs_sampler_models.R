@@ -126,6 +126,15 @@ for (r in seq_len(nr)) {
 }
 
 write(to_json(init_obj), file = init_file_path)
+python_cmd = paste("python", sprintf("'%s'",python_file_path), 
+                   "--samples", nSamples,
+                   "--transient", transient,
+                   "--thin", thin,
+                   "--verbose", verbose,
+                   "--input", init_file_name, 
+                   "--output", postList_file_name,
+                   "--path", sprintf("'%s'",path))
+print(python_cmd)
 
 #
 # Generate sampled posteriors in R
@@ -163,16 +172,6 @@ aaa
 #
 # Generate sampled posteriors in TF
 #
-
-python_cmd = paste("python", sprintf("'%s'",python_file_path), 
-                   "--samples", nSamples,
-                   "--transient", transient,
-                   "--thin", thin,
-                   "--verbose", verbose,
-                   "--input", init_file_name, 
-                   "--output", postList_file_name,
-                   "--path", sprintf("'%s'",path))
-
 system(paste("chmod a+x", sprintf("'%s'",python_file_path))) # set file permissions for shell execution
 system("python --version", wait=TRUE)
 system(python_cmd, wait=TRUE) # run TF gibbs sampler
@@ -180,7 +179,6 @@ system(python_cmd, wait=TRUE) # run TF gibbs sampler
 #
 # Import TF-generated sampled posteriors as JSON in R
 #
-
 postList.TF <- from_json(postList_file_path)
 # postList_file_str <- paste(readLines(postList_file_path), collapse="\n")
 # s = '{"0":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"1":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"2":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"3":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"4":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"5":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"6":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"7":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}}}'
@@ -201,7 +199,6 @@ obj.TF$transient = transient
 #
 # Rescaling Beta/Gamma; copied from combineParameters.R; need to revisit this section
 #
-
 nt = obj.TF[["nt"]]
 TrInterceptInd = obj.TF[["TrInterceptInd"]]
 TrScalePar = obj.TF[["TrScalePar"]]

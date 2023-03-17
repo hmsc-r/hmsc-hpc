@@ -2,27 +2,18 @@ import os
 import sys
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
 path = os.path.dirname(os.path.dirname(__file__))
-
 sys.path.append("{}{}".format(path, '/../'))
 
 import time
 import argparse
-
 import numpy as np
-
-from random import randint, sample
-from datetime import datetime
-from tqdm import tqdm, trange
 from matplotlib import pyplot as plt
-
 import tensorflow as tf
-import tensorflow_probability as tfp
+from hmsc.gibbs_sampler import GibbsSampler
 
 tfr = tf.random
 
-from hmsc.gibbs_sampler import GibbsParameter, GibbsSampler
 
 # from hmsc.updaters.updateEta import updateEta
 # from hmsc.updaters.updateAlpha import updateAlpha
@@ -35,7 +26,6 @@ from hmsc.gibbs_sampler import GibbsParameter, GibbsSampler
 
 from hmsc.utils.jsonutils import (
     load_model_from_json,
-    save_postList_to_json,
     save_chains_postList_to_json,
 )
 from hmsc.utils.hmscutils import (
@@ -45,36 +35,6 @@ from hmsc.utils.hmscutils import (
     load_random_level_hyperparams,
     init_params,
 )
-
-
-# def build_sampler(params, dtype=np.float64):
-
-#     samplerParams = {
-#         "Z": GibbsParameter(params["Z"], updateZ),
-#         "BetaLambda": GibbsParameter(
-#             {"Beta": params["Beta"], "Lambda": params["Lambda"]}, updateBetaLambda
-#         ),
-#         "GammaV": GibbsParameter(
-#             {"Gamma": params["Gamma"], "iV": params["iV"]}, updateGammaV
-#         ),
-#         "PsiDelta": GibbsParameter(
-#             {"Psi": params["Psi"], "Delta": params["Delta"]}, updateLambdaPriors
-#         ),
-#         "Eta": GibbsParameter(params["Eta"], updateEta),
-#         "sigma": GibbsParameter(params["sigma"], updateSigma),
-#         "nf": GibbsParameter(
-#             {
-#                 "Eta": params["Eta"],
-#                 "Lambda": params["Lambda"],
-#                 "Psi": params["Psi"],
-#                 "Delta": params["Delta"],
-#             },
-#             updateNf,
-#         ),
-#         "Alpha": GibbsParameter(params["Alpha"], updateAlpha),
-#     }
-#     return samplerParams
-
 
 def load_params(file_path, dtype=np.float64):
 
