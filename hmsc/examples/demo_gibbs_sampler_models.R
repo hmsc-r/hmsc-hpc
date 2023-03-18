@@ -22,7 +22,7 @@ Experiments <- function() {
 }
 experiments <- Experiments()
 
-selected_experiment = experiments$M5
+selected_experiment = experiments$M6
 
 m = models[[selected_experiment$id]]
 

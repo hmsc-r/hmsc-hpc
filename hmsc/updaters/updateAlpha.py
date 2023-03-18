@@ -33,24 +33,21 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
             alphapw = rLPar["alphapw"]
 
             if spatialMethod == "Full":
+                detWg = rLPar["detWg"]
                 iWg = rLPar["iWg"]
-                # EtaTiWEta = tf.reduce_sum(tf.matmul(LiWg, Eta) ** 2, axis=1)
                 EtaTiWEta = tf.einsum("ah,gab,bh->hg", Eta, iWg, Eta)
+                logLike = tfm.log(alphapw[:,1]) - 0.5 * detWg - 0.5 * EtaTiWEta
+            
             elif spatialMethod == "GPP":
+                # dD is matrix of added diagonal variance, D is approximated matrix replacing spatial covariance
                 detDg = rLPar["detDg"]
                 iFg = rLPar["iFg"]
                 idDg = rLPar["idDg"]
                 idDW12g = rLPar["idDW12g"]
-                
-                tmpMat1 = tf.einsum("lij,jk->lik", idDW12g, Eta)
-                tmpMat2 = tf.einsum("lij,ljk->lik", iFg, tmpMat1)
-                tmpMat3 = tf.einsum("lji,ljk->lik", tmpMat1, tmpMat2)
-
-                tmpMat4 = tf.einsum("ij,ik->ijk", Eta, idDg)
-                EtaTidDEta = tf.einsum("ij,ijk->jk", Eta, tmpMat4)
-                
-                logLike = tf.tile(tfm.log(alphapw[:,1])[None,:], [nf,1]) - 0.5 * tf.tile(detDg[None,:], [nf,1]) - 0.5 * (EtaTidDEta - tf.transpose(tfla.diag_part(tmpMat3)))
-                AlphaList[r] = tf.squeeze(tfr.categorical(logLike, 1, dtype=tf.int32))
+                EtaT_idD_Eta = tf.einsum("ih,gi,ih->hg", Eta, idDg, Eta)
+                W21idD_Eta = tf.einsum("gia,ih->gah", idDW12g, Eta)
+                EtaT_idDW21_iF_W21idD_Eta  = tf.einsum("gah,gab,gbh->hg", W21idD_Eta, iFg, W21idD_Eta)
+                logLike = tfm.log(alphapw[:,1]) - 0.5 * detDg - 0.5 * (EtaT_idD_Eta - EtaT_idDW21_iF_W21idD_Eta)
 
             elif spatialMethod == "NNGP":
                 detWg = rLPar["detWg"]
@@ -58,22 +55,9 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
                 RiWg_Eta = tf.stack([tfs.sparse_dense_matmul(RiW, Eta) for RiW in RiWList], 0)
                 EtaTiWEta = tf.transpose(tf.reduce_sum(RiWg_Eta**2, [-2]))
                 logLike = tfm.log(alphapw[:,1]) - 0.5 * detWg - 0.5 * EtaTiWEta
-                AlphaList[r] = tf.squeeze(tfr.categorical(logLike, 1, dtype=tf.int32), -1)
 
-                # detWg = rLPar["detWg"]
-                # iWg = tfs.to_dense(rLPar["iWg"])
-                # # EtaTiWEta = tf.reduce_sum(tf.matmul(LiWg, Eta) ** 2, axis=1)
-                # EtaTiWEta = tf.einsum("ah,gab,bh->hg", Eta, iWg, Eta)
-                # logLike = tfm.log(alphapw[:,1]) - 0.5 * detWg - 0.5 * EtaTiWEta
-                # AlphaList[r] = tf.squeeze(tfr.categorical(logLike, 1, dtype=tf.int32))
-            else:
-                detWg = rLPar["detWg"]
-                iWg = rLPar["iWg"]
-                # EtaTiWEta = tf.reduce_sum(tf.matmul(LiWg, Eta) ** 2, axis=1)
-                EtaTiWEta = tf.einsum("ah,gab,bh->hg", Eta, iWg, Eta)
-                logLike = tfm.log(alphapw[:,1]) - 0.5 * detWg - 0.5 * EtaTiWEta
-                AlphaList[r] = tf.squeeze(tfr.categorical(logLike, 1, dtype=tf.int32))
+            AlphaList[r] = tf.squeeze(tfr.categorical(logLike, 1, dtype=tf.int32), -1)
         else:
             AlphaList[r] = tf.zeros([nf], dtype=tf.int32)
-
+    # print(AlphaList)
     return AlphaList

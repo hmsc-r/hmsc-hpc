@@ -101,6 +101,35 @@ def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64)
     return Eta
 
 
+def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nK, nu, nf, dtype=tf.float64):
+    idDst = tf.gather(idDg, AlphaInd)
+    Fst = tf.gather(Fg, AlphaInd)
+    idDW12st = tf.gather(idDW12g, AlphaInd)
+    Fmat = tf.reshape(tf.transpose(tfla.diag(tf.transpose(Fst, [1,2,0])), [2,0,3,1]), [nf*nK,nf*nK])
+    # idD1W12 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(idDW12g, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nu,nf*nK])
+    
+    Ast = LamInvSigLam + tfla.diag(tf.transpose(idDst))
+    LAst = tfla.cholesky(Ast)
+    iAst = tfla.cholesky_solve(LAst, tf.eye(nf, batch_shape=[nu], dtype=dtype))
+    W21idD_iA_idDW12 = tf.reshape(tf.einsum("hia,ihg,gib->hagb", idDW12st, iAst, idDW12st), [nf*nK]*2)
+    H = Fmat - W21idD_iA_idDW12
+    LH = tfla.cholesky(H)
+
+    # iA_mu0 = tf.squeeze(tfla.triangular_solve(LAst, tfla.triangular_solve(LAst, mu0[:,:,None]), adjoint=True), -1)
+    iA_mu0 = tf.einsum("ihg,ih->ig", iAst, mu0)
+    W21idD_iA_mu0 = tf.reshape(tf.einsum("hia,ih->ha", idDW12st, iA_mu0), [nf*nK,1])
+    iH_W21idD_iA_mu0 = tf.reshape(tfla.cholesky_solve(LH, W21idD_iA_mu0), [nf,nK])
+    iA_idDW12_iH_W21idD_iA_mu0 = tf.einsum("ihg,hia,ha->ig", iAst, idDW12st, iH_W21idD_iA_mu0)
+    etaMu = iA_mu0 + iA_idDW12_iH_W21idD_iA_mu0
+    
+    etaR1 = tf.squeeze(tfla.triangular_solve(LAst, tfr.normal([nu,nf,1], dtype=dtype), adjoint=True), -1)
+    tmp = tf.reshape(tfla.triangular_solve(LH, tfr.normal([nf*nK,1], dtype=dtype), adjoint=True), [nf,nK])
+    etaR2 = tf.einsum("ihg,hia,ha->ig", iAst, idDW12st, tmp)
+    Eta = etaMu + etaR1 + etaR2
+    # print(Eta)
+    return tf.ensure_shape(Eta, [nu,None])
+
+
 def modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, iWList, nu, nf, dtype=np.float64):
     LamInvSigLam_bdiag = block_diag([LamInvSigLam[i] for i in range(nu)], dtype=dtype)
     dataList, colList, rowList = [None]*int(nf), [None]*int(nf), [None]*int(nf)
@@ -121,34 +150,6 @@ def modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, iWList, nu, nf, dtype=np.fl
     mu1 = spsolve_triangular(LiUEta, np.reshape(mu0, [nu*nf]))
     eta = spsolve_triangular(LiUEta.transpose(), mu1 + np.random.normal(dtype(0), dtype(1), size=[nf*nu]), lower=False)
     Eta = np.reshape(eta, [nu,nf])
-    return Eta
-
-
-def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nu, nf, nK, dtype=tf.float64):
-    idD = tf.gather(idDg, AlphaInd, axis=1)
-    Fmat = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(Fg, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nK,nf*nK])
-    idD1W12 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(idDW12g, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nK,nf*nu])
-
-
-    B = tf.tile(LamSigLamT[None,:], [nu,1,1]) + tfla.diag(idD, num_rows = tf.cast(nf, tf.int32), num_cols = tf.cast(nf, tf.int32))
-    LB = tfla.cholesky(B)
-    iLB = tfla.inv(LB)
-
-    LA = tf.reshape(tf.transpose(tfla.diag(tf.transpose(LB, [1,2,0])), [2,0,3,1]), [nf*nu,nf*nu])
-    iLA = tf.reshape(tf.transpose(tfla.diag(tf.transpose(iLB, [1,2,0])), [2,0,3,1]), [nf*nu,nf*nu])
-
-    iAidD1W12 = tf.einsum("ij,kj->ik", iLA, idD1W12)
-    H = Fmat - tf.matmul(idD1W12, iAidD1W12)
-    LH = tfla.cholesky(H)
-    iLH = tfla.triangular_solve(LH, tf.eye(nK*nf, dtype=dtype), adjoint=True)
-
-    mu1 = tf.matmul(iLA, tf.reshape(mu0,[-1])[:,None])
-    tmp1 = tf.matmul(iAidD1W12, iLH)
-    mu2 = tf.einsum("ij,kj,kl->il", tmp1, tmp1, tf.reshape(mu0,[-1])[:,None])
-
-    etaR = tf.matmul(iLA, tfr.normal([nu*nf,1], dtype=dtype)) + tf.matmul(tmp1, tfr.normal([nK*nf,1], dtype=dtype))
-    Eta = tf.reshape(mu1 + mu2 + etaR, shape=[nu,nf])
-
     return Eta
 
 

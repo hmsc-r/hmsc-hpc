@@ -90,8 +90,8 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
           nK = int(dataParList["rLPar"][r]["nK"][0])
 
           rLPar["nK"] = nK
-          rLPar["idDg"] = np.asarray(dataParList["rLPar"][r]["idDg"])
-          rLPar["idDW12g"] = np.reshape(dataParList["rLPar"][r]["idDW12g"], (gN, nK, npVec[r]))
+          rLPar["idDg"] = np.transpose(np.asarray(dataParList["rLPar"][r]["idDg"]))
+          rLPar["idDW12g"] = np.transpose(np.reshape(dataParList["rLPar"][r]["idDW12g"], (gN, nK, npVec[r])), [0,2,1])
           rLPar["Fg"] = np.reshape(dataParList["rLPar"][r]["Fg"], (gN, nK, nK))
           rLPar["iFg"] = np.reshape(dataParList["rLPar"][r]["iFg"], (gN, nK, nK))
           rLPar["detDg"] = np.asarray(dataParList["rLPar"][r]["detDg"])
