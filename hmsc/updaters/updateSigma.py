@@ -40,9 +40,11 @@ def updateSigma(params, data, priorHyperparameters, dtype=np.float64):
     aSigma = priorHyperparameters["aSigma"]
     bSigma = priorHyperparameters["bSigma"]
 
+    Yo = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype)
     nr = len(EtaList)
     indVarSigma = tf.cast(tf.equal(distr[:,1], 1), dtype)
-    
+    #TODO code below contains redundant calculations for fixed variance columns
+
     if isinstance(X, list):
         LFix = tf.einsum("jik,kj->ij", tf.stack(X), Beta)
     else:
@@ -54,10 +56,10 @@ def updateSigma(params, data, priorHyperparameters, dtype=np.float64):
 
     L = LFix + sum(LRanLevelList)
     Eps = Z - L
-
-    alpha = aSigma + Y.shape[0] / 2.0
-    beta = bSigma + tf.reduce_sum(Eps**2, axis=0) / 2.0
+    
+    alpha = aSigma + tf.reduce_sum(Yo, 0) / 2.0
+    beta = bSigma + tf.reduce_sum(Yo*(Eps**2), 0) / 2.0
     isigma2 = tfd.Gamma(concentration=alpha, rate=beta).sample()
-    sigmaNew = indVarSigma * tfm.rsqrt(isigma2) + (1 - indVarSigma) * sigma
+    sigmaNew = indVarSigma * tfm.rsqrt(isigma2) + (1 - indVarSigma) * sigma 
 
     return sigmaNew

@@ -34,16 +34,13 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     LambdaList = params["Lambda"]
     EtaList = params["Eta"]
     AlphaIndList = params["AlphaInd"]
-    Pi = data["Pi"]
-    X = data["X"]
     Y = data["Y"]
-    ny = modelDims["ny"]
-    ns = modelDims["ns"]
+    X = data["X"]
+    Pi = data["Pi"]
     nr = modelDims["nr"]
     npVec = modelDims["np"]
     
-    iD = tf.ones_like(Z) * sigma**-2
-    
+    iD = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype) * sigma**-2
     if isinstance(X, list):
         LFix = tf.einsum("jik,kj->ij", tf.stack(X), Beta)
     else:

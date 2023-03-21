@@ -19,6 +19,7 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
             Psi - local shrinage species loadings (lambda's prior)
             Delta - delta global shrinage species loadings (lambda's prior)
             sigma - residual variance
+            Y - community matrix
             X - environmental data
             T - species trait data
             Pi - study design
@@ -32,6 +33,7 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     PsiList = params["Psi"]
     DeltaList = params["Delta"]
     sigma = params["sigma"]
+    Y = data["Y"]
     X = data["X"]
     T = data["T"]
     C, eC, VC = data["C"], data["eC"], data["VC"]
@@ -43,16 +45,13 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
       ny, nc = X[0].shape
     else:
       ny, nc = X.shape
-    
     _, ns = Z.shape
     nr = len(EtaList)
     nfVec = tf.stack([tf.shape(Eta)[-1] for Eta in EtaList])
     nfSum = tf.cast(tf.reduce_sum(nfVec), tf.int32)
     na = nc + nfSum
-    
-    iD = tf.ones_like(Z) * sigma**-2
 
-
+    iD = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype) * sigma**-2
     PiEtaList = [None] * nr
     for r, Eta in enumerate(EtaList):
       PiEtaList[r] = tf.gather(Eta, Pi[:, r])
@@ -79,9 +78,12 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
       else:
         iK = iK11_op.to_dense()
       
-      iU = iK + tf.matmul(XE, XE, transpose_a=True) / (sigma**2)[:, None, None]
+      if isinstance(X, list):
+        iU = iK + tf.einsum("jic,ij,jik->jck", XE, iD, XE)
+      else:
+        iU = iK + tf.einsum("ic,ij,ik->jck", XE, iD, XE)
       LiU = tfla.cholesky(iU)
-      A = tf.matmul(iK, tf.transpose(Mu)[:,:,None]) + (tf.matmul(Z / sigma**2, XE, transpose_a=True))[:,:,None]
+      A = tf.matmul(iK, tf.transpose(Mu)[:,:,None]) + (tf.matmul(iD * Z, XE, transpose_a=True))[:,:,None]
       M = tfla.cholesky_solve(LiU, A)
       BetaLambda = tf.transpose(tf.squeeze(M + tfla.triangular_solve(LiU, tfr.normal(shape=[ns,na,1], dtype=dtype), adjoint=True), -1))
       # tf.transpose(tf.squeeze(M))
@@ -99,15 +101,15 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
       else:
         iK = iK11_op.to_dense()
       
-      if isinstance(X, list):	
+      if isinstance(X, list):
         # XE_iD_XET = tf.reshape(tf.einsum("jic,j,jik->jck", XE, sigma**-2, XE), shape=[n2,n1])
         # ind1 = tf.concat([tf.repeat(tf.range(0,n2,2,dtype=tf.int64),n1),tf.repeat(tf.range(1,n2,2,dtype=tf.int64),n1)], axis=0)
         # ind2 = tf.concat([tf.tile(tf.range(0,n2,2,dtype=tf.int64),[n1]), tf.tile(tf.range(1,n2,2,dtype=tf.int64),[n1])], axis=0)
         # iU = iK + tfs.to_dense(tfs.reorder(tfs.SparseTensor(indices=tf.transpose(tf.stack([ind1,ind2])), values=tf.reshape(XE_iD_XET, [-1]), dense_shape=[n2,n2])))
-        XE_iD_XET = tf.einsum("jic,j,jik->ckj", XE, sigma**-2, XE)
+        XE_iD_XET = tf.einsum("jic,ij,jik->ckj", XE, iD, XE)
         m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.einsum("jik,ij->kj", XE, iD * Z), [na*ns,1])
       else:	
-        XE_iD_XET = tf.einsum("ic,j,ik->ckj", XE, sigma**-2, XE)
+        XE_iD_XET = tf.einsum("ic,ij,ik->ckj", XE, iD, XE)
         m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.matmul(XE, iD * Z, transpose_a=True), [na*ns,1])
       
       iU = iK + tf.reshape(tf.transpose(tfla.diag(XE_iD_XET), [0,2,1,3]), [na*ns]*2)
