@@ -11,3 +11,6 @@ from hmsc.updaters.updateGammaV import updateGammaV
 from hmsc.updaters.updateSigma import updateSigma
 from hmsc.updaters.updateZ import updateZ
 from hmsc.updaters.updateRhoInd import updateRhoInd
+from hmsc.updaters.updateBetaSel import updateBetaSel
+from hmsc.updaters.updatewRRR import updatewRRR
+from hmsc.updaters.updatewRRRPriors import updatewRRRPriors
