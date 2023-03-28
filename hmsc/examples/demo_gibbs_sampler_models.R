@@ -6,7 +6,7 @@ library(vioplot)
 
 path = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 
-load(file = file.path(path, "examples/data", "unfitted_models.RData"))
+load(file = file.path(path, "examples/data", "unfitted_models_2.RData"))
 models
 
 Experiments <- function() {
@@ -17,12 +17,14 @@ Experiments <- function() {
     M4=list(name="model4",id=4),
     M5=list(name="model5",id=5),
     M6=list(name="model6",id=6),
-    M7=list(name="model7",id=7)
+    M7=list(name="model7",id=7),
+    M8=list(name="model8",id=8),
+    M9=list(name="model9",id=9)
     )
 }
 experiments <- Experiments()
 
-selected_experiment = experiments$M6
+selected_experiment = experiments$M9
 
 m = models[[selected_experiment$id]]
 
@@ -56,7 +58,7 @@ if (selected_experiment$name == experiments$M1$name) {
 } else if (selected_experiment$name == experiments$M5$name) {
   nChains = 8
   nSamples = 250
-  thin = 1
+  thin = 10
   #m$X = 0.5*(m$X[[1]] + m$X[[2]])
   #m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
   #m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
@@ -64,13 +66,28 @@ if (selected_experiment$name == experiments$M1$name) {
 } else if (selected_experiment$name == experiments$M6$name) {
   nChains = 8
   nSamples = 250
-  thin = 1
+  thin = 10
   #m$X = 0.5*(m$X[[1]] + m$X[[2]])
   #m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
   #m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
 } else if (selected_experiment$name == experiments$M7$name) {
   print("Not Implemented: XScaled not found error for engine=pass")
+} else if (selected_experiment$name == experiments$M8$name) {
+  nChains = 8
+  nSamples = 250
+  thin = 10
+  #m$X = 0.5*(m$X[[1]] + m$X[[2]])
+  #m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
+  #m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
+} else if (selected_experiment$name == experiments$M9$name) {
+  nChains = 8
+  nSamples = 250
+  thin = 10
+  #m$X = 0.5*(m$X[[1]] + m$X[[2]])
+  #m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
+  #m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
 }
+
 transient = nSamples*thin
 verbose = thin*10
 
@@ -145,7 +162,7 @@ obj.R = sampleMcmc(m, samples = nSamples, thin = thin,
                    nChains = nChains, nParallel=nChains,
                    verbose = verbose, updater=list(Gamma2=FALSE, GammaEta=FALSE)) #fitted by R
 print(proc.time() - ptm)
-aaa
+
 #
 # Set RStudio to TF env
 #
