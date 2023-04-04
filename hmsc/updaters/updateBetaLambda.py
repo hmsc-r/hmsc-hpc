@@ -26,14 +26,13 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     """
 
     Z = params["Z"]
+    iD = params["iD"]
     Gamma = params["Gamma"]
     iV = tfla.inv(params["V"])
     rhoInd = params["rhoInd"]
     EtaList = params["Eta"]
     PsiList = params["Psi"]
     DeltaList = params["Delta"]
-    sigma = params["sigma"]
-    Y = data["Y"]
     X = data["X"]
     T = data["T"]
     C, eC, VC = data["C"], data["eC"], data["VC"]
@@ -51,7 +50,6 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     nfSum = tf.cast(tf.reduce_sum(nfVec), tf.int32)
     na = nc + nfSum
 
-    iD = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype) * sigma**-2
     PiEtaList = [None] * nr
     for r, Eta in enumerate(EtaList):
       PiEtaList[r] = tf.gather(Eta, Pi[:, r])

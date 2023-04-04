@@ -102,7 +102,9 @@ class GibbsSampler(tf.Module):
         nr = self.modelDims["nr"]
         npVec = self.modelDims["np"]
         params = paramsInput.copy() #TODO due to tf.function requiring not to change its Tensor input
-  
+        params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * tf.ones_like(params["Z"]) * params["sigma"]**-2
+        _, _, params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_update_omega=True, poisson_marginalize_z=False)
+
         mcmcSamplesBeta = tf.TensorArray(params["Beta"].dtype, size=num_samples)
         mcmcSamplesGamma = tf.TensorArray(params["Gamma"].dtype, size=num_samples)
         mcmcSamplesV = tf.TensorArray(params["V"].dtype, size=num_samples)
@@ -129,9 +131,24 @@ class GibbsSampler(tf.Module):
             )
             debugPrintFlag = False
             
-            params["Z"] = updateZ(params, self.modelData)
+            z_marginalize_iter_cond = lambda it: ((it % 2) == 1) & (it >= 0)
+            z_marginalize_iter_flag = z_marginalize_iter_cond(n)
+            z_marginalize_prev_flag = z_marginalize_iter_cond(n-1)
+            
+            if z_marginalize_iter_flag == False:
+              if z_marginalize_prev_flag == False:
+                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_marginalize_z=False)
+              else:
+                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True, poisson_marginalize_z=False)
+            else:
+              if z_marginalize_prev_flag == False:
+                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_marginalize_z=True)
+              else:
+                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True, poisson_marginalize_z=True)
+              
             if debugPrintFlag:
               tf.print("Z", tf.reduce_sum(tf.cast(tfm.is_nan(params["Z"]), tf.int32)))
+              tf.print("iD", tf.reduce_sum(tf.cast(tfm.is_nan(params["iD"]), tf.int32)))
             
             params["Beta"], params["Lambda"] = updateBetaLambda(params, self.modelData, self.priorHyperparams)
             if debugPrintFlag:
@@ -145,10 +162,6 @@ class GibbsSampler(tf.Module):
             
             params["rhoInd"] = updateRhoInd(params, self.modelData, self.priorHyperparams)
             
-            params["sigma"] = updateSigma(params, self.modelData, self.priorHyperparams)
-            if debugPrintFlag:
-              tf.print("sigma", tf.reduce_sum(tf.cast(tfm.is_nan(params["sigma"]), tf.int32)))
-            
             params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
             
             params["Eta"] = updateEta(params, self.modelData, self.modelDims, self.rLHyperparams)
@@ -156,6 +169,11 @@ class GibbsSampler(tf.Module):
               tf.print("Eta0", tf.reduce_sum(tf.cast(tfm.is_nan(params["Eta"][0]), tf.int32)))
             
             params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
+            
+            if z_marginalize_iter_flag == False:
+              params["sigma"] = updateSigma(params, self.modelData, self.priorHyperparams)
+              if debugPrintFlag:
+                tf.print("sigma", tf.reduce_sum(tf.cast(tfm.is_nan(params["sigma"]), tf.int32)))
 
             if n < sample_burnin:
                 params["Lambda"], params["Psi"], params["Delta"], params["Eta"], params["AlphaInd"] = updateNf(params, self.rLHyperparams, n)

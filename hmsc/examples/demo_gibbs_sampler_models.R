@@ -6,7 +6,7 @@ library(vioplot)
 
 path = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 
-load(file = file.path(path, "examples/data", "unfitted_models.RData"))
+load(file = file.path(path, "examples/data", "unfitted_models_2.RData"))
 models
 
 Experiments <- function() {
@@ -17,13 +17,15 @@ Experiments <- function() {
     M4=list(name="model4",id=4),
     M5=list(name="model5",id=5),
     M6=list(name="model6",id=6),
-    M7=list(name="model7",id=7)
+    M7=list(name="model7",id=7),
+    M8=list(name="model8",id=8),
+    M9=list(name="model9",id=9),
+    M10=list(name="model10",id=10)
     )
 }
 experiments <- Experiments()
 
-selected_experiment = experiments$M6
-
+selected_experiment = experiments$M10
 m = models[[selected_experiment$id]]
 
 if (selected_experiment$name == experiments$M1$name) {
@@ -33,17 +35,19 @@ if (selected_experiment$name == experiments$M1$name) {
 } else if (selected_experiment$name == experiments$M2$name) {
   nChains = 8
   nSamples = 250
-  thin = 1
-  # rLSite = m$ranLevels$site
-  # rLTime = m$ranLevels$time
-  # rLSiteNew = HmscRandomLevel(units=rLSite$pi)
-  # rLTimeNew = HmscRandomLevel(units=rLTime$pi)
-  rLSiteNew = m$ranLevels$site
-  rLTimeNew = m$ranLevels$time
-  YNew = matrix(colMeans(m$Y, na.rm=TRUE), nrow(m$Y), ncol(m$Y), byrow=TRUE)
-  YNew[!is.na(m$Y)] = m$Y[!is.na(m$Y)]
-  mNew = Hmsc(Y=YNew, XFormula=m$XFormula, XData=m$XData, TrFormula=m$TrFormula, TrData=m$TrData,
-              distr=m$distr, studyDesign=m$studyDesign, ranLevels=list(site=rLSiteNew,time=rLTimeNew))
+  thin = 10
+  rLSite = m$ranLevels$site
+  rLTime = m$ranLevels$time
+  rLSiteNew = HmscRandomLevel(units=rLSite$pi)
+  rLTimeNew = HmscRandomLevel(units=rLTime$pi)
+  # rLSiteNew = m$ranLevels$site
+  # rLTimeNew = m$ranLevels$time
+  # YNew = matrix(colMeans(m$Y, na.rm=TRUE), nrow(m$Y), ncol(m$Y), byrow=TRUE)
+  # YNew[!is.na(m$Y)] = m$Y[!is.na(m$Y)]
+  YNew = m$Y
+  XFormulaNew = as.formula("~poly(temp_avg, degree = 2, raw = TRUE) + season")
+  mNew = Hmsc(Y=YNew, XFormula=XFormulaNew, XData=m$XData, TrFormula=m$TrFormula, TrData=m$TrData,
+              distr=m$distr, studyDesign=m$studyDesign, ranLevels=list(site=rLSiteNew,time=rLTimeNew)) #
   m = mNew
 } else if (selected_experiment$name == experiments$M3$name) {
   nChains = 8
@@ -70,6 +74,16 @@ if (selected_experiment$name == experiments$M1$name) {
   #m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
 } else if (selected_experiment$name == experiments$M7$name) {
   print("Not Implemented: XScaled not found error for engine=pass")
+  stop("Not covered")
+} else if (selected_experiment$name == experiments$M10$name) {
+  nChains = 8
+  nSamples = 250
+  thin = 1000
+  # mNew = Hmsc(Y=m$Y, XFormula=m$XFormula, XData=m$XData, distr=m$distr, studyDesign=m$studyDesign, ranLevels=list())
+  # mNew = setPriors(mNew, V0=10^2*diag(m$nc), UGamma=10^2*diag(m$nc))
+  # m = mNew
+} else{
+  stop("Not covered")
 }
 transient = nSamples*thin
 verbose = thin*10
@@ -139,12 +153,13 @@ print(python_cmd)
 #
 # Generate sampled posteriors in R
 #
-ptm <- proc.time()
+startTime = proc.time()
 obj.R = sampleMcmc(m, samples = nSamples, thin = thin,
                    transient = transient, 
                    nChains = nChains, nParallel=nChains,
                    verbose = verbose, updater=list(Gamma2=FALSE, GammaEta=FALSE)) #fitted by R
-print(proc.time() - ptm)
+stopTime = proc.time()
+print(stopTime - startTime)
 aaa
 #
 # Set RStudio to TF env
@@ -175,6 +190,11 @@ aaa
 system(paste("chmod a+x", sprintf("'%s'",python_file_path))) # set file permissions for shell execution
 system("python --version", wait=TRUE)
 system(python_cmd, wait=TRUE) # run TF gibbs sampler
+
+
+
+
+
 
 #
 # Import TF-generated sampled posteriors as JSON in R
@@ -215,6 +235,7 @@ for (chain in seq_len(nChains)) {
     Gamma = obj.TF[["postList"]][[chain]][[sample]][["Gamma"]]
     V = obj.TF[["postList"]][[chain]][[sample]][["V"]]
     rho = obj.TF$rhopw[obj.TF[["postList"]][[chain]][[sample]][["rhoInd"]], 1]
+    sigma = obj.TF[["postList"]][[chain]][[sample]][["sigma"]]
     
     for(p in 1:nt){
       m = TrScalePar[1,p]
@@ -271,6 +292,7 @@ for (chain in seq_len(nChains)) {
     obj.TF[["postList"]][[chain]][[sample]][["Gamma"]] = Gamma
     obj.TF[["postList"]][[chain]][[sample]][["V"]] = V
     obj.TF[["postList"]][[chain]][[sample]][["rho"]] = rho
+    obj.TF[["postList"]][[chain]][[sample]][["sigma"]] = sigma^2
   }
 }
 
@@ -282,17 +304,19 @@ obj.R.TF = obj.R
 obj.R.TF$postList = c(obj.R$postList,obj.TF$postList)
 obj.list = list(R=obj.R,TF=obj.TF,R.TF=obj.R.TF)
 
-#beta and gamma
-for(variable in 1:2){
+#beta, gamma and sigma
+varVec = c("Beta","Gamma")
+if(any(obj.R$distr[,2] != 0)) varVec = c(varVec, "Sigma")
+for(variable in 1:3){
   for(i in 1:3){
     mpost = convertToCodaObject(obj.list[[i]])
-    mpost.var = if(variable==1) {mpost$Beta} else {mpost$Gamma} 
-    psrf = gelman.diag(mpost.var,multivariate=FALSE)$psrf
+    mpost.var = mpost[[varVec[variable]]]
+    psrf = gelman.diag(mpost.var, multivariate=FALSE)$psrf
     if(i == 1) {ma = psrf[,1]} else {ma = cbind(ma,psrf[,1])}
   }
   par(mfrow=c(2,1))
-  vioplot(ma,names=names(obj.list),ylim=c(0.9,max(ma)),main=c("beta","gamma")[variable])
-  vioplot(ma,names=names(obj.list),ylim=c(0.9,1.1),main=c("beta","gamma")[variable])
+  vioplot(ma,names=names(obj.list),ylim=c(0.9,max(ma)),main=varVec[variable])
+  vioplot(ma,names=names(obj.list),ylim=c(0.9,1.1),main=varVec[variable])
 }
 
 #rho
@@ -303,13 +327,12 @@ if(!is.null(obj.R$C)){
   print(mat)
 }
 
-
 #omega
 maxOmega = 100 #number of species pairs to be subsampled
 nr = obj.list[[1]]$nr
 for(k in seq_len(nr)){
   for(i in 1:3){
-    mpost = convertToCodaObject(obj.list[[i]], Rho=FALSE)
+    mpost = convertToCodaObject(obj.list[[i]])
     tmp = mpost$Omega[[k]]
     z = dim(tmp[[1]])[2]
     if(z > maxOmega){
@@ -325,4 +348,16 @@ for(k in seq_len(nr)){
   vioplot(ma,names=names(obj.list),ylim=c(0.9,max(ma)),main=paste("omega",names(obj.list[[1]]$ranLevels)[k]))
   vioplot(ma,names=names(obj.list),ylim=c(0.9,1.1),main=paste("omega",names(obj.list[[1]]$ranLevels)[k]))
 }
+
+mpost_R = convertToCodaObject(obj.R)$Sigma
+plot(mpost_R)
+
+mpost_TF = convertToCodaObject(obj.TF)$Sigma
+plot(mpost_TF)
+
+par(mfrow=c(1,1))
+psrf_R = gelman.diag(mpost_R, multivariate=FALSE)$psrf
+psrf_TF = gelman.diag(mpost_TF, multivariate=FALSE)$psrf
+plot(psrf_R[,1], psrf_TF[,1], type="n")
+text(psrf_R[,1], psrf_TF[,1], 1:nrow(psrf_R))
 
