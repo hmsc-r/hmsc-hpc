@@ -71,4 +71,4 @@ def updatewRRR(params, modelDims, modelData, rLHyperparams, dtype=tf.float64):
         else:
             X = tf.concat([X1A, XB], axis=-1)
 
-    return wRRR, X
+    return wRRR, X # X is ignored for time being, don t understand the significance of changing model data

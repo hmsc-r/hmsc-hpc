@@ -13,12 +13,13 @@ def updateBetaSel(params, modelDims, modelData, rLHyperparams, dtype=tf.float64)
     npVec = modelDims["np"]
     ncsel = modelDims["ncsel"]
 
-    X1 = modelData["X"]
+    X = modelData["X"]
     Pi = modelData["Pi"]
 
-    covGroup = modelData["covGroup"]
+    covGroup = modelData["covGroup"]    
     spGroup = modelData["spGroup"]
     q = modelData["q"]
+    mask = modelData["mask"]
 
     Z = params["Z"]
     EtaList = params["Eta"]
@@ -31,6 +32,8 @@ def updateBetaSel(params, modelDims, modelData, rLHyperparams, dtype=tf.float64)
 
     std = iSigma**-0.5
 
+    X1 = tf.stack([X for i in range(ns)])
+        
     LRanLevelList = [None] * nr
     for r, (Eta, Lambda, rLPar) in enumerate(zip(EtaList, LambdaList, rLHyperparams)):
         if(int(rLPar["xDim"]) == 0):
@@ -38,82 +41,58 @@ def updateBetaSel(params, modelDims, modelData, rLHyperparams, dtype=tf.float64)
         else:
             raise NotImplementedError
 
-    X1 = tf.stack([X1 for i in range(ns)])
-
-    fsp = tf.cast(tf.transpose(tf.stack([tf.where(tf.equal(spGroup, i))[:,1] for i in range(ns)])), dtype=tf.int32)
-    fsp_selected = tf.where(tf.equal(BetaSel, False), fsp, -1)
-    mx_fsp = tf.reduce_max(fsp_selected, axis=1)
-
-    mask_nc = tf.ones((nc,ns), dtype=tf.bool)
-    
-    def f1(x):
-        return tf.where(tf.less_equal(tf.range(ns), mx_fsp[x]), False, True)
-    mask_ncsel = tf.stack(tf.map_fn(f1, tf.range(ncsel), fn_output_signature=tf.bool))
-    #mask_ncsel = tf.stack([tf.where(tf.less_equal(tf.range(ns), x), False, True) for x in mx_fsp])
-
-    indices = tf.stack([tf.repeat(covGroup, ns), tf.tile(tf.range(ns), [ncsel])], axis=1)
-    updates = tf.reshape(mask_ncsel, [-1])
-    mask_nc = tf.tensor_scatter_nd_update(mask_nc, indices, updates)
-
-    mask = tf.transpose(tf.reshape(tf.repeat(mask_nc, tf.ones([ns], dtype=tf.int32)*ny, axis=1), (nc,ny,ns)))
-
-    X = X1*tf.cast(mask, dtype)
-    LFix = tf.einsum("ijk,ki->ji", X, Beta)
-    L = LFix + sum(LRanLevelList)
-
-    ll = tfd.Normal(loc=L, scale=std).cdf(Z)
-
-    BetaSelNew = tf.where(BetaSel, False, True)
-
-    fsp = tf.cast(tf.transpose(tf.stack([tf.where(tf.equal(spGroup, i))[:,1] for i in range(ns)])), dtype=tf.int64)
-
-    mx_fsp = tf.cast(tf.reduce_max(fsp, axis=1), dtype=tf.int32)
-
-    mask_nc = tf.zeros((nc,ns), dtype=tf.int32)
-    
-    def f2(x):
-        return tf.where(tf.less_equal(tf.range(ns), mx_fsp[x]), 1, 0)
-    mask_ncsel = tf.stack(tf.map_fn(f2, tf.range(ncsel), fn_output_signature=tf.int32))
-    #mask_ncsel = tf.stack([tf.where(tf.less_equal(tf.range(ns), x), 1, 0) for x in mx_fsp])
-    mask_ncsel = tf.where(BetaSelNew, mask_ncsel, -1 * mask_ncsel)
-
-    indices = tf.stack([tf.repeat(covGroup, ns), tf.tile(tf.range(ns), [ncsel])], axis=1)
-    updates = tf.reshape(mask_ncsel, [-1])
-    mask_nc = tf.tensor_scatter_nd_update(mask_nc, indices, updates)
-
-    mask = tf.transpose(tf.reshape(tf.repeat(mask_nc, tf.ones([ns], dtype=tf.int32)*ny, axis=1), (nc,ny,ns)))
-
-    X2 = X1*tf.cast(mask, dtype)
-
-    LFix1 = tf.einsum("ijk,ki->ji", X2, Beta)
-
     pridif = tf.where(BetaSel, tfm.log(q) - tfm.log(1-q), tfm.log(1-q) - tfm.log(q))
 
-    for i in range(ncsel):
-        for spg in range(ns):
-            if BetaSelNew[i,spg]:
-                LNew = L + LFix1
-            else:
-                LNew = L - LFix1
+    X1 = modelData["X"]
+    X1 = tf.stack([X1 for j in range(ns) if not isinstance(X1, dict) and ncsel > 0])
+
+    def get_fsp_all():
+        def get_fsp(i,spg):
+            indices = tf.where(spGroup[i] == spg)
+            return tf.concat([tf.ones_like(indices)*i,indices], axis=1)
+        return tf.concat([get_fsp(i,spg) for spg in range(q.shape[1]) for i in range(ncsel)], axis=0)
+    fsp_all = get_fsp_all()
+
+    mask_nc = tf.transpose(tf.concat([BetaSel,tf.cast(tf.zeros([nc-ncsel,ns]), tf.bool)],axis=0))
+    mask_nc_full = tf.reshape(tf.repeat(mask_nc, tf.ones([nc], dtype=tf.int32)*ny, axis=1), (ns,ny,nc))
+    mask_fsp = tfm.logical_and(tf.cast(tf.reduce_max(tf.cast(mask, tf.int8), axis=0), tf.bool), mask_nc_full)
+
+    X = X1 * tf.cast(mask_fsp, dtype)
+
+    LFix = tf.einsum("ijk,ki->ji", X, Beta)
+    L = LFix + sum(LRanLevelList)
+    LNew = L
+    
+    ll = tfd.Normal(loc=L, scale=std).cdf(Z)
+
+    indices = fsp_all
+    updates = tfm.logical_not(tf.gather_nd(BetaSel, indices=fsp_all))
+    BetaSelNew = tf.tensor_scatter_nd_update(BetaSel, indices, updates)
+    
+    for i in tf.range(ncsel):
+        for spg in tf.range(q.shape[1]):
+            X2 = tf.gather(X1, [spg])[-1,:,:] * tf.cast(tf.gather_nd(mask, [i,spg]), dtype)
         
-            llNew = ll
+            LFix = tf.matmul(X2, Beta)
+
+            if BetaSelNew[i][spg]:
+                LNew = L + LFix
+            else:
+                LNew = L - LFix
             
-            j = fsp[i,spg]
-            indices = tf.stack([tf.cast(tf.range(ny), tf.int64), tf.repeat(j, ny)], axis=1)
-            updates = tf.reshape(tfd.Normal(loc=LNew[:,j], scale=std[j]).cdf(Z[i,j]), [-1])
-            llNew = tf.tensor_scatter_nd_update(llNew, indices, updates)
+            fsp = tf.squeeze(tf.where(tf.equal(tf.gather(spGroup, i),spg)))
+            fsp = fsp if len(tf.shape(fsp)) > 1 else fsp[None]
+       
+            updates = tf.reshape(tfd.Normal(loc=tf.gather(LNew, fsp, axis=1), scale=tf.gather(std, fsp)).cdf(tf.gather(Z, fsp, axis=1)), [-1])
+            indices = tf.stack([tf.tile(tf.range(ny), [tf.size(fsp)]), tf.cast(tf.repeat(fsp, ny), tf.int32)], axis=1)
+            llNew = tf.tensor_scatter_nd_update(ll, indices, updates)
             
-            lldif = tf.reduce_sum(llNew[:,spg]) - tf.reduce_sum(ll[:,spg])
-            '''
-            if tfm.exp(lldif + pridif[i,spg]) > tfr.uniform([1], dtype=dtype): # autograph error for unsupported op
-                BetaSel = BetaSelNew
-                #BetaSel = tf.tensor_scatter_nd_update(BetaSel, [[i,spg]], [BetaSelNew[i,spg]])
-                tf.print(BetaSel)
+            lldif = tf.reduce_sum(tf.gather(llNew, fsp, axis=1)) - tf.reduce_sum(tf.gather(ll, fsp, axis=1))
+
+            # if tfr.uniform(shape=[1]) > tfm.exp(lldif + tf.gather_nd(pridif, [i,spg])): # autograph error for unsupported op
+            if True: 
+                BetaSel = tf.tensor_scatter_nd_update(BetaSel, [[i,spg]], [BetaSelNew[i,spg]])
                 L = LNew
                 ll = llNew
-            '''
-            BetaSel = tf.tensor_scatter_nd_update(BetaSel, [[i,spg]], [BetaSelNew[i,spg]])
-            L = LNew
-            ll = llNew
             
     return BetaSel
