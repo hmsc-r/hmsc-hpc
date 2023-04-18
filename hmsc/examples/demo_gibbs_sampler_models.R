@@ -25,7 +25,7 @@ Experiments <- function() {
 }
 experiments <- Experiments()
 
-selected_experiment = experiments$M10
+selected_experiment = experiments$M9
 m = models[[selected_experiment$id]]
 
 if (selected_experiment$name == experiments$M1$name) {
@@ -60,7 +60,7 @@ if (selected_experiment$name == experiments$M1$name) {
 } else if (selected_experiment$name == experiments$M5$name) {
   nChains = 8
   nSamples = 250
-  thin = 1
+  thin = 10
   #m$X = 0.5*(m$X[[1]] + m$X[[2]])
   #m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
   #m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
@@ -68,13 +68,22 @@ if (selected_experiment$name == experiments$M1$name) {
 } else if (selected_experiment$name == experiments$M6$name) {
   nChains = 8
   nSamples = 250
-  thin = 1
+  thin = 10
   #m$X = 0.5*(m$X[[1]] + m$X[[2]])
   #m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
   #m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
 } else if (selected_experiment$name == experiments$M7$name) {
   print("Not Implemented: XScaled not found error for engine=pass")
   stop("Not covered")
+} else if (selected_experiment$name == experiments$M8$name) {
+  nChains = 8
+  nSamples = 250
+  thin = 10
+} else if (selected_experiment$name == experiments$M9$name) {
+  nChains = 8
+  nSamples = 250
+  thin = 10
+  aaa
 } else if (selected_experiment$name == experiments$M10$name) {
   nChains = 8
   nSamples = 250
@@ -85,6 +94,7 @@ if (selected_experiment$name == experiments$M1$name) {
 } else{
   stop("Not covered")
 }
+
 transient = nSamples*thin
 verbose = thin*10
 
@@ -156,11 +166,12 @@ print(python_cmd)
 startTime = proc.time()
 obj.R = sampleMcmc(m, samples = nSamples, thin = thin,
                    transient = transient, 
-                   nChains = nChains, nParallel=nChains,
+                   nChains = nChains, #nParallel=nChains,
                    verbose = verbose, updater=list(Gamma2=FALSE, GammaEta=FALSE)) #fitted by R
 stopTime = proc.time()
 print(stopTime - startTime)
 aaa
+
 #
 # Set RStudio to TF env
 #

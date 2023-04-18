@@ -4,7 +4,7 @@ from scipy.sparse import coo_matrix, csc_matrix
 tfla, tfr, tfs = tf.linalg, tf.random, tf.sparse
 
 
-def load_model_data(hmscModel):
+def load_model_data(hmscModel, importedInitParList, dtype=np.float64):
 
     Y = np.asarray(hmscModel.get("YScaled")).astype(float)
     T = np.asarray(hmscModel.get("TrScaled"))
@@ -33,6 +33,41 @@ def load_model_data(hmscModel):
     modelData["Pi"] = Pi
     modelData["distr"] = distr
 
+    ncsel = int(hmscModel.get("ncsel")[0])
+    if ncsel is not None:
+      covGroup = tf.constant(np.squeeze([hmscModel["XSelect"][i]["covGroup"] for i in range(ncsel)]) - 1, dtype=tf.int32) #FIXME these are potentially ragged
+      spGroup = tf.constant([np.array(hmscModel["XSelect"][i]["spGroup"]) - 1 for i in range(ncsel)], dtype=tf.int32) #FIXME these are potentially ragged
+      q = tf.constant([hmscModel["XSelect"][i]["q"] for i in range(ncsel)], dtype=dtype) #FIXME these are potentially ragged
+      
+      if ncsel > 0:
+        BetaSel = tf.cast(tf.stack([tf.constant(BetaSel, dtype=dtype) for BetaSel in importedInitParList[0]["BetaSel"]]), tf.bool) #FIXME these are potentially ragged
+        for i in range(ncsel):
+          for spg in range(q.shape[1]):
+            if ~BetaSel[i,spg]:
+              fsp = np.where(spGroup[i] == spg)[0]
+              for j in fsp:
+                X[j,covGroup[i]] = 0
+
+    ncRRR = int(hmscModel.get("ncRRR")[0])
+    if ncRRR > 0:
+      XRRR = np.asarray(hmscModel.get("XRRR")).astype(float)
+      wRRR = tf.constant(importedInitParList[0]["wRRR"], dtype=dtype)
+    
+      X1A = X
+      XB = tf.einsum("ij,kj->ik", XRRR, wRRR)
+      if isinstance(X, list):
+        raise NotImplementedError
+      else:
+        X = tf.concat([X,XB], axis=-1)
+      
+      modelData["XRRR"] = XRRR
+      modelData["X1A"] = X1A
+
+    modelData["covGroup"] = covGroup #FIXME these three would better be united within XSelect structure, as they are in R
+    modelData["spGroup"] = spGroup
+    modelData["q"] = q
+    modelData["X"] = X #FIXME X is a single entity for the whole model, but BetaSel is chain-specific
+
     return modelData
 
 
@@ -44,6 +79,11 @@ def load_model_dims(hmscModel):
     nt = int(hmscModel.get("nt")[0])
     nr = int(hmscModel.get("nr")[0])
     npVec = np.array(hmscModel.get("np"), int)
+    ncsel = int(hmscModel.get("ncsel")[0])
+    ncRRR = int(hmscModel.get("ncRRR")[0])
+    ncNRRR = int(hmscModel.get("ncNRRR")[0])
+    ncORRR = int(hmscModel.get("ncORRR")[0])
+    nuRRR = int(hmscModel.get("nuRRR")[0])
 
     modelDims = {}
     modelDims["ny"] = ny
@@ -52,14 +92,33 @@ def load_model_dims(hmscModel):
     modelDims["nt"] = nt
     modelDims["nr"] = nr
     modelDims["np"] = npVec
+    modelDims["ncsel"] = ncsel
+    modelDims["ncRRR"] = ncRRR
+    modelDims["ncNRRR"] = ncNRRR
+    modelDims["ncORRR"] = ncORRR
+    modelDims["nuRRR"] = nuRRR
 
     return modelDims
 
+def load_model_hyperparams(hmscModel, dataParList, dtype=np.float64):
+
+    ns = int(np.squeeze(hmscModel.get("ns")))
+   
+    dataParams = {}
+    if len(dataParList["Qg"]) == (ns*ns): # TODO. need to review this condition
+      dataParams["Qg"] = np.reshape(dataParList["Qg"], (ns,ns))
+      dataParams["iQg"] = np.reshape(dataParList["iQg"], (ns,ns))
+      dataParams["RQg"] = np.reshape(dataParList["RQg"], (ns,ns))
+    else:
+      dataParams["Qg"] = np.reshape(dataParList["Qg"], (101,ns,ns))
+      dataParams["iQg"] = np.reshape(dataParList["iQg"], (101,ns,ns))
+      dataParams["RQg"] = np.reshape(dataParList["RQg"], (101,ns,ns))
+
+    return dataParams
 
 def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
 
     nr = int(np.squeeze(hmscModel.get("nr")))
-
     npVec = hmscModel.get("np")
     #npVec = (np.array(hmscModel.get("np"))).astype(int)
     
@@ -172,15 +231,24 @@ def load_prior_hyperparams(hmscModel):
     rhopw = np.asarray(hmscModel.get("rhopw"))
     aSigma = np.asarray(hmscModel.get("aSigma"))
     bSigma = np.asarray(hmscModel.get("bSigma"))
+    a1RRR = np.squeeze(hmscModel.get("a1RRR"))
+    b1RRR = np.squeeze(hmscModel.get("b1RRR"))
+    a2RRR = np.squeeze(hmscModel.get("a2RRR"))
+    b2RRR = np.squeeze(hmscModel.get("b2RRR"))
 
     priorHyperParams = {}
     priorHyperParams["mGamma"] = mGamma
+    priorHyperParams["UGamma"] = UGamma
     priorHyperParams["iUGamma"] = tfla.inv(UGamma)
     priorHyperParams["f0"] = f0
     priorHyperParams["V0"] = V0
     priorHyperParams["rhopw"] = rhopw
     priorHyperParams["aSigma"] = aSigma
     priorHyperParams["bSigma"] = bSigma
+    priorHyperParams["a1RRR"] = a1RRR
+    priorHyperParams["b1RRR"] = b1RRR
+    priorHyperParams["a2RRR"] = a2RRR
+    priorHyperParams["b2RRR"] = b2RRR
 
     return priorHyperParams
 
@@ -200,6 +268,11 @@ def init_params(importedInitParList, dtype=np.float64):
       DeltaList = [tf.constant(Delta, dtype=dtype) for Delta in importedInitPar["Delta"]]
       EtaList = [tf.constant(Eta, dtype=dtype) for Eta in importedInitPar["Eta"]]
       AlphaIndList = [tf.cast(tf.constant(AlphaInd), tf.int32) - 1 for AlphaInd in importedInitPar["Alpha"]]
+      BetaSel = tf.cast(tf.stack([tf.constant(BetaSel, dtype=dtype) for BetaSel in importedInitPar["BetaSel"]]), tf.bool) if "BetaSel" in importedInitPar else tf.reshape((), (0, 1))
+      PsiRRR = tf.constant(importedInitPar["PsiRRR"], dtype=dtype) if "PsiRRR" in importedInitPar else tf.reshape((), (0, 1))
+      DeltaRRR = tf.constant(importedInitPar["DeltaRRR"], dtype=dtype) if "DeltaRRR" in importedInitPar else tf.reshape((), (0, 1))
+      wRRR = tf.constant(importedInitPar["wRRR"], dtype=dtype) if "wRRR" in importedInitPar else tf.reshape((), (0, 1))
+
       initPar = {}
       initPar["Z"] = Z
       initPar["Beta"] = Beta
@@ -212,6 +285,10 @@ def init_params(importedInitParList, dtype=np.float64):
       initPar["Delta"] = DeltaList
       initPar["Eta"] = EtaList
       initPar["AlphaInd"] = AlphaIndList
+      initPar["BetaSel"] = BetaSel
+      initPar["PsiRRR"] = PsiRRR
+      initPar["DeltaRRR"] = DeltaRRR
+      initPar["wRRR"] = wRRR
       initParList[chainInd] = initPar
 
     return initParList

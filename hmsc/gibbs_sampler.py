@@ -26,12 +26,16 @@ import sys
 from hmsc.updaters.updateEta import updateEta
 from hmsc.updaters.updateAlpha import updateAlpha
 from hmsc.updaters.updateBetaLambda import updateBetaLambda
+from hmsc.updaters.updateBetaSel import updateBetaSel
 from hmsc.updaters.updateLambdaPriors import updateLambdaPriors
 from hmsc.updaters.updateNf import updateNf
 from hmsc.updaters.updateGammaV import updateGammaV
 from hmsc.updaters.updateRhoInd import updateRhoInd
 from hmsc.updaters.updateSigma import updateSigma
 from hmsc.updaters.updateZ import updateZ
+from hmsc.updaters.updatewRRR import updatewRRR
+from hmsc.updaters.updatewRRRPriors import updatewRRRPriors
+
 tfm = tf.math
 
 
@@ -98,14 +102,19 @@ class GibbsSampler(tf.Module):
             print("retracing")
 
         ns = self.modelDims["ns"]
-        nc = self.modelDims["nc"]
         nr = self.modelDims["nr"]
+        nc = self.modelDims["nc"]
+        ncsel = self.modelDims["ncsel"]
+        ncRRR = self.modelDims["ncRRR"]
+        ncNRRR = self.modelDims["ncNRRR"]
+        ncORRR = self.modelDims["ncORRR"]
         npVec = self.modelDims["np"]
         params = paramsInput.copy() #TODO due to tf.function requiring not to change its Tensor input
         params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * tf.ones_like(params["Z"]) * params["sigma"]**-2
         _, _, params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_update_omega=True, poisson_marginalize_z=False)
 
         mcmcSamplesBeta = tf.TensorArray(params["Beta"].dtype, size=num_samples)
+        mcmcSamplesBetaSel = tf.TensorArray(params["BetaSel"].dtype if ncsel > 0 else tf.float64, size=num_samples)
         mcmcSamplesGamma = tf.TensorArray(params["Gamma"].dtype, size=num_samples)
         mcmcSamplesV = tf.TensorArray(params["V"].dtype, size=num_samples)
         mcmcSamplesRhoInd = tf.TensorArray(params["rhoInd"].dtype, size=num_samples)
@@ -115,6 +124,9 @@ class GibbsSampler(tf.Module):
         mcmcSamplesDelta = [tf.TensorArray(params["Delta"][r].dtype, size=num_samples) for r in range(nr)]
         mcmcSamplesEta = [tf.TensorArray(params["Eta"][r].dtype, size=num_samples) for r in range(nr)]
         mcmcSamplesAlphaInd = [tf.TensorArray(params["AlphaInd"][r].dtype, size=num_samples) for r in range(nr)]
+        mcmcSampleswRRR = tf.TensorArray(params["wRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
+        mcmcSamplesPsiRRR = tf.TensorArray(params["PsiRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
+        mcmcSamplesDeltaRRR = tf.TensorArray(params["DeltaRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         
         step_num = sample_burnin + num_samples * sample_thining
         print("Iterations %d" % step_num)
@@ -123,10 +135,14 @@ class GibbsSampler(tf.Module):
                 shape_invariants=[
                     (params["Eta"], [tf.TensorShape([npVec[r], None]) for r in range(nr)]),
                     (params["Beta"], tf.TensorShape([nc, ns])),
+                    #(params["BetaSel"], tf.TensorShape([ncsel, ns])),
                     (params["Lambda"], [tf.TensorShape([None, ns])] * nr),
                     (params["Psi"], [tf.TensorShape([None, ns])] * nr),
                     (params["Delta"], [tf.TensorShape([None, 1])] * nr),
                     (params["AlphaInd"], [tf.TensorShape(None)] * nr),
+                    #(params["PsiRRR"], tf.TensorShape([ncRRR, ncORRR])),
+                    #(params["DeltaRRR"], tf.TensorShape([ncRRR, 1])),
+                    #(params["wRRR"], tf.TensorShape([ncRRR, ncORRR])),
                 ]
             )
             debugPrintFlag = False
@@ -155,6 +171,16 @@ class GibbsSampler(tf.Module):
               tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
               tf.print("Lambda0", tf.reduce_sum(tf.cast(tfm.is_nan(params["Lambda"][0]), tf.int32)))
             
+            if ncRRR > 0:
+                params["wRRR"], _ = updatewRRR(params, self.modelDims, self.modelData, self.rLHyperparams)
+                if debugPrintFlag:
+                    tf.print("wRRR", tf.reduce_sum(tf.cast(tfm.is_nan(params["wRRR"]) | (tf.abs(params["wRRR"]) > 1e9), tf.int32)))
+
+            if ncsel > 0:
+                params["BetaSel"] = updateBetaSel(params, self.modelDims, self.modelData, self.rLHyperparams)
+                if debugPrintFlag:
+                    tf.print("BetaSel", tf.reduce_sum(tf.cast(tfm.is_nan(params["BetaSel"]) | (tf.abs(params["BetaSel"]) > 1e9), tf.int32)))
+
             params["Gamma"], params["V"] = updateGammaV(params, self.modelData, self.priorHyperparams)
             if debugPrintFlag:
               tf.print("Gamma", tf.reduce_sum(tf.cast(tfm.is_nan(params["Gamma"]) | (tf.abs(params["Gamma"]) > 1e9), tf.int32)))
@@ -163,6 +189,9 @@ class GibbsSampler(tf.Module):
             params["rhoInd"] = updateRhoInd(params, self.modelData, self.priorHyperparams)
             
             params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
+            
+            if ncRRR > 0:
+                params["PsiRRR"], params["DeltaRRR"] = updatewRRRPriors(params, self.modelDims, self.priorHyperparams)
             
             params["Eta"] = updateEta(params, self.modelData, self.modelDims, self.rLHyperparams)
             if debugPrintFlag:
@@ -185,6 +214,8 @@ class GibbsSampler(tf.Module):
                 )
             if (n >= sample_burnin) & ((n - sample_burnin + 1) % sample_thining == 0):                
                 mcmcSamplesBeta = mcmcSamplesBeta.write(samInd, params["Beta"])
+                if ncsel > 0:
+                    mcmcSamplesBetaSel = mcmcSamplesBetaSel.write(samInd, params["BetaSel"])
                 mcmcSamplesGamma = mcmcSamplesGamma.write(samInd, params["Gamma"])
                 mcmcSamplesV = mcmcSamplesV.write(samInd, params["V"])
                 mcmcSamplesRhoInd = mcmcSamplesRhoInd.write(samInd, params["rhoInd"])
@@ -194,10 +225,16 @@ class GibbsSampler(tf.Module):
                 mcmcSamplesDelta = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesDelta, params["Delta"])]
                 mcmcSamplesEta = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesEta, params["Eta"])]
                 mcmcSamplesAlphaInd = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesAlphaInd, params["AlphaInd"])]
+                if ncRRR > 0:
+                    mcmcSampleswRRR = mcmcSampleswRRR.write(samInd, params["wRRR"])
+                    mcmcSamplesPsiRRR = mcmcSamplesPsiRRR.write(samInd, params["PsiRRR"])
+                    mcmcSamplesDeltaRRR = mcmcSamplesDeltaRRR.write(samInd, params["DeltaRRR"])
 
         print("\nCompleted iterations %d" % step_num)
         samples = {}
         samples["Beta"] = mcmcSamplesBeta.stack()
+        if ncsel > 0:
+            samples["BetaSel"] = mcmcSamplesBetaSel.stack()
         samples["Gamma"] = mcmcSamplesGamma.stack()
         samples["V"] = mcmcSamplesV.stack()
         samples["rhoInd"] = mcmcSamplesRhoInd.stack()
@@ -207,5 +244,9 @@ class GibbsSampler(tf.Module):
         samples["Delta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesDelta]
         samples["Eta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesEta]
         samples["AlphaInd"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesAlphaInd]
-
+        if ncRRR > 0:
+            samples["wRRR"] = mcmcSampleswRRR.stack()
+            samples["PsiRRR"] = mcmcSamplesPsiRRR.stack()
+            samples["DeltaRRR"] = mcmcSamplesDeltaRRR.stack()
+        
         return samples

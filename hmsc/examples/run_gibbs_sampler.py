@@ -33,6 +33,7 @@ from hmsc.utils.hmscutils import (
     load_model_data,
     load_prior_hyperparams,
     load_random_level_hyperparams,
+    load_model_hyperparams,
     init_params,
 )
 
@@ -40,8 +41,9 @@ def load_params(file_path, dtype=np.float64):
 
     hmscImport, hmscModel = load_model_from_json(file_path)
     modelDims = load_model_dims(hmscModel)
-    modelData = load_model_data(hmscModel)
+    modelData = load_model_data(hmscModel, hmscImport.get("initParList"))
     priorHyperparams = load_prior_hyperparams(hmscModel)
+    modelHyperparams = load_model_hyperparams(hmscModel, hmscImport.get("dataParList"))
     rLHyperparams = load_random_level_hyperparams(
         hmscModel, hmscImport.get("dataParList")
     )
@@ -49,7 +51,7 @@ def load_params(file_path, dtype=np.float64):
 
     nChains = int(hmscImport.get("nChains")[0])
     
-    return modelDims, modelData, priorHyperparams, rLHyperparams, initParList, nChains
+    return modelDims, modelData, priorHyperparams, modelHyperparams, rLHyperparams, initParList, nChains
 
 
 def run_gibbs_sampler(
@@ -66,6 +68,7 @@ def run_gibbs_sampler(
         modelDims,
         modelData,
         priorHyperparams,
+        modelHyperparams,
         rLHyperparams,
         initParList,
         nChains,
@@ -87,6 +90,7 @@ def run_gibbs_sampler(
         for n in range(num_samples):
             parSnapshot = {
                 "Beta": parSamples["Beta"][n],
+                "BetaSel": parSamples["BetaSel"][n] if "BetaSel" in parSamples else None,
                 "Gamma": parSamples["Gamma"][n],
                 "V": parSamples["V"][n],
                 "rhoInd": parSamples["rhoInd"][n],
@@ -96,6 +100,9 @@ def run_gibbs_sampler(
                 "Delta": [samples[n] for samples in parSamples["Delta"]],
                 "Eta": [samples[n] for samples in parSamples["Eta"]],
                 "AlphaInd": [samples[n] for samples in parSamples["AlphaInd"]],
+                "wRRR": parSamples["wRRR"][n] if "wRRR" in parSamples else None,
+                "PsiRRR": parSamples["PsiRRR"][n] if "PsiRRR" in parSamples else None,
+                "DeltaRRR": parSamples["DeltaRRR"][n] if "DeltaRRR" in parSamples else None,
             }
             postList[chain][n] = parSnapshot
 
