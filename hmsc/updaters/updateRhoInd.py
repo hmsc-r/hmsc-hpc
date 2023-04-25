@@ -19,7 +19,7 @@ def updateRhoInd(params, data, priorHyperparams, dtype=np.float64):
   
   Beta = params["Beta"]
   Gamma = params["Gamma"]
-  V = params["V"]
+  iV = params["iV"]
   rhoInd = params["rhoInd"]
   T = data["T"]
   C, eC, VC = data["C"], data["eC"], data["VC"]
@@ -33,9 +33,8 @@ def updateRhoInd(params, data, priorHyperparams, dtype=np.float64):
     Mu = tf.matmul(Gamma, T, transpose_b=True)
     E = Beta - Mu
     E_VC = tf.matmul(E, VC)
-    LV = tfla.cholesky(V)
-    iV = tfla.cholesky_solve(LV, tf.eye(nc, dtype=dtype))
-    logDetV = 2 * tf.reduce_sum(tfm.log(tfla.diag_part(LV)))
+    LiV = tfla.cholesky(iV)
+    logDetV = -2 * tf.reduce_sum(tfm.log(tfla.diag_part(LiV)))
     
     for k in range(rhoN):
       tmp1 = tf.scatter_nd(tf.stack([tf.range(gN), k*tf.ones([gN],tf.int32)], -1), tf.range(gN), [gN,rhoN])

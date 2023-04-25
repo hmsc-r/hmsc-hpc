@@ -21,8 +21,9 @@ def save_postList_to_json(postList, postList_file_path, chain):
         params = postList[i]
         
         sample_data["Beta"] = params["Beta"].numpy().tolist()
+        sample_data["BetaSel"] = [par.numpy().tolist() for par in params["BetaSel"]]
         sample_data["Gamma"] = params["Gamma"].numpy().tolist()
-        sample_data["V"] = params["V"].numpy().tolist()
+        sample_data["iV"] = params["iV"].numpy().tolist()
         sample_data["rhoInd"] = (params["rhoInd"]+1).numpy().tolist()
         sample_data["sigma"] = params["sigma"].numpy().tolist()
         
@@ -30,9 +31,14 @@ def save_postList_to_json(postList, postList_file_path, chain):
         sample_data["Psi"] = [par.numpy().tolist() for par in params["Psi"]]
         sample_data["Delta"] = [par.numpy().tolist() for par in params["Delta"]]
         sample_data["Eta"] = [par.numpy().tolist() for par in params["Eta"]]
-        sample_data["Alpha"] = [par.numpy().tolist() for par in params["AlphaInd"]]
+        sample_data["Alpha"] = [(par+1).numpy().tolist() for par in params["AlphaInd"]]
         
-        sample_data["wRRR"] = sample_data["PsiRRR"] = sample_data["DeltaRRR"] = None
+        if params["wRRR"] is not None:
+          sample_data["wRRR"] = params["wRRR"].numpy().tolist()
+          sample_data["PsiRRR"] = params["PsiRRR"].numpy().tolist()
+          sample_data["DeltaRRR"] = params["DeltaRRR"].numpy().tolist()
+        else:
+          sample_data["wRRR"] = sample_data["PsiRRR"] = sample_data["DeltaRRR"] = None
 
         json_data[i] = sample_data
 
@@ -54,8 +60,9 @@ def save_chains_postList_to_json(postList, postList_file_path, nChains):
             params = postList[chain][i]
 
             sample_data["Beta"] = params["Beta"].numpy().tolist()
+            sample_data["BetaSel"] = [par.numpy().tolist() for par in params["BetaSel"]]
             sample_data["Gamma"] = params["Gamma"].numpy().tolist()
-            sample_data["V"] = params["V"].numpy().tolist()
+            sample_data["iV"] = params["iV"].numpy().tolist()
             sample_data["rhoInd"] = (params["rhoInd"]+1).numpy().tolist()
             sample_data["sigma"] = params["sigma"].numpy().tolist()
             
@@ -63,9 +70,14 @@ def save_chains_postList_to_json(postList, postList_file_path, nChains):
             sample_data["Psi"] = [par.numpy().tolist() for par in params["Psi"]]
             sample_data["Delta"] = [par.numpy().tolist() for par in params["Delta"]]
             sample_data["Eta"] = [par.numpy().tolist() for par in params["Eta"]] 
-            sample_data["Alpha"] = [par.numpy().tolist() for par in params["AlphaInd"]]
+            sample_data["Alpha"] = [(par+1).numpy().tolist() for par in params["AlphaInd"]]
             
-            sample_data["wRRR"] = sample_data["PsiRRR"] = sample_data["DeltaRRR"] = None
+            if params["wRRR"] is not None:
+              sample_data["wRRR"] = params["wRRR"].numpy().tolist()
+              sample_data["PsiRRR"] = params["PsiRRR"].numpy().tolist()
+              sample_data["DeltaRRR"] = params["DeltaRRR"].numpy().tolist()
+            else:
+              sample_data["wRRR"] = sample_data["PsiRRR"] = sample_data["DeltaRRR"] = None
 
             json_data[chain][i] = sample_data
 

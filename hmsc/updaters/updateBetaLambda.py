@@ -28,22 +28,20 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     Z = params["Z"]
     iD = params["iD"]
     Gamma = params["Gamma"]
-    iV = tfla.inv(params["V"])
+    iV = params["iV"]
     rhoInd = params["rhoInd"]
     EtaList = params["Eta"]
     PsiList = params["Psi"]
     DeltaList = params["Delta"]
-    X = data["X"]
+    X = params["Xeff"]
+    
     T = data["T"]
     C, eC, VC = data["C"], data["eC"], data["VC"]
     rhoGroup = data["rhoGroup"]
     Pi = data["Pi"]
     rhopw = priorHyperparams["rhopw"]
 
-    if isinstance(X, list):
-      ny, nc = X[0].shape
-    else:
-      ny, nc = X.shape
+    ny, nc = X.shape[-2:]
     _, ns = Z.shape
     nr = len(EtaList)
     nfVec = tf.stack([tf.shape(Eta)[-1] for Eta in EtaList])
@@ -53,15 +51,17 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     PiEtaList = [None] * nr
     for r, Eta in enumerate(EtaList):
       PiEtaList[r] = tf.gather(Eta, Pi[:, r])
-
-    if isinstance(X, list):
-      # XE = tf.stack([tf.concat([X1] + PiEtaList, axis=-1) for X1 in X])
-      if nr == 0:
-        XE = tf.stack(X)
-      else:
-        XE = tf.concat([tf.stack(X), tf.tile(tf.expand_dims(tf.concat(PiEtaList, axis=-1), 0), [ns,1,1])], axis=-1)
-    else:
+    
+    # print(["rank", X.shape, len(X.shape.as_list()), tf.rank(X)])
+    if len(X.shape.as_list()) == 2:
+      # tf.print(tf.rank(X))
       XE = tf.concat([X] + PiEtaList, axis=-1)
+    else:
+      if nr == 0:
+        XE = X
+      else:
+        XE = tf.concat([X, tf.repeat(tf.expand_dims(tf.concat(PiEtaList, axis=-1), 0), ns, 0)], axis=-1)
+    
 
     GammaT = tf.matmul(Gamma, T, transpose_b=True)
     Mu = tf.concat([GammaT, tf.zeros([nfSum, ns], dtype)], axis=0)
@@ -69,22 +69,23 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
       LambdaPriorPrec = tf.concat([Psi * tfm.cumprod(Delta, -2) for Psi, Delta in zip(PsiList, DeltaList)], axis=-2)
       
     if C is None:
-      iK11_op = tfla.LinearOperatorFullMatrix(iV)
       if nr > 0:
+        iK11_op = tfla.LinearOperatorFullMatrix(iV)
         iK22_op = tfla.LinearOperatorDiag(tf.transpose(LambdaPriorPrec))
         iK = tfla.LinearOperatorBlockDiag([iK11_op, iK22_op]).to_dense()
       else:
-        iK = iK11_op.to_dense()
+        iK = iV
       
-      if isinstance(X, list):
-        iU = iK + tf.einsum("jic,ij,jik->jck", XE, iD, XE)
-      else:
+      if len(XE.shape.as_list()) == 2:
         iU = iK + tf.einsum("ic,ij,ik->jck", XE, iD, XE)
+        A = tf.matmul(iK, tf.transpose(Mu)[:,:,None]) + tf.einsum("ik,ij->jk", XE, iD*Z)[:,:,None]
+      else:
+        iU = iK + tf.einsum("jic,ij,jik->jck", XE, iD, XE)
+        A = tf.matmul(iK, tf.transpose(Mu)[:,:,None]) + tf.einsum("jik,ij->jk", XE, iD*Z)[:,:,None]
+
       LiU = tfla.cholesky(iU)
-      A = tf.matmul(iK, tf.transpose(Mu)[:,:,None]) + (tf.matmul(iD * Z, XE, transpose_a=True))[:,:,None]
       M = tfla.cholesky_solve(LiU, A)
-      BetaLambda = tf.transpose(tf.squeeze(M + tfla.triangular_solve(LiU, tfr.normal(shape=[ns,na,1], dtype=dtype), adjoint=True), -1))
-      # tf.transpose(tf.squeeze(M))
+      BetaLambda = tf.transpose(tf.squeeze(M + tfla.triangular_solve(LiU, tfr.normal([ns,na,1], dtype=dtype), adjoint=True), -1))
     else:
       rhoVec = tf.gather(rhopw[:,0], tf.gather(rhoInd, rhoGroup))
       eQ = rhoVec[:,None]*eC + (1-rhoVec)[:,None]
@@ -98,17 +99,17 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         iK = tfla.LinearOperatorBlockDiag([iK11_op, iK22_op]).to_dense()
       else:
         iK = iK11_op.to_dense()
-      
-      if isinstance(X, list):
+              
+      if len(XE.shape.as_list()) == 2:
+        XE_iD_XET = tf.einsum("ic,ij,ik->ckj", XE, iD, XE)
+        m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.matmul(XE, iD * Z, transpose_a=True), [na*ns,1])
+      else:
         # XE_iD_XET = tf.reshape(tf.einsum("jic,j,jik->jck", XE, sigma**-2, XE), shape=[n2,n1])
         # ind1 = tf.concat([tf.repeat(tf.range(0,n2,2,dtype=tf.int64),n1),tf.repeat(tf.range(1,n2,2,dtype=tf.int64),n1)], axis=0)
         # ind2 = tf.concat([tf.tile(tf.range(0,n2,2,dtype=tf.int64),[n1]), tf.tile(tf.range(1,n2,2,dtype=tf.int64),[n1])], axis=0)
         # iU = iK + tfs.to_dense(tfs.reorder(tfs.SparseTensor(indices=tf.transpose(tf.stack([ind1,ind2])), values=tf.reshape(XE_iD_XET, [-1]), dense_shape=[n2,n2])))
         XE_iD_XET = tf.einsum("jic,ij,jik->ckj", XE, iD, XE)
         m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.einsum("jik,ij->kj", XE, iD * Z), [na*ns,1])
-      else:	
-        XE_iD_XET = tf.einsum("ic,ij,ik->ckj", XE, iD, XE)
-        m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.matmul(XE, iD * Z, transpose_a=True), [na*ns,1])
       
       iU = iK + tf.reshape(tf.transpose(tfla.diag(XE_iD_XET), [0,2,1,3]), [na*ns]*2)
       LiU = tfla.cholesky(iU)        
@@ -121,4 +122,5 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     else:
       BetaNew, LambdaListNew = BetaLambda, []
 
+    # tf.print(BetaNew)
     return BetaNew, LambdaListNew

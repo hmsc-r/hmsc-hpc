@@ -1,74 +1,57 @@
 import numpy as np
 import tensorflow as tf
-
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 
-from hmsc.utils.tflautils import kron
 
 def updatewRRR(params, modelDims, modelData, rLHyperparams, dtype=tf.float64):
-    ny = modelDims["ny"]
     ns = modelDims["ns"]
     nr = modelDims["nr"]
     ncRRR = modelDims["ncRRR"]
     ncNRRR = modelDims["ncNRRR"]
     ncORRR = modelDims["ncORRR"]
-    ncsel = modelDims["ncsel"]
-    npVec = modelDims["np"]
 
     Z = params["Z"]
     Beta = params["Beta"]
-    sigma = params["sigma"]
-    iSigma = 1 / sigma
+    iD = params["iD"]
     EtaList = params["Eta"]
     LambdaList = params["Lambda"]
-
+    X = params["Xeff"]
     PsiRRR = params["PsiRRR"]
     DeltaRRR = params["DeltaRRR"]
 
-    X = modelData["X"]
-    X1A = modelData["X1A"]
     XRRR = modelData["XRRR"]
     Pi = modelData["Pi"]
     
     BetaNRRR = Beta[:ncNRRR,:]
     BetaRRR = Beta[ncNRRR:,:]
 
-    if isinstance(X1A, list):
-        LFix = tf.einsum("ijk,ki->ji", tf.stack(X1A), BetaNRRR)
+    XNRRR = tf.gather(X, np.arange(ncNRRR), axis=-1)
+    if len(XNRRR.shape.as_list()) == 2: #tf.rank(X)
+      LFix = tf.matmul(XNRRR, BetaNRRR)
     else:
-        LFix = tf.matmul(X1A, BetaNRRR)
+      LFix = tf.einsum("jik,kj->ij", XNRRR, BetaNRRR)
 
     LRanLevelList = [None] * nr
     for r, (Eta, Lambda, rLPar) in enumerate(zip(EtaList, LambdaList, rLHyperparams)):
         if(rLPar["xDim"] == 0):
             LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
         else:
-            raise NotImplementedError
-        
-    if nr > 1:
-        S = Z - (LFix + sum(LRanLevelList))
-    else:
-        S = Z - LFix
-
-    A1 = tf.einsum("ij,jk,lk->il", BetaRRR, tfla.diag(iSigma), BetaRRR)
-    A2 = tf.einsum("ji,jk->ik", XRRR, XRRR)
-    QtiSigmaQ = kron(A2, A1)
-    tauRRR = tfm.cumprod(DeltaRRR, axis=0)
-    tauMatRRR = tf.tile(tauRRR, [1,ncORRR])
-    iU = tfla.diag(tf.reshape(PsiRRR*tauMatRRR, [-1])) + QtiSigmaQ
+            raise NotImplementedError   
+    S = Z - (LFix + sum(LRanLevelList))
+    
+    BetaRRR_iD_BetaRRRT = tf.einsum("hj,ij,gj->ihg", BetaRRR, iD, BetaRRR)
+    QtiDQ = tf.reshape(tf.einsum("ic,ihg,ik->chkg", XRRR, BetaRRR_iD_BetaRRRT, XRRR), [ncORRR*ncRRR]*2)
+    iU = tfla.diag(tf.reshape(tf.einsum("hk,h->kh", PsiRRR, tfm.cumprod(DeltaRRR)), [ncORRR*ncRRR])) + QtiDQ
     LiU = tfla.cholesky(iU)
-    #U = tfla.inv(LiU)
-    U = tfla.cholesky_solve(LiU, tf.eye(ncRRR*ncORRR, dtype=dtype))
-    mu1 = tf.reshape(tf.einsum("ij,jk,lk,lm->im", BetaRRR, tfla.diag(iSigma), S, XRRR), [-1])[:,None]
-    mu = tf.matmul(U, mu1)
-    we = mu + tfla.triangular_solve(LiU, tfr.normal([ncRRR*ncORRR,1], dtype=dtype), adjoint=True)
-    wRRR = tf.reshape(we, shape=(ncRRR, ncORRR))
+    mu0 = tf.reshape(tf.einsum("hj,ij,ik->kh", BetaRRR, iD*S, XRRR), [ncORRR*ncRRR,1])
+    mu = tfla.cholesky_solve(LiU, mu0)
+    w = mu + tfla.triangular_solve(LiU, tfr.normal([ncORRR*ncRRR,1], dtype=dtype), adjoint=True)
+    wRRR = tf.transpose(tf.reshape(w, shape=[ncORRR, ncRRR]))
 
-    if ncRRR > 0:
-        XB = tf.einsum("ij,kj->ik", XRRR, wRRR)
-        if isinstance(X1A, list):
-            raise NotImplementedError
-        else:
-            X = tf.concat([X1A, XB], axis=-1)
+    XeffRRR = tf.einsum("ik,hk->ih", XRRR, wRRR)
+    if len(XNRRR.shape.as_list()) == 2: #tf.rank(X)
+      Xeff = tf.concat([XNRRR, XeffRRR], axis=-1)
+    else:
+      Xeff = tf.concat([XNRRR, tf.repeat(tf.expand_dims(XeffRRR,0), ns, 0)], axis=-1)
 
-    return wRRR, X
+    return wRRR, Xeff

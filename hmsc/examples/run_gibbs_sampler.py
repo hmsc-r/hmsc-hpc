@@ -47,7 +47,7 @@ def load_params(file_path, dtype=np.float64):
     rLHyperparams = load_random_level_hyperparams(
         hmscModel, hmscImport.get("dataParList")
     )
-    initParList = init_params(hmscImport.get("initParList"))
+    initParList = init_params(hmscImport.get("initParList"), modelData, modelDims)
 
     nChains = int(hmscImport.get("nChains")[0])
     
@@ -90,9 +90,9 @@ def run_gibbs_sampler(
         for n in range(num_samples):
             parSnapshot = {
                 "Beta": parSamples["Beta"][n],
-                "BetaSel": parSamples["BetaSel"][n] if "BetaSel" in parSamples else None,
+                "BetaSel": [samples[n] for samples in parSamples["BetaSel"]],
                 "Gamma": parSamples["Gamma"][n],
-                "V": parSamples["V"][n],
+                "iV": parSamples["iV"][n],
                 "rhoInd": parSamples["rhoInd"][n],
                 "sigma": parSamples["sigma"][n],
                 "Lambda": [samples[n] for samples in parSamples["Lambda"]],

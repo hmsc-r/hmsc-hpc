@@ -9,7 +9,7 @@ from hmsc.utils.tflautils import tf_sparse_matmul, tf_sparse_cholesky, scipy_spa
 from scipy.sparse.linalg import splu, spsolve_triangular
 from scipy.sparse import csc_matrix, coo_matrix, block_diag, kron
 
-def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
+def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
     """Update conditional updater(s):
     Z - site loadings.
 
@@ -34,16 +34,15 @@ def updateEta(params, data, modelDims, rLHyperparams, dtype=np.float64):
     LambdaList = params["Lambda"]
     EtaList = params["Eta"]
     AlphaIndList = params["AlphaInd"]
-    X = data["X"]
+    X = params["Xeff"]
     Pi = data["Pi"]
     nr = modelDims["nr"]
     npVec = modelDims["np"]
     
-    if isinstance(X, list):
-        LFix = tf.einsum("jik,kj->ij", tf.stack(X), Beta)
+    if len(X.shape.as_list()) == 2: #tf.rank(X)
+      LFix = tf.matmul(X, Beta)
     else:
-        LFix = tf.matmul(X, Beta)
-
+      LFix = tf.einsum("jik,kj->ij", X, Beta)
     LRanLevelList = [None] * nr
     for r, (Eta, Lambda) in enumerate(zip(EtaList, LambdaList)):
         LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)

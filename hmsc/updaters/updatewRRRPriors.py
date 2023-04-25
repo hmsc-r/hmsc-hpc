@@ -1,37 +1,34 @@
 import numpy as np
 import tensorflow as tf
-
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 
 def updatewRRRPriors(params, modelDims, priorHyperparams, dtype=tf.float64):
-    nu = modelDims["nuRRR"]
 
+    Delta = params["DeltaRRR"]
+    Lambda = params["wRRR"]
+    nu = priorHyperparams["nuRRR"]
     a1 = priorHyperparams["a1RRR"]
     b1 = priorHyperparams["b1RRR"]
     a2 = priorHyperparams["a2RRR"]
     b2 = priorHyperparams["b2RRR"]
-
-    Delta = params["DeltaRRR"]
-    Lambda = params["wRRR"]
-
-    nf = Lambda.shape[0]
-    ns = Lambda.shape[1]
+    nf = modelDims["ncRRR"]
+    ns = modelDims["ns"]
     
-    Tau = tfm.cumprod(Delta, axis=1)
+    aVec = tf.concat([[a1], tf.repeat(a2, nf-1)], 0)
+    bVec = tf.concat([[b1], tf.repeat(b2, nf-1)], 0)
+
+    Tau = tfm.cumprod(Delta)
     Lambda2 = Lambda**2
     aPsi = nu/2 + 0.5
-    bPsi = nu/2 + 0.5*Lambda2 * tf.reshape(tf.tile(Tau, [1,ns]), shape=(nf,ns))
-    Psi = tfr.gamma([1], aPsi, bPsi, dtype=dtype)[-1,:,:]
+    bPsi = nu/2 + 0.5*Lambda2 * Tau[:,None]
+    Psi = tf.squeeze(tfr.gamma([1], aPsi, bPsi, dtype=dtype), 0)
 
     M = Psi * Lambda2
-    ad = a1 + 0.5*ns*nf
-    bd = b1 + 0.5 * tf.reduce_sum(Tau * tf.reduce_sum(M, axis=1)) / Delta[0]
-    Delta = tf.tensor_scatter_nd_update(Delta, [[0,0]], [tf.squeeze(tfr.gamma([1], ad, bd, dtype=dtype))])
-
-    for h in range(1,nf):
-        Tau = tfm.cumprod(Delta, axis=1)
-        ad = a2 + 0.5 * ns * (nf-h+1)
-        bd = b2 + 0.5 * tf.reduce_sum(Tau[h:] * tf.reduce_sum(M[h:,:], axis=0)) / Delta[h]
-        Delta = tf.tensor_scatter_nd_update(Delta, [[h,0]], [tf.squeeze(tfr.gamma([1], ad, bd, dtype=dtype))])
+    rowSumM = tf.reduce_sum(M, -1)
+    for h in range(nf):
+        Tau = tfm.cumprod(Delta)
+        ad = aVec[h] + 0.5 * ns * (nf-h)
+        bd = bVec[h] + 0.5 * tf.reduce_sum(Tau[h:] * rowSumM[h:]) / Delta[h]
+        Delta = tf.tensor_scatter_nd_update(Delta, [[h]], tfr.gamma([1], ad, bd, dtype=dtype))
 
     return Psi, Delta

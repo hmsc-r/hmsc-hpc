@@ -42,15 +42,15 @@ def updateLambdaPriors(params, rLHyperparams, dtype=np.float64):
             bDelta = tf.concat([b1 * tf.ones([1, 1], dtype), b2 * tf.ones([nf - 1, 1], dtype)], 0)
             Lambda2 = Lambda**2
             Tau = tfm.cumprod(Delta, 0)
-            aPsi = nu / 2.0 + 0.5
-            bPsi = nu / 2.0 + 0.5 * Lambda2 * Tau
+            aPsi = nu/2 + 0.5
+            bPsi = nu/2 + 0.5 * Lambda2 * Tau
             PsiNew[r] = tf.squeeze(tfr.gamma([1], aPsi, bPsi, dtype=dtype), 0)
             M = PsiNew[r] * Lambda2
             rowSumM = tf.reduce_sum(M, 1)
             DeltaNew[r] = Delta
             for h in range(nf):
                 Tau = tfm.cumprod(DeltaNew[r], 0)
-                ad = aDelta[h, :] + 0.5 * ns * tf.cast(nf - h, dtype)
+                ad = aDelta[h, :] + 0.5 * ns * tf.cast(nf-h, dtype)
                 bd = (bDelta[h, :] + 0.5 * tf.reduce_sum(Tau[h:, :] * rowSumM[h:, None], 0) / DeltaNew[r][h, :])
                 DeltaNew[r] = tf.tensor_scatter_nd_update(DeltaNew[r], [[h]], tfr.gamma([1], ad, bd, dtype=dtype))
         else:

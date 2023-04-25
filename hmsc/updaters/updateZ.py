@@ -30,23 +30,21 @@ def updateZ(params, data, poisson_preupdate_z=True, poisson_update_omega=True, p
     EtaList = params["Eta"]
     LambdaList = params["Lambda"]
     sigma = params["sigma"]
+    X = params["Xeff"]
 
     Y = data["Y"]
-    X = data["X"]
     Pi = data["Pi"]
     distr = data["distr"]
-
     ny, ns = Y.shape
     nr = len(EtaList)
     
-    if isinstance(X, list):
-        LFix = tf.einsum("jik,kj->ij", tf.stack(X), Beta)
+    if len(X.shape.as_list()) == 2: #tf.rank(X)
+      LFix = tf.matmul(X, Beta)
     else:
-        LFix = tf.matmul(X, Beta)
-
+      LFix = tf.einsum("jik,kj->ij", X, Beta)
     LRanLevelList = [None] * nr
     for r, (Eta, Lambda) in enumerate(zip(EtaList, LambdaList)):
-        LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
+      LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
     L = LFix + sum(LRanLevelList)
     Yo = tfm.logical_not(tfm.is_nan(Y))
 

@@ -97,6 +97,7 @@ class GibbsSampler(tf.Module):
         sample_thining=1,
         verbose=1,
         print_retrace_flag=True,
+        print_debug_flag= False
     ):
         if print_retrace_flag:
             print("retracing")
@@ -110,13 +111,14 @@ class GibbsSampler(tf.Module):
         ncORRR = self.modelDims["ncORRR"]
         npVec = self.modelDims["np"]
         params = paramsInput.copy() #TODO due to tf.function requiring not to change its Tensor input
+        #TODO potentially move next two lines to somewhere more approriate
         params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * tf.ones_like(params["Z"]) * params["sigma"]**-2
         _, _, params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_update_omega=True, poisson_marginalize_z=False)
 
         mcmcSamplesBeta = tf.TensorArray(params["Beta"].dtype, size=num_samples)
-        mcmcSamplesBetaSel = tf.TensorArray(params["BetaSel"].dtype if ncsel > 0 else tf.float64, size=num_samples)
+        mcmcSamplesBetaSel = [tf.TensorArray(tf.bool, size=num_samples) for i in range(ncsel)]
         mcmcSamplesGamma = tf.TensorArray(params["Gamma"].dtype, size=num_samples)
-        mcmcSamplesV = tf.TensorArray(params["V"].dtype, size=num_samples)
+        mcmcSamplesiV = tf.TensorArray(params["iV"].dtype, size=num_samples)
         mcmcSamplesRhoInd = tf.TensorArray(params["rhoInd"].dtype, size=num_samples)
         mcmcSamplesSigma = tf.TensorArray(params["sigma"].dtype, size=num_samples)
         mcmcSamplesLambda = [tf.TensorArray(params["Lambda"][r].dtype, size=num_samples) for r in range(nr)]
@@ -134,18 +136,12 @@ class GibbsSampler(tf.Module):
             tf.autograph.experimental.set_loop_options(
                 shape_invariants=[
                     (params["Eta"], [tf.TensorShape([npVec[r], None]) for r in range(nr)]),
-                    (params["Beta"], tf.TensorShape([nc, ns])),
-                    #(params["BetaSel"], tf.TensorShape([ncsel, ns])),
                     (params["Lambda"], [tf.TensorShape([None, ns])] * nr),
                     (params["Psi"], [tf.TensorShape([None, ns])] * nr),
                     (params["Delta"], [tf.TensorShape([None, 1])] * nr),
                     (params["AlphaInd"], [tf.TensorShape(None)] * nr),
-                    #(params["PsiRRR"], tf.TensorShape([ncRRR, ncORRR])),
-                    #(params["DeltaRRR"], tf.TensorShape([ncRRR, 1])),
-                    #(params["wRRR"], tf.TensorShape([ncRRR, ncORRR])),
                 ]
             )
-            debugPrintFlag = False
             
             z_marginalize_iter_cond = lambda it: ((it % 2) == 1) & (it >= 0)
             z_marginalize_iter_flag = z_marginalize_iter_cond(n)
@@ -161,47 +157,46 @@ class GibbsSampler(tf.Module):
                 params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_marginalize_z=True)
               else:
                 params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True, poisson_marginalize_z=True)
-              
-            if debugPrintFlag:
+            if print_debug_flag:
               tf.print("Z", tf.reduce_sum(tf.cast(tfm.is_nan(params["Z"]), tf.int32)))
               tf.print("iD", tf.reduce_sum(tf.cast(tfm.is_nan(params["iD"]), tf.int32)))
             
             params["Beta"], params["Lambda"] = updateBetaLambda(params, self.modelData, self.priorHyperparams)
-            if debugPrintFlag:
+            if print_debug_flag:
               tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
-              tf.print("Lambda0", tf.reduce_sum(tf.cast(tfm.is_nan(params["Lambda"][0]), tf.int32)))
+              tf.print("Lambda", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Lambda"]])
             
             if ncRRR > 0:
-                params["wRRR"], _ = updatewRRR(params, self.modelDims, self.modelData, self.rLHyperparams)
-                if debugPrintFlag:
-                    tf.print("wRRR", tf.reduce_sum(tf.cast(tfm.is_nan(params["wRRR"]) | (tf.abs(params["wRRR"]) > 1e9), tf.int32)))
-
+              params["wRRR"], params["Xeff"] = updatewRRR(params, self.modelDims, self.modelData, self.rLHyperparams)
+              if print_debug_flag:
+                tf.print("wRRR", tf.reduce_sum(tf.cast(tfm.is_nan(params["wRRR"]) | (tf.abs(params["wRRR"]) > 1e9), tf.int32)))
+                tf.print("Xeff", tf.reduce_sum(tf.cast(tfm.is_nan(params["Xeff"]) | (tf.abs(params["Xeff"]) > 1e9), tf.int32)))
+              params["PsiRRR"], params["DeltaRRR"] = updatewRRRPriors(params, self.modelDims, self.priorHyperparams)
+            
             if ncsel > 0:
-                params["BetaSel"] = updateBetaSel(params, self.modelDims, self.modelData, self.rLHyperparams)
-                if debugPrintFlag:
-                    tf.print("BetaSel", tf.reduce_sum(tf.cast(tfm.is_nan(params["BetaSel"]) | (tf.abs(params["BetaSel"]) > 1e9), tf.int32)))
+              params["BetaSel"], params["Xeff"] = updateBetaSel(params, self.modelDims, self.modelData, self.rLHyperparams)
+              if print_debug_flag:
+                # tf.print("BetaSel - not NA", [tf.reduce_sum(tf.cast(par, tf.int32)) for par in params["BetaSel"]])
+                tf.print("Xeff", tf.reduce_sum(tf.cast(tfm.is_nan(params["Xeff"]) | (tf.abs(params["Xeff"]) > 1e9), tf.int32)))
 
-            params["Gamma"], params["V"] = updateGammaV(params, self.modelData, self.priorHyperparams)
-            if debugPrintFlag:
+            params["Gamma"], params["iV"] = updateGammaV(params, self.modelData, self.priorHyperparams)
+            if print_debug_flag:
               tf.print("Gamma", tf.reduce_sum(tf.cast(tfm.is_nan(params["Gamma"]) | (tf.abs(params["Gamma"]) > 1e9), tf.int32)))
-              tf.print("V", tf.reduce_sum(tf.cast(tfm.is_nan(params["V"]) | (tf.abs(params["V"]) > 1e9), tf.int32)))
+              tf.print("iV", tf.reduce_sum(tf.cast(tfm.is_nan(params["iV"]) | (tf.abs(params["iV"]) > 1e9), tf.int32)))
             
             params["rhoInd"] = updateRhoInd(params, self.modelData, self.priorHyperparams)
             
             params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
             
-            if ncRRR > 0:
-                params["PsiRRR"], params["DeltaRRR"] = updatewRRRPriors(params, self.modelDims, self.priorHyperparams)
-            
-            params["Eta"] = updateEta(params, self.modelData, self.modelDims, self.rLHyperparams)
-            if debugPrintFlag:
-              tf.print("Eta0", tf.reduce_sum(tf.cast(tfm.is_nan(params["Eta"][0]), tf.int32)))
+            params["Eta"] = updateEta(params, self.modelDims, self.modelData, self.rLHyperparams)
+            if print_debug_flag:
+              tf.print("Eta", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Eta"]])
             
             params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
             
             if z_marginalize_iter_flag == False:
-              params["sigma"] = updateSigma(params, self.modelData, self.priorHyperparams)
-              if debugPrintFlag:
+              params["sigma"] = updateSigma(params, self.modelDims, self.modelData, self.priorHyperparams)
+              if print_debug_flag:
                 tf.print("sigma", tf.reduce_sum(tf.cast(tfm.is_nan(params["sigma"]), tf.int32)))
 
             if n < sample_burnin:
@@ -209,15 +204,13 @@ class GibbsSampler(tf.Module):
 
             samInd = tf.cast((n - sample_burnin + 1) / sample_thining - 1, tf.int32)
             if (n + 1) % verbose == 0:
-                tf.py_function(
-                    func=GibbsSampler.printFunction, inp=[n, samInd], Tout=[]
-                )
+                tf.py_function(func=GibbsSampler.printFunction, inp=[n, samInd], Tout=[])
+                
             if (n >= sample_burnin) & ((n - sample_burnin + 1) % sample_thining == 0):                
                 mcmcSamplesBeta = mcmcSamplesBeta.write(samInd, params["Beta"])
-                if ncsel > 0:
-                    mcmcSamplesBetaSel = mcmcSamplesBetaSel.write(samInd, params["BetaSel"])
+                mcmcSamplesBetaSel = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesBetaSel, params["BetaSel"])]
                 mcmcSamplesGamma = mcmcSamplesGamma.write(samInd, params["Gamma"])
-                mcmcSamplesV = mcmcSamplesV.write(samInd, params["V"])
+                mcmcSamplesiV = mcmcSamplesiV.write(samInd, params["iV"])
                 mcmcSamplesRhoInd = mcmcSamplesRhoInd.write(samInd, params["rhoInd"])
                 mcmcSamplesSigma = mcmcSamplesSigma.write(samInd, params["sigma"])
                 mcmcSamplesLambda = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesLambda, params["Lambda"])]
@@ -233,10 +226,9 @@ class GibbsSampler(tf.Module):
         print("\nCompleted iterations %d" % step_num)
         samples = {}
         samples["Beta"] = mcmcSamplesBeta.stack()
-        if ncsel > 0:
-            samples["BetaSel"] = mcmcSamplesBetaSel.stack()
+        samples["BetaSel"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesBetaSel]
         samples["Gamma"] = mcmcSamplesGamma.stack()
-        samples["V"] = mcmcSamplesV.stack()
+        samples["iV"] = mcmcSamplesiV.stack()
         samples["rhoInd"] = mcmcSamplesRhoInd.stack()
         samples["sigma"] = mcmcSamplesSigma.stack()
         samples["Lambda"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesLambda]
@@ -245,8 +237,8 @@ class GibbsSampler(tf.Module):
         samples["Eta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesEta]
         samples["AlphaInd"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesAlphaInd]
         if ncRRR > 0:
-            samples["wRRR"] = mcmcSampleswRRR.stack()
-            samples["PsiRRR"] = mcmcSamplesPsiRRR.stack()
-            samples["DeltaRRR"] = mcmcSamplesDeltaRRR.stack()
+          samples["wRRR"] = mcmcSampleswRRR.stack()
+          samples["PsiRRR"] = mcmcSamplesPsiRRR.stack()
+          samples["DeltaRRR"] = mcmcSamplesDeltaRRR.stack()
         
         return samples

@@ -6,7 +6,7 @@ tfd = tfp.distributions
 tfm = tf.math
 
 
-def updateSigma(params, data, priorHyperparameters, dtype=np.float64):
+def updateSigma(params, modelDims, data, priorHyperparameters, dtype=np.float64):
     """Update prior(s) for whole model:
     sigma - residual variance.
 
@@ -26,30 +26,30 @@ def updateSigma(params, data, priorHyperparameters, dtype=np.float64):
         aSigma -
         bSigma -
     """
+    ns = modelDims["ns"]
+    nr = modelDims["nr"]
 
     Z = params["Z"]
     Beta = params["Beta"]
     EtaList = params["Eta"]
     LambdaList = params["Lambda"]
     sigma = params["sigma"]
+    X = params["Xeff"]
 
     Y = data["Y"]
-    X = data["X"]
     Pi = data["Pi"]
     distr = data["distr"]
     aSigma = priorHyperparameters["aSigma"]
     bSigma = priorHyperparameters["bSigma"]
 
     Yo = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype)
-    nr = len(EtaList)
-    indVarSigma = tf.cast(tf.equal(distr[:,1], 1), dtype)
+    indVarSigma = tf.equal(distr[:,1], 1)
     #TODO code below contains redundant calculations for fixed variance columns
 
-    if isinstance(X, list):
-        LFix = tf.einsum("jik,kj->ij", tf.stack(X), Beta)
+    if len(X.shape.as_list()) == 2: #tf.rank(X)
+      LFix = tf.matmul(X, Beta)
     else:
-        LFix = tf.matmul(X, Beta)
-
+      LFix = tf.einsum("jik,kj->ij", X, Beta)
     LRanLevelList = [None] * nr
     for r, (Eta, Lambda) in enumerate(zip(EtaList, LambdaList)):
         LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:, r]), Lambda)
@@ -60,6 +60,7 @@ def updateSigma(params, data, priorHyperparameters, dtype=np.float64):
     alpha = aSigma + tf.reduce_sum(Yo, 0) / 2.0
     beta = bSigma + tf.reduce_sum(Yo*(Eps**2), 0) / 2.0
     isigma2 = tfd.Gamma(concentration=alpha, rate=beta).sample()
-    sigmaNew = indVarSigma * tfm.rsqrt(isigma2) + (1 - indVarSigma) * sigma 
+    sigmaNew = tf.where(indVarSigma, tfm.rsqrt(isigma2), sigma)
 
-    return sigmaNew
+    return tf.ensure_shape(sigmaNew, [ns])
+
