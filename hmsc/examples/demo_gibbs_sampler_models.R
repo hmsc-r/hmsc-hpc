@@ -6,6 +6,9 @@ library(vioplot)
 library(abind)
 
 path = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
+
+#### Step 1. Load model ####
+
 load(file = file.path(path, "examples/data", "unfitted_models_2.RData"))
 models
 experiments = list(
@@ -108,19 +111,17 @@ if (selected_experiment$name == experiments$M1$name) {
 transient = nSamples*thin
 verbose = thin*10
 
-#
-# Generate sampled posteriors for TF initialization
-#
+#### Step 2. Export initial model ####
 
 init_obj = sampleMcmc(m, samples=nSamples, thin=thin,
                       transient=transient,
                       nChains=nChains, verbose=verbose, engine="pass")
 
-init_file_name = paste("TF-init-obj-", selected_experiment$name, ".json", sep="")
+init_file_name = paste("TF-init-obj-", selected_experiment$name, ".rds", sep="")
 init_file_path = file.path(path, "examples/data", init_file_name)
 python_file_name = "run_gibbs_sampler.py"
 python_file_path = file.path(path, "examples", python_file_name)
-postList_file_name = paste("TF-postList-obj-", selected_experiment$name, ".json", sep="")
+postList_file_name = paste("TF-postList-obj-", selected_experiment$name, ".rds", sep="")
 postList_file_path = file.path(path, "examples/data", postList_file_name)
 
 nr = init_obj[["hM"]][["nr"]]
@@ -159,16 +160,9 @@ for (r in seq_len(nr)) {
   else {}
 }
 
-write(to_json(init_obj), file = init_file_path)
-python_cmd = paste("python", sprintf("'%s'",python_file_path), 
-                   "--samples", nSamples,
-                   "--transient", transient,
-                   "--thin", thin,
-                   "--verbose", verbose,
-                   "--input", init_file_name, 
-                   "--output", postList_file_name,
-                   "--path", sprintf("'%s'",path))
-print(python_cmd)
+saveRDS(to_json(init_obj), file = init_file_path, compress=TRUE)
+
+#### Step 3. Run R code ####
 
 #
 # Generate sampled posteriors in R
@@ -180,7 +174,18 @@ obj.R = sampleMcmc(m, samples = nSamples, thin = thin,
                    verbose = verbose, updater=list(Gamma2=FALSE, GammaEta=FALSE)) #fitted by R
 elapsedTime = proc.time() - startTime
 print(elapsedTime)
-aaa
+
+#### Step 4. Run TF code ####
+
+python_cmd = paste("python", sprintf("'%s'",python_file_path), 
+                   "--samples", nSamples,
+                   "--transient", transient,
+                   "--thin", thin,
+                   "--verbose", verbose,
+                   "--input", init_file_name, 
+                   "--output", postList_file_name,
+                   "--path", sprintf("'%s'",path))
+print(python_cmd)
 
 #
 # Set RStudio to TF env
@@ -212,15 +217,10 @@ system(paste("chmod a+x", sprintf("'%s'",python_file_path))) # set file permissi
 system("python --version", wait=TRUE)
 system(python_cmd, wait=TRUE) # run TF gibbs sampler
 
+#### Step 5. Import TF posteriors ####
 
+postList.TF <- from_json(readRDS(file = postList_file_path)[[1]])
 
-
-
-
-#
-# Import TF-generated sampled posteriors as JSON in R
-#
-postList.TF <- from_json(postList_file_path)
 # postList_file_str <- paste(readLines(postList_file_path), collapse="\n")
 # s = '{"0":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"1":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"2":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"3":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"4":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"5":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"6":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"7":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}}}'
 # from_json(s)
@@ -322,6 +322,8 @@ for (chain in seq_len(nChains)) {
   }
 }
 obj.TF = alignPosterior(obj.TF)
+
+#### Step 6. Visualize ####
 
 #
 # Plot sampled posteriors summaries from R only and TF

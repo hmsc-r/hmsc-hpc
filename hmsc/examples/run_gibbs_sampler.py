@@ -24,9 +24,9 @@ tfr = tf.random
 # from hmsc.updaters.updateSigma import updateSigma
 # from hmsc.updaters.updateZ import updateZ
 
-from hmsc.utils.jsonutils import (
-    load_model_from_json,
-    save_chains_postList_to_json,
+from hmsc.utils.rdsutils import (
+    load_model_from_rds,
+    save_chains_postList_to_rds,
 )
 from hmsc.utils.hmscutils import (
     load_model_dims,
@@ -39,7 +39,7 @@ from hmsc.utils.hmscutils import (
 
 def load_params(file_path, dtype=np.float64):
 
-    hmscImport, hmscModel = load_model_from_json(file_path)
+    hmscImport, hmscModel = load_model_from_rds(file_path)
     modelDims = load_model_dims(hmscModel)
     modelData = load_model_data(hmscModel, hmscImport.get("initParList"))
     priorHyperparams = load_prior_hyperparams(hmscModel)
@@ -61,7 +61,7 @@ def run_gibbs_sampler(
     verbose,
     init_obj_file_path,
     postList_file_path,
-    flag_save_postList_to_json=True,
+    flag_save_postList_to_rds=True,
 ):
 
     (
@@ -106,8 +106,8 @@ def run_gibbs_sampler(
             }
             postList[chain][n] = parSnapshot
 
-    if flag_save_postList_to_json:
-        save_chains_postList_to_json(postList, postList_file_path, nChains)
+    if flag_save_postList_to_rds:
+        save_chains_postList_to_rds(postList, postList_file_path, nChains)
 
 
 if __name__ == "__main__":
@@ -138,15 +138,15 @@ if __name__ == "__main__":
         "-i",
         "--input",
         type=str,
-        default="TF-init-obj.json",
-        help="input JSON file with parameters for model initialization",
+        default="TF-init-obj.rds",
+        help="input RDS file with parameters for model initialization",
     )
     argParser.add_argument(
         "-o",
         "--output",
         type=str,
-        default="TF-postList-obj.json",
-        help="output JSON file with recorded posterier samples",
+        default="TF-postList-obj.rds",
+        help="output RDS file with recorded posterier samples",
     )
     argParser.add_argument(
         "-p",
@@ -187,7 +187,7 @@ if __name__ == "__main__":
         verbose=args.verbose,
         init_obj_file_path=init_obj_file_path,
         postList_file_path=postList_file_path,
-        flag_save_postList_to_json=True,
+        flag_save_postList_to_rds=True,
     )
 
     elapsedTime = time.time() - startTime
@@ -197,6 +197,6 @@ if __name__ == "__main__":
 
 # runfile('/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples/run_gibbs_sampler.py',
 #   args="--samples 250 --transient 25 --thin 1 --verbose 100 " + 
-#     "--input TF-init-obj-model5.json --output TF-postList-obj-model5.json " + 
+#     "--input TF-init-obj-model5.rds --output TF-postList-obj-model5.rds " + 
 #     "--path '/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples/..'",
 #   wdir='/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples')

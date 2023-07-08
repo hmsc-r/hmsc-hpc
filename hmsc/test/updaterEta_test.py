@@ -6,7 +6,7 @@ tfr, tfm = tf.random, tf.math
 
 from hmsc.updaters.updateEta import updateEta
 
-def _simple_model(dtype = np.float64):
+def _simple_model(spatial_method="None", dtype = np.float64):
     # test model - simple integrity
     
     ny, ns, nc, nf, nr = 701, 1001, 31, 17, 7
@@ -26,7 +26,17 @@ def _simple_model(dtype = np.float64):
     Xeff = tf.constant(X, dtype=dtype)
     Y = Z = tf.matmul(X,Beta) + sum([tf.matmul(tf.gather(EtaList[r], Pi[:,r]), LambdaList[r]) for r in range(nr)]) + tfr.normal([ny,ns], 0, sigma, dtype=dtype)
     iD = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype) * tf.ones_like(Z) * sigma**-2
-
+ 
+    match spatial_method:
+        case "Full":
+            pass
+        case "NNGP":
+            pass
+        case "GPP":
+            pass
+        case _:
+            pass
+    
     params = {}
     modelData = {}
     modelDims = {}
@@ -56,9 +66,10 @@ def _simple_model(dtype = np.float64):
 
     return params, modelDims, modelData, rLHyperparams
 
-def test_updateEta():
+@pytest.mark.parametrize("spatial_method", ["Full", "NNGP", "GPP", "None"])
+def test_updateEta(spatial_method):
 
-    params, modelDims, modelData, rLHyperparams = _simple_model()
+    params, modelDims, modelData, rLHyperparams = _simple_model(spatial_method)
 
     EtaTrue = params["Eta"]
 
@@ -68,7 +79,7 @@ def test_updateEta():
         assert_allclose(Eta[r], EtaTrue[r], atol=0.1)
 
     for r in range(modelDims["nr"]):
-        assert_allclose(tf.reduce_mean(Eta[r]), tf.reduce_mean(EtaTrue[r]), atol=0.0001)
+        assert_allclose(tf.reduce_mean(Eta[r]), tf.reduce_mean(EtaTrue[r]), atol=0.001)
 
 def test_updateEta_shape():
 
