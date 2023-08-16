@@ -61,6 +61,7 @@ def run_gibbs_sampler(
     verbose,
     init_obj_file_path,
     postList_file_path,
+    truncated_normal_library,
     flag_save_postList_to_json=True,
 ):
 
@@ -85,6 +86,7 @@ def run_gibbs_sampler(
             sample_burnin=sample_burnin,
             sample_thining=sample_thining,
             verbose=verbose,
+            truncated_normal_library=truncated_normal_library,
         )
         postList[chain] = [None] * num_samples
         for n in range(num_samples):
@@ -162,6 +164,12 @@ if __name__ == "__main__":
         default=1,
         help="print out information meassages and progress status",
     )
+    argParser.add_argument(
+        "--tnlib",
+        type=str,
+        default="scipy",
+        help="which library is used for sampling trunacted normal: scipy, tf or tfd",
+    )
 
     args = argParser.parse_args()
 
@@ -187,12 +195,13 @@ if __name__ == "__main__":
         verbose=args.verbose,
         init_obj_file_path=init_obj_file_path,
         postList_file_path=postList_file_path,
+        truncated_normal_library=args.tnlib,
         flag_save_postList_to_json=True,
     )
 
     elapsedTime = time.time() - startTime
 
-    print("\nDecorated whole cycle elapsed %.1f" % elapsedTime)
+    print("\nWhole cycle elapsed %.1f" % elapsedTime)
 
 
 # runfile('/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples/run_gibbs_sampler.py',

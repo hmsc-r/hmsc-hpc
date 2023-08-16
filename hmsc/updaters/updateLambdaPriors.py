@@ -38,8 +38,8 @@ def updateLambdaPriors(params, rLHyperparams, dtype=np.float64):
         ns = Lambda.shape[-1]
         nf = tf.shape(Lambda)[0]
         if nf > 0:
-            aDelta = tf.concat([a1 * tf.ones([1, 1], dtype), a2 * tf.ones([nf - 1, 1], dtype)], 0)
-            bDelta = tf.concat([b1 * tf.ones([1, 1], dtype), b2 * tf.ones([nf - 1, 1], dtype)], 0)
+            aDelta = tf.concat([a1 * tf.ones([1, 1], dtype), a2 * tf.ones([nf-1, 1], dtype)], 0)
+            bDelta = tf.concat([b1 * tf.ones([1, 1], dtype), b2 * tf.ones([nf-1, 1], dtype)], 0)
             Lambda2 = Lambda**2
             Tau = tfm.cumprod(Delta, 0)
             aPsi = nu/2 + 0.5
@@ -47,12 +47,13 @@ def updateLambdaPriors(params, rLHyperparams, dtype=np.float64):
             PsiNew[r] = tf.squeeze(tfr.gamma([1], aPsi, bPsi, dtype=dtype), 0)
             M = PsiNew[r] * Lambda2
             rowSumM = tf.reduce_sum(M, 1)
-            DeltaNew[r] = Delta
-            for h in range(nf):
-                Tau = tfm.cumprod(DeltaNew[r], 0)
+            for h in tf.range(nf):
+                Tau = tfm.cumprod(Delta, 0)
                 ad = aDelta[h, :] + 0.5 * ns * tf.cast(nf-h, dtype)
-                bd = (bDelta[h, :] + 0.5 * tf.reduce_sum(Tau[h:, :] * rowSumM[h:, None], 0) / DeltaNew[r][h, :])
-                DeltaNew[r] = tf.tensor_scatter_nd_update(DeltaNew[r], [[h]], tfr.gamma([1], ad, bd, dtype=dtype))
+                bd = bDelta[h, :] + 0.5 * tf.reduce_sum(Tau[h:, :] * rowSumM[h:, None], 0) / Delta[h, :]
+                Delta = tf.tensor_scatter_nd_update(Delta, [[h]], tfr.gamma([1], ad, bd, dtype=dtype))
+            DeltaNew[r] = Delta
+            PsiNew[r] = PsiNew[r]
         else:
             PsiNew[r] = tf.zeros([0, ns], dtype)
             DeltaNew[r] = tf.zeros([0, 1], dtype)

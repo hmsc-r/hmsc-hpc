@@ -75,17 +75,19 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         iK = tfla.LinearOperatorBlockDiag([iK11_op, iK22_op]).to_dense()
       else:
         iK = iV
-      
+        
+      # for computing A only iK11 part is required
       if len(XE.shape.as_list()) == 2:
         iU = iK + tf.einsum("ic,ij,ik->jck", XE, iD, XE)
-        A = tf.matmul(iK, tf.transpose(Mu)[:,:,None]) + tf.einsum("ik,ij->jk", XE, iD*Z)[:,:,None]
+        A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None]) + tf.einsum("ik,ij->jk", XE, iD*Z)[:,:,None]
       else:
         iU = iK + tf.einsum("jic,ij,jik->jck", XE, iD, XE)
-        A = tf.matmul(iK, tf.transpose(Mu)[:,:,None]) + tf.einsum("jik,ij->jk", XE, iD*Z)[:,:,None]
+        A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None]) + tf.einsum("jik,ij->jk", XE, iD*Z)[:,:,None]
 
       LiU = tfla.cholesky(iU)
       M = tfla.cholesky_solve(LiU, A)
       BetaLambda = tf.transpose(tf.squeeze(M + tfla.triangular_solve(LiU, tfr.normal([ns,na,1], dtype=dtype), adjoint=True), -1))
+      BetaLambda = BetaLambda
     else:
       rhoVec = tf.gather(rhopw[:,0], tf.gather(rhoInd, rhoGroup))
       eQ = rhoVec[:,None]*eC + (1-rhoVec)[:,None]
@@ -104,10 +106,6 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         XE_iD_XET = tf.einsum("ic,ij,ik->ckj", XE, iD, XE)
         m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.matmul(XE, iD * Z, transpose_a=True), [na*ns,1])
       else:
-        # XE_iD_XET = tf.reshape(tf.einsum("jic,j,jik->jck", XE, sigma**-2, XE), shape=[n2,n1])
-        # ind1 = tf.concat([tf.repeat(tf.range(0,n2,2,dtype=tf.int64),n1),tf.repeat(tf.range(1,n2,2,dtype=tf.int64),n1)], axis=0)
-        # ind2 = tf.concat([tf.tile(tf.range(0,n2,2,dtype=tf.int64),[n1]), tf.tile(tf.range(1,n2,2,dtype=tf.int64),[n1])], axis=0)
-        # iU = iK + tfs.to_dense(tfs.reorder(tfs.SparseTensor(indices=tf.transpose(tf.stack([ind1,ind2])), values=tf.reshape(XE_iD_XET, [-1]), dense_shape=[n2,n2])))
         XE_iD_XET = tf.einsum("jic,ij,jik->ckj", XE, iD, XE)
         m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.einsum("jik,ij->kj", XE, iD * Z), [na*ns,1])
       

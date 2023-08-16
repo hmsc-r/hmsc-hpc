@@ -58,17 +58,16 @@ def updateNf(params, rLHyperparams, iter, dtype=np.float64):
             indRedundant = smallLoadingProp >= prop
             numRedundant = tf.reduce_sum(tf.cast(indRedundant, dtype=dtype))
 
-            if (nf < nfMax and iter > 20 and numRedundant == 0):  # and tf.reduce_all(smallLoadingProp < 0.995):
+            if nf < nfMin or (nf < nfMax and iter > 20 and numRedundant == 0 and tf.reduce_all(smallLoadingProp < 0.995)):
                 LambdaNew[r] = tf.concat([Lambda, tf.zeros([1,ns], dtype=dtype)], 0)
-                PsiNew[r] = tf.concat([Psi, tfr.gamma([1,ns], nu / 2, nu / 2, dtype=dtype)], 0)
+                PsiNew[r] = tf.concat([Psi, tfr.gamma([1,ns], nu/2, nu/2, dtype=dtype)], 0)
                 DeltaNew[r] = tf.concat([Delta, tfr.gamma([1,1], a2, b2, dtype=dtype)], 0)
                 EtaNew[r] = tf.concat([Eta, tfr.normal([np,1], dtype=dtype)], 1)
-                AlphaIndNew[r] = tf.concat([AlphaInd, tf.zeros([1], tf.int32)], 0) # fails to build autograph for Model 5/6
-                #AlphaIndNew[r] = tf.pad(AlphaInd, tf.constant([[0, 0,], [0, 1]]), mode="CONSTANT") # no support
+                AlphaIndNew[r] = tf.concat([AlphaInd, tf.zeros([1], tf.int32)], 0)
             elif nf > nfMin and numRedundant > 0:
                 indRemain = tf.cast(tf.squeeze(tf.where(tfm.logical_not(indRedundant)), -1), tf.int32)
-                if tf.shape(indRemain)[0] < tf.cast(nfMin, tf.int32):
-                    indRemain = tf.concat([indRemain, nf - 1 - tf.range(nfMin - tf.shape(indRemain)[0])], 0)
+                # if tf.shape(indRemain)[0] < nfMin:
+                #     indRemain = tf.concat([indRemain, nf - 1 - tf.range(nfMin - tf.shape(indRemain)[0])], 0)
                 LambdaNew[r] = tf.gather(Lambda, indRemain, axis=0)
                 PsiNew[r] = tf.gather(Psi, indRemain, axis=0)
                 DeltaNew[r] = tf.gather(Delta, indRemain, axis=0)

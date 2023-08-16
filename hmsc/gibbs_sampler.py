@@ -35,7 +35,6 @@ from hmsc.updaters.updateSigma import updateSigma
 from hmsc.updaters.updateZ import updateZ
 from hmsc.updaters.updatewRRR import updatewRRR
 from hmsc.updaters.updatewRRRPriors import updatewRRRPriors
-
 tfm = tf.math
 
 
@@ -96,6 +95,7 @@ class GibbsSampler(tf.Module):
         sample_burnin=0,
         sample_thining=1,
         verbose=1,
+        truncated_normal_library="scipy",
         print_retrace_flag=True,
         print_debug_flag= False
     ):
@@ -113,7 +113,8 @@ class GibbsSampler(tf.Module):
         params = paramsInput.copy() #TODO due to tf.function requiring not to change its Tensor input
         #TODO potentially move next two lines to somewhere more approriate
         params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * tf.ones_like(params["Z"]) * params["sigma"]**-2
-        _, _, params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_update_omega=True, poisson_marginalize_z=False)
+        _, _, params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_update_omega=True, 
+                                                poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
 
         mcmcSamplesBeta = tf.TensorArray(params["Beta"].dtype, size=num_samples)
         mcmcSamplesBetaSel = [tf.TensorArray(tf.bool, size=num_samples) for i in range(ncsel)]
@@ -149,14 +150,18 @@ class GibbsSampler(tf.Module):
             
             if z_marginalize_iter_flag == False:
               if z_marginalize_prev_flag == False:
-                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_marginalize_z=False)
+                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False,
+                                                                             poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
               else:
-                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True, poisson_marginalize_z=False)
+                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
+                                                                             poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
             else:
               if z_marginalize_prev_flag == False:
-                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_marginalize_z=True)
+                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False,
+                                                                             poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
               else:
-                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True, poisson_marginalize_z=True)
+                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
+                                                                             poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
             if print_debug_flag:
               tf.print("Z", tf.reduce_sum(tf.cast(tfm.is_nan(params["Z"]), tf.int32)))
               tf.print("iD", tf.reduce_sum(tf.cast(tfm.is_nan(params["iD"]), tf.int32)))
@@ -201,6 +206,7 @@ class GibbsSampler(tf.Module):
 
             if n < sample_burnin:
                 params["Lambda"], params["Psi"], params["Delta"], params["Eta"], params["AlphaInd"] = updateNf(params, self.rLHyperparams, n)
+            # tf.print(tf.shape(params["Lambda"][0])[0])
 
             samInd = tf.cast((n - sample_burnin + 1) / sample_thining - 1, tf.int32)
             if (n + 1) % verbose == 0:
