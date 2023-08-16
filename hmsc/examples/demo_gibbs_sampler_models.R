@@ -4,6 +4,9 @@ library(Hmsc)
 library(jsonify)
 library(vioplot)
 library(abind)
+RS = 1
+set.seed(RS)
+nParallel = 8
 
 path = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
 load(file = file.path(path, "examples/data", "unfitted_models_2.RData"))
@@ -18,11 +21,15 @@ experiments = list(
   M7=list(name="model7",id=7),
   M8=list(name="model8",id=8),
   M9=list(name="model9",id=9),
-  M10=list(name="model10",id=10)
+  M10=list(name="model10",id=10),
+  M11=list(name="model11",id=NA)
 )
+aaa
+selected_experiment = experiments$M4
+if(!is.na(selected_experiment$id)){
+  m = models[[selected_experiment$id]]
+}
 
-selected_experiment = experiments$M9
-m = models[[selected_experiment$id]]
 if (selected_experiment$name == experiments$M1$name) {
   nChains = 8
   nSamples = 250
@@ -47,11 +54,32 @@ if (selected_experiment$name == experiments$M1$name) {
 } else if (selected_experiment$name == experiments$M3$name) {
   nChains = 8
   nSamples = 250
-  thin = 10
-} else if (selected_experiment$name == experiments$M4$name) {
-  nChains = 8
+  thin = 1
+} else if (selected_experiment$name == experiments$M4$name) { ################################
+  nChains =  8
   nSamples = 250
   thin = 10
+  # mNew = Hmsc(Y=m$Y, XFormula=m$XFormula, XData=m$XData, distr=m$distr,
+  #             studyDesign=m$studyDesign, ranLevels=list(unit=m$ranLevels$unit))
+  # m = mNew
+  
+  ny = min(Inf, m$ny)
+  nc = min(1, m$nc)
+  nf = 5
+  
+  X = m$X[1:ny,1:nc,drop=FALSE]
+  studyDesign = m$studyDesign[1:ny,]
+  for(h in 1:ncol(studyDesign)) studyDesign[,h] = factor(studyDesign[,h], levels=unique(studyDesign[,h]))
+  
+  # Gamma = c(0.3,-1,0.1,1,-1)[1:nc]
+  # Beta = 0.2*matrix(rnorm(nc*m$ns), nc, m$ns) + Gamma
+  # Eta = matrix(rnorm(ny*nf), ny, nf)
+  # Lambda = matrix(rnorm(nf*m$ns), c(nf,m$ns))
+  # sigma = rep(1, m$ns)
+  # Y = (X %*% Beta + Eta %*% Lambda + matrix(sigma,ny,m$ns,byrow=TRUE)*matrix(rnorm(ny*m$ns),ny,m$ns) > 0) + 0 #
+  Y = m$Y[1:ny,]
+  
+  m = Hmsc(Y=Y, X=X, XScale=FALSE, distr="probit", studyDesign=studyDesign, ranLevels=list(unit=m$ranLevels$unit))
 } else if (selected_experiment$name == experiments$M5$name) {
   nChains = 8
   nSamples = 250
@@ -86,7 +114,7 @@ if (selected_experiment$name == experiments$M1$name) {
 } else if (selected_experiment$name == experiments$M9$name) {
   nChains = 8
   nSamples = 250
-  thin = 3
+  thin = 10
   set.seed(1)
   indSub = sort(sample(nrow(m$studyDesign), 200))
   studyDesignNew = m$studyDesign[indSub,]
@@ -101,17 +129,46 @@ if (selected_experiment$name == experiments$M1$name) {
   # mNew = Hmsc(Y=m$Y, XFormula=m$XFormula, XData=m$XData, distr=m$distr, studyDesign=m$studyDesign, ranLevels=list())
   # mNew = setPriors(mNew, V0=10^2*diag(m$nc), UGamma=10^2*diag(m$nc))
   # m = mNew
+} else if (selected_experiment$name == experiments$M11$name) {
+  nc = 5
+  ncr = 2
+  ns = 53
+  ny = 213
+  nf = 3
+  X = cbind(rep(1,ny), as.matrix(matrix(rnorm(ny*(nc-1)), ny, nc-1)))
+  colnames(X) = c("intercept", sprintf("c%d", 1:(nc-1)))
+  Beta = matrix(rnorm(nc*ns), nc, ns)
+  LFix = X %*% Beta
+  LRan = NA * LFix
+  Eta = matrix(rnorm(ny*nf), ny, nf)
+  Lambda = array(rnorm(nf*ns*ncr), c(nf,ns,ncr))
+  XRan = cbind(rep(1,ny), as.matrix(matrix(rnorm(ny*(ncr-1)), ny, ncr-1)))
+  rownames(XRan) = sprintf("su%.4d", 1:ny)
+  studyDesign = data.frame(su=as.factor(rownames(XRan)))
+  for(i in 1:ny){
+    LambdaLocal = Lambda[,,1]*XRan[i,1]
+    for(k in 1+seq(ncr-1)) LambdaLocal = Lambda[,,k]*XRan[i,k]
+    LRan[i,] = Eta[i,] %*% LambdaLocal
+  }
+  sigma = rep(1, ns)
+  Y = LFix + LRan + matrix(sigma,ny,ns,byrow=TRUE)*matrix(rnorm(ny*ns),ny,ns)
+  rLSu = HmscRandomLevel(xData=XRan)
+  m = Hmsc(Y=Y, X=X, distr="normal", studyDesign=studyDesign, ranLevels=list(su=rLSu))
+  
+  nChains = 8
+  nSamples = 250
+  thin = 1
 } else{
   stop("Not covered")
 }
-
 transient = nSamples*thin
-verbose = thin*10
+verbose = thin*1
 
 #
 # Generate sampled posteriors for TF initialization
 #
 
+set.seed(RS+42)
 init_obj = sampleMcmc(m, samples=nSamples, thin=thin,
                       transient=transient,
                       nChains=nChains, verbose=verbose, engine="pass")
@@ -173,10 +230,11 @@ print(python_cmd)
 #
 # Generate sampled posteriors in R
 #
+set.seed(RS+42)
 startTime = proc.time()
 obj.R = sampleMcmc(m, samples = nSamples, thin = thin,
                    transient = transient, 
-                   nChains = nChains, nParallel=nChains,
+                   nChains = nChains, nParallel=min(nChains,nParallel),
                    verbose = verbose, updater=list(Gamma2=FALSE, GammaEta=FALSE)) #fitted by R
 elapsedTime = proc.time() - startTime
 print(elapsedTime)
@@ -263,43 +321,43 @@ for (chain in seq_len(nChains)) {
     sigma = obj.TF[["postList"]][[chain]][[sample]][["sigma"]]
     
     for(p in 1:nt){
-      m = TrScalePar[1,p]
-      s = TrScalePar[2,p]
-      if(m!=0 || s!=1){
-        Gamma[,p] = Gamma[,p]/s
+      me = TrScalePar[1,p]
+      sc = TrScalePar[2,p]
+      if(me!=0 || sc!=1){
+        Gamma[,p] = Gamma[,p]/sc
         if(!is.null(TrInterceptInd)){
-          Gamma[,TrInterceptInd] = Gamma[,TrInterceptInd] - m*Gamma[,p]
+          Gamma[,TrInterceptInd] = Gamma[,TrInterceptInd] - me*Gamma[,p]
         }
       }
     }
     
     for(k in 1:ncNRRR){
-      m = XScalePar[1,k]
-      s = XScalePar[2,k]
-      if(m!=0 || s!=1){
-        Beta[k,] = Beta[k,]/s
-        Gamma[k,] = Gamma[k,]/s
+      me = XScalePar[1,k]
+      sc = XScalePar[2,k]
+      if(me!=0 || sc!=1){
+        Beta[k,] = Beta[k,]/sc
+        Gamma[k,] = Gamma[k,]/sc
         if(!is.null(XInterceptInd)){
-          Beta[XInterceptInd,] = Beta[XInterceptInd,] - m*Beta[k,]
-          Gamma[XInterceptInd,] = Gamma[XInterceptInd,] - m*Gamma[k,]
+          Beta[XInterceptInd,] = Beta[XInterceptInd,] - me*Beta[k,]
+          Gamma[XInterceptInd,] = Gamma[XInterceptInd,] - me*Gamma[k,]
         }
-        iV[k,] = iV[k,]*s
-        iV[,k] = iV[,k]*s
+        iV[k,] = iV[k,]*sc
+        iV[,k] = iV[,k]*sc
       }
     }
     
     for(k in seq_len(ncRRR)){
-      m = XRRRScalePar[1,k]
-      s = XRRRScalePar[2,k]
-      if(m!=0 || s!=1){
-        Beta[ncNRRR+k,] = Beta[ncNRRR+k,]/s
-        Gamma[ncNRRR+k,] = Gamma[ncNRRR+k,]/s
+      me = XRRRScalePar[1,k]
+      sc = XRRRScalePar[2,k]
+      if(me!=0 || sc!=1){
+        Beta[ncNRRR+k,] = Beta[ncNRRR+k,]/sc
+        Gamma[ncNRRR+k,] = Gamma[ncNRRR+k,]/sc
         if(!is.null(XInterceptInd)){
-          Beta[XInterceptInd,] = Beta[XInterceptInd,] - m*Beta[ncNRRR+k,]
-          Gamma[XInterceptInd,] = Gamma[XInterceptInd,] - m*Gamma[ncNRRR+k,]
+          Beta[XInterceptInd,] = Beta[XInterceptInd,] - me*Beta[ncNRRR+k,]
+          Gamma[XInterceptInd,] = Gamma[XInterceptInd,] - me*Gamma[ncNRRR+k,]
         }
-        iV[ncNRRR+k,] = iV[ncNRRR+k,]*s
-        iV[,ncNRRR+k] = iV[,ncNRRR+k]*s
+        iV[ncNRRR+k,] = iV[ncNRRR+k,]*sc
+        iV[,ncNRRR+k] = iV[,ncNRRR+k]*sc
       }
     }
     
@@ -326,6 +384,38 @@ obj.TF = alignPosterior(obj.TF)
 #
 # Plot sampled posteriors summaries from R only and TF
 #
+# obj.TF = obj.R #CHECK THIS
+
+b.R = getPostEstimate(obj.R, "Beta")
+b.TF = getPostEstimate(obj.TF, "Beta")
+for(k in 1:obj.R$nc){
+  plot(b.R$mean[k,], b.TF$mean[k,], main=paste(k, obj.R$covNames[k]))
+  abline(0,1)
+  # text(b.R$mean[k,], b.TF$mean[k,])
+}
+if(any(obj.R$distr[,2] != 0)){
+  s.R = getPostEstimate(obj.R, "sigma")
+  s.TF = getPostEstimate(obj.TF, "sigma")
+  plot(s.R$mean, s.TF$mean, main="sigma")
+  abline(0,1)
+}
+omega.R = getPostEstimate(obj.R, "Omega")$mean
+omega.TF = getPostEstimate(obj.TF, "Omega")$mean
+# plot(crossprod(Lambda), omega.R, ylim=range(c(omega.R,omega.TF)), main="Omega")
+# points(crossprod(Lambda), omega.TF, col="blue")
+# plot(crossprod(Lambda)[-19,-19], omega.R[-19,-19], ylim=range(c(omega.R[-19,-19],omega.TF[-19,-19])), main="Omega")
+# points(crossprod(Lambda)[-19,-19], omega.TF[-19,-19], col="blue")
+plot(omega.R, omega.TF, main="Omega")
+abline(0,1)
+
+
+lambda.R = getPostEstimate(obj.R, "Lambda")$mean[1:2,]
+lambda.TF = getPostEstimate(obj.TF, "Lambda")$mean[1:2,]
+# plot(lambda.R[1,], lambda.TF[2,])
+# plot(lambda.R[2,], lambda.TF[1,])
+
+
+
 obj.R.TF = obj.R
 obj.R.TF$postList = c(obj.R$postList,obj.TF$postList)
 obj.list = list(R=obj.R,TF=obj.TF,R.TF=obj.R.TF)
@@ -335,12 +425,14 @@ varVec = c("Beta","Gamma")
 if(any(obj.R$distr[,2] != 0)) varVec = c(varVec, "Sigma")
 for(variable in 1:length(varVec)){
   for(i in 1:3){
-    mpost = convertToCodaObject(obj.list[[i]])
+    mpost = convertToCodaObject(obj.list[[i]], Lambda=FALSE, Omega=FALSE, Psi=FALSE, Delta=FALSE)
     mpost.var = mpost[[varVec[variable]]]
     psrf = gelman.diag(mpost.var, multivariate=FALSE)$psrf
     if(i == 1) {ma = psrf[,1]} else {ma = cbind(ma,psrf[,1])}
   }
   par(mfrow=c(2,1))
+  print(paste(varVec[variable], "NaN", paste(apply(is.nan(ma), 2, sum),collapse=" "), sep=" - "))
+  ma[is.nan(ma)] = 0.9
   vioplot(ma,names=names(obj.list),ylim=c(0.9,max(ma, na.rm=TRUE)),main=varVec[variable])
   vioplot(ma,names=names(obj.list),ylim=c(0.9,1.1),main=varVec[variable])
   par(mfrow=c(1,1))
@@ -355,7 +447,7 @@ if(!is.null(obj.R$C)){
 }
 
 #omega
-maxOmega = 100 #number of species pairs to be subsampled
+maxOmega = 1000 #number of species pairs to be subsampled
 nr = obj.list[[1]]$nr
 for(k in seq_len(nr)){
   for(i in 1:3){
@@ -372,18 +464,20 @@ for(k in seq_len(nr)){
     if(i == 1) {ma = psrf[,1]} else {ma = cbind(ma,psrf[,1])}
   }
   par(mfrow=c(2,1))
+  print(paste(varVec[variable], sprintf("Omega%d",k), paste(apply(is.nan(ma), 2, sum),collapse=" "), sep=" - "))
+  print(paste(varVec[variable], sprintf("Omega%d",k), paste(apply(is.infinite(ma), 2, sum),collapse=" "), sep=" - "))
+  ma[is.nan(ma) | is.infinite(ma)] = 0.9
   vioplot(ma,names=names(obj.list),ylim=c(0.9,max(ma)),main=paste("omega",names(obj.list[[1]]$ranLevels)[k]))
   vioplot(ma,names=names(obj.list),ylim=c(0.9,1.1),main=paste("omega",names(obj.list[[1]]$ranLevels)[k]))
   par(mfrow=c(1,1))
 }
 
-b.R = getPostEstimate(obj.R, "Beta")
-b.TF = getPostEstimate(obj.TF, "Beta")
-for(k in 1:obj.R$nc){
-  plot(b.R$mean[k,], b.TF$mean[k,], main=paste(k, obj.R$covNames[k]))
-  abline(0,1)
-  # text(b.R$mean[k,], b.TF$mean[k,])
-}
+
+
+
+
+
+
 
 #reduced rank regression - effective beta
 if(obj.R$ncRRR > 0){
@@ -421,5 +515,27 @@ psrf_R = gelman.diag(mpost_R, multivariate=FALSE)$psrf
 psrf_TF = gelman.diag(mpost_TF, multivariate=FALSE)$psrf
 plot(psrf_R[,1], psrf_TF[,1], type="n")
 text(psrf_R[,1], psrf_TF[,1], 1:nrow(psrf_R))
+
+
+
+# library(truncnorm)
+# for(cInd in 1:chain){
+#   # ind = order(rowMeans(abs(obj.R$postList[[cInd]][[nSamples]]$Lambda[[1]])^2), decreasing=TRUE)[1:nc]
+#   cInd2 = 1
+#   ind = which(rowSums(obj.R$postList[[cInd2]][[nSamples]]$Psi[[1]]) > 0)
+#   init_obj$initParList[[cInd]]$Eta[[1]] = obj.R$postList[[cInd2]][[nSamples]]$Eta[[1]][,ind,drop=FALSE]
+#   init_obj$initParList[[cInd]]$Lambda[[1]] = obj.R$postList[[cInd2]][[nSamples]]$Lambda[[1]][ind,,drop=FALSE]
+#   init_obj$initParList[[cInd]]$Delta[[1]] = 1+0*obj.R$postList[[cInd2]][[nSamples]]$Delta[[1]][ind,,drop=FALSE]
+#   init_obj$initParList[[cInd]]$Psi[[1]] = 1+0*obj.R$postList[[cInd2]][[nSamples]]$Psi[[1]][ind,,drop=FALSE]
+#   init_obj$initParList[[cInd]]$Alpha[[1]] = obj.R$postList[[cInd2]][[nSamples]]$Alpha[[1]][ind,drop=FALSE]
+#   L = init_obj$initParList[[cInd]]$Eta[[1]] %*% init_obj$initParList[[cInd]]$Lambda[[1]]
+#   lB = rep(-Inf, length(Y))
+#   uB = rep(Inf, length(Y))
+#   lB[Y] = 0
+#   uB[!Y] = 0
+#   z = rtruncnorm(length(Y), a=lB, b=uB, mean=L, sd=1)
+#   init_obj$initParList[[cInd]]$Z = matrix(z, nrow(L), ncol(L))
+# }
+# write(to_json(init_obj), file = init_file_path)
 
 
