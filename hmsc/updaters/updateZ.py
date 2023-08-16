@@ -2,11 +2,13 @@ import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from tensorflow.python.ops.random_ops import parameterized_truncated_normal
-from polyagamma import random_polyagamma
+# from polyagamma import random_polyagamma
+from scipy.stats import truncnorm
 tfd = tfp.distributions
 tfm, tfr = tf.math, tf.random
 
-def updateZ(params, data, poisson_preupdate_z=True, poisson_update_omega=True, poisson_marginalize_z=False, dtype=np.float64):
+def updateZ(params, data, poisson_preupdate_z=True, poisson_update_omega=True, poisson_marginalize_z=False,
+            truncated_normal_library="scipy", dtype=np.float64):
     """Update conditional updater(s)
     Z - latent variable.
         
@@ -72,11 +74,19 @@ def updateZ(params, data, poisson_preupdate_z=True, poisson_update_omega=True, p
     # ZP = norm.quantile(samUnif)
     low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(-INFTY, dtype), tf.zeros_like(YP))
     high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(INFTY, dtype), tf.zeros_like(YP))
-    # ZP = tfd.TruncatedNormal(loc=LP, scale=sigmaP, low=low, high=high).sample()
     nsP = tf.size(indColProbit)
-    samTN = parameterized_truncated_normal(shape=[ny*nsP], means=tf.reshape(LP,[ny*nsP]), stddevs=tf.tile(sigmaP, [ny]), 
-                                           minvals=tf.reshape(low,[ny*nsP]), maxvals=tf.reshape(high,[ny*nsP]), dtype=dtype)
-    ZProbit = tf.reshape(samTN, [ny,nsP])
+    
+    if truncated_normal_library == "tfd":
+      ZProbit = tfd.TruncatedNormal(loc=LP, scale=sigmaP, low=low, high=high).sample()
+    elif truncated_normal_library == "tf":
+      samTN = parameterized_truncated_normal(shape=[ny*nsP], means=tf.reshape(LP,[ny*nsP]), stddevs=tf.tile(sigmaP,[ny]), 
+                                              minvals=tf.reshape(low,[ny*nsP]), maxvals=tf.reshape(high,[ny*nsP]), dtype=dtype)
+      ZProbit = tf.reshape(samTN, [ny,nsP])
+    elif truncated_normal_library == "scipy":
+      loc, scale = tf.reshape(LP,[ny*nsP]), tf.tile(sigmaP,[ny])
+      a, b = (tf.reshape(low,[ny*nsP]) - loc) / scale, (tf.reshape(high,[ny*nsP]) - loc) / scale
+      ZProbit = tf.reshape(tf.numpy_function(truncnorm.rvs, [a, b, loc, scale], dtype), [ny,nsP])
+    
     iDProbit = tf.cast(YoP, dtype) * sigmaP**dtype(-2)
     
     
@@ -137,15 +147,30 @@ def updateZ(params, data, poisson_preupdate_z=True, poisson_update_omega=True, p
     ZStack = tf.concat([ZNormal, ZProbit, ZPoisson], -1)
     iDStack = tf.concat([iDNormal, iDProbit, iDPoisson], -1)
     indColStack = tf.concat([indColNormal, indColProbit, indColPoisson], 0)
+    # ZStack = tf.concat([ZNormal, ZProbit], -1)
+    # iDStack = tf.concat([iDNormal, iDProbit], -1)
+    # indColStack = tf.concat([indColNormal, indColProbit], 0)
     ZNew = tf.gather(ZStack, tf.argsort(indColStack), axis=-1)
     iDNew = tf.gather(iDStack, tf.argsort(indColStack), axis=-1)
     return ZNew, iDNew, poisson_omega
+    # return ZNew, iDNew, tf.zeros([0])
 
 
 
-def draw_polya_gamma(h, z, N=10, dtype=np.float64):
-  pg_h = tf.reshape(h, [-1])
-  pg_z = tf.reshape(z, [-1]) # sign does not matter
-  draw_pg = lambda h,z: random_polyagamma(h, z, disable_checks=True)
-  omega = tf.reshape(tf.numpy_function(draw_pg, [pg_h, pg_z], dtype), h.shape)
+
+def draw_polya_gamma(h, z, dtype=np.float64):
+  # with h > 50 normal approx is used, so we reimplement only that alternative
+  # pg_h = tf.reshape(h, [-1])
+  # pg_z = tf.reshape(z, [-1]) # sign does not matter
+  # draw_pg = lambda h,z: random_polyagamma(h, z, disable_checks=True) 
+  # omega = tf.reshape(tf.numpy_function(draw_pg, [pg_h, pg_z], dtype), h.shape)
+  m0 = 0.25 * h
+  s0 = tf.sqrt(h / 24.)
+  x1 = tfm.tanh(0.5 * z)
+  m1 = 0.5 * h * x1 / z
+  s1 = tf.sqrt(0.25 * h * (tfm.sinh(z) - z) * (1. - x1**2) / z**3)
+  m = tf.where(z == 0, m0, m1)
+  s = tf.where(z == 0, s0, s1)
+  # formula in package does not have tf.abs, I added it here to ensure positiveness
+  omega = tf.abs(m + s*tfr.normal(h.shape, dtype=dtype))
   return omega
