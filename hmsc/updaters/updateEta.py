@@ -4,10 +4,12 @@ import tensorflow as tf
 tfla, tfm, tfr, tfs = tf.linalg, tf.math, tf.random, tf.sparse
 
 #from hmsc.utils.tflautils import kron, scipy_cholesky, tf_sparse_matmul, tf_sparse_cholesky, scipy_sparse_solve_triangular, convert_sparse_tensor_to_sparse_csc_matrix
-from hmsc.utils.tflautils import tf_sparse_matmul, tf_sparse_cholesky, scipy_sparse_solve_triangular
+# from hmsc.utils.tflautils import tf_sparse_matmul, tf_sparse_cholesky, scipy_sparse_solve_triangular
 
 from scipy.sparse.linalg import splu, spsolve_triangular
 from scipy.sparse import csc_matrix, coo_matrix, block_diag, kron
+from matplotlib import pyplot as plt
+
 
 def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
     """Update conditional updater(s):
@@ -36,6 +38,7 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
     AlphaIndList = params["AlphaInd"]
     X = params["Xeff"]
     Pi = data["Pi"]
+    ns = modelDims["ns"]
     nr = modelDims["nr"]
     npVec = modelDims["np"]
     
@@ -53,16 +56,27 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
         if nf > 0:
             S = Z - LFix - sum([LRanLevelList[rInd] for rInd in np.setdiff1d(np.arange(nr), r)])
             mu0 = tf.scatter_nd(Pi[:,r,None], tf.matmul(iD * S, Lambda, transpose_b=True), [npVec[r],nf])
-            LamInvSigLam = tf.scatter_nd(Pi[:,r,None], tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [npVec[r],nf,nf])
-            
-            if rLPar["sDim"] == 0:
-                EtaListNew[r] = modelNonSpatial(LamInvSigLam, mu0, npVec[r], nf, dtype)
+            # LamInvSigLam = tf.scatter_nd(Pi[:,r,None], tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [npVec[r],nf,nf])
+            Pi_iD = tf.scatter_nd(Pi[:,r,None], iD, [npVec[r],ns])
+            commonFlag = tf.reduce_all(Pi_iD == Pi_iD[0,:])
+            if commonFlag:
+              LamInvSigLam = tf.einsum("hj,j,kj->hk", Lambda, Pi_iD[0,:], Lambda)
             else:
+              LamInvSigLam = tf.einsum("hj,ij,kj->ihk", Lambda, Pi_iD, Lambda)
+
+            if rLPar["sDim"] == 0:
+                if commonFlag:
+                    EtaListNew[r] = modelNonSpatialCommon(LamInvSigLam, mu0, npVec[r], nf, dtype)
+                else:
+                    EtaListNew[r] = modelNonSpatial(LamInvSigLam, mu0, npVec[r], nf, dtype)
+            else:
+                if commonFlag:
+                    LamInvSigLam = tf.tile([npVec[r],1,1], LamInvSigLam[None,:,:])
+                    
                 if rLPar["spatialMethod"] == "Full":
                     EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], npVec[r], nf)
                 elif rLPar["spatialMethod"] == "GPP":
                     EtaListNew[r] = modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, rLPar["Fg"], rLPar["idDg"], rLPar["idDW12g"], rLPar["nK"], npVec[r], nf)
-                    # EtaListNew[r] = modelSpatialGPP(Lambda, AlphaInd, iSigma, mu0, rLPar["Fg"], rLPar["idDg"], rLPar["idDW12g"], npVec[r], nf, rLPar["nK"])
                 elif rLPar["spatialMethod"] == "NNGP":                
                     modelSpatialNNGP_local = lambda LamInvSigLam, mu0, Alpha, nf: modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, rLPar["iWList_csc"], npVec[r], nf)
                     # EtaListNew[r] = modelSpatialNNGP_local(LamInvSigLam, mu0, AlphaInd, nf)
@@ -72,13 +86,27 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
             LRanLevelList[r] = tf.matmul(tf.gather(EtaListNew[r], Pi[:,r]), Lambda)
         else:
             EtaListNew[r] = Eta
+        EtaListNew[r] = tf.ensure_shape(EtaListNew[r], [npVec[r],None])
 
     return EtaListNew
 
 
+def modelNonSpatialCommon(LamInvSigLam, mu0, np, nf, dtype=np.float64):
+    # tf.print("using common Eta sampler option")
+    iV = tf.eye(nf, dtype=dtype) + LamInvSigLam
+    LiV = tfla.cholesky(iV)
+    mu1 = tfla.triangular_solve(LiV, tfla.matrix_transpose(mu0))
+    Eta = tfla.matrix_transpose(tfla.triangular_solve(LiV, mu1 + tfr.normal([nf,np], dtype=dtype), adjoint=True))
+    return Eta
+  
+
 def modelNonSpatial(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     iV = tf.eye(nf, dtype=dtype) + LamInvSigLam
     LiV = tfla.cholesky(iV)
+    # LamInvSigLam_u, LamInvSigLam_id = tf.raw_ops.UniqueV2(x=LamInvSigLam, axis=[0])
+    # iV_u = tf.eye(nf, dtype=dtype) + LamInvSigLam_u
+    # LiV_u = tfla.cholesky(iV_u)
+    # LiV = tf.gather(LiV_u, LamInvSigLam_id)
     mu1 = tfla.triangular_solve(LiV, tf.expand_dims(mu0, -1))
     Eta = tf.squeeze(tfla.triangular_solve(LiV, mu1 + tfr.normal([np,nf,1], dtype=dtype), adjoint=True), -1)
     return Eta
@@ -145,33 +173,3 @@ def modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, iWList, nu, nf, dtype=np.fl
     eta = spsolve_triangular(LiUEta.transpose(), mu1 + np.random.normal(dtype(0), dtype(1), size=[nf*nu]), lower=False)
     Eta = np.reshape(eta, [nu,nf])
     return Eta
-
-
-# Anis's NNGP version, not used currently, but contains potentially useful parts
-def modelSpatialNNGP(S, iD, Pi, Lambda, AlphaInd, iWg, iSigma, ny, ns, nu, nf, dtype=np.float64):
-    LamInvSigLam = tfs.from_dense(tf.scatter_nd(Pi, tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [nu,nf,nf]))
-    mu0 = tf.scatter_nd(Pi, tf.matmul(iD * S, Lambda, transpose_b=True), [nu,nf])
-
-    mask_values = tf.constant([True, False])
-    def tf_sparse_gather(A, Ind):
-        def single_iter(x):
-            mask = tf.where(tf.equal(A.indices[:, 0], tf.cast(Ind[x], dtype=tf.int64)), mask_values[0], mask_values[1])
-            return tfs.to_dense(tfs.reduce_sum(tf.sparse.retain(A, mask), axis=0, keepdims=True, output_is_sparse=True))[-1, :, :]
-        return tfs.from_dense(tf.map_fn(single_iter, tf.range(nf), fn_output_signature=dtype))
-
-    def tf_sparse_block_diag(A, n, nx, ny):
-        def tf_sparse_update_indices():
-            x_stride = A.indices[:,0]*nx
-            y_stride = A.indices[:,0]*ny
-            return tf.stack([A.indices[:,1]+x_stride, A.indices[:,2]+y_stride], axis=1)
-        return tfs.SparseTensor(indices=tf_sparse_update_indices(), values=A.values, dense_shape=(n*nx,n*ny))
-
-    LamInvSigLam_bdiag = tf_sparse_block_diag(LamInvSigLam, nu, nf, nf)
-    iWg_bdiag = tf_sparse_block_diag(tf_sparse_gather(iWg, AlphaInd), nf, nu, nu)
-    iUEta = tfs.add(tfs.add(iWg_bdiag, LamInvSigLam_bdiag), tfs.eye(nu*nf, dtype=dtype))   
-
-    LiUEta = tf_sparse_cholesky(iUEta)
-    mu1 = tf.numpy_function(scipy_sparse_solve_triangular, [LiUEta.values, LiUEta.indices, [ny*ns, ny*ns], tf.reshape(tf.transpose(mu0), [nf * nu, 1])], dtype)
-    Eta = tf.numpy_function(scipy_sparse_solve_triangular, [LiUEta.values, LiUEta.indices, [ny*ns, ny*ns], mu1 + tfr.normal([nf * nu, 1], dtype=dtype)], dtype)
-
-    return tf.transpose(tf.reshape(Eta, [nf, nu]))
