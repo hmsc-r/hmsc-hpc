@@ -4,7 +4,7 @@ import tensorflow as tf
 tfm, tfr = tf.math, tf.random
 
 
-def updateNf(params, rLHyperparams, iter, dtype=np.float64):
+def updateNf(params, rLHyperparams, it, dtype=np.float64):
 #def updateNf_ml(EtaList, LambdaList, PsiList, DeltaList, iter, rLPar, dtype=np.float64):
     """Update latent factors:
     Eta - site loadings,
@@ -38,7 +38,7 @@ def updateNf(params, rLHyperparams, iter, dtype=np.float64):
     c1 = 0.0005
     epsilon = 1e-3  # threshold limit
     prop = 1.00  # proportion of redundant elements within columns
-    prob = 1 / tf.exp(c0 + c1 * tf.cast(iter, dtype))  # probability of adapting
+    prob = 1 / tf.exp(c0 + c1 * tf.cast(it, dtype))  # probability of adapting
 
     nr = len(LambdaList)
     EtaNew, LambdaNew, PsiNew, DeltaNew, AlphaIndNew = [[None] * nr for i in range(5)]
@@ -56,9 +56,9 @@ def updateNf(params, rLHyperparams, iter, dtype=np.float64):
             np = tf.shape(Eta)[0]
             smallLoadingProp = tf.reduce_mean(tf.cast(tfm.abs(Lambda) < epsilon, dtype=dtype), 1)
             indRedundant = smallLoadingProp >= prop
-            numRedundant = tf.reduce_sum(tf.cast(indRedundant, dtype=dtype))
+            numRedundant = tf.reduce_sum(tf.cast(indRedundant, dtype=tf.int32))
 
-            if nf < nfMin or (nf < nfMax and iter > 20 and numRedundant == 0 and tf.reduce_all(smallLoadingProp < 0.995)):
+            if nf < nfMin or (nf < nfMax and it > 20 and numRedundant == 0 and tf.reduce_all(smallLoadingProp < 0.995)):
                 LambdaNew[r] = tf.concat([Lambda, tf.zeros([1,ns], dtype=dtype)], 0)
                 PsiNew[r] = tf.concat([Psi, tfr.gamma([1,ns], nu/2, nu/2, dtype=dtype)], 0)
                 DeltaNew[r] = tf.concat([Delta, tfr.gamma([1,1], a2, b2, dtype=dtype)], 0)

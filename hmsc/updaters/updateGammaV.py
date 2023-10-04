@@ -4,7 +4,7 @@ import tensorflow_probability as tfp
 
 tfd = tfp.distributions
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
-from hmsc.utils.tflautils import kron
+from hmsc.utils.tfla_utils import kron
 
 
 def updateGammaV(params, data, priorHyperparams, dtype=np.float64):

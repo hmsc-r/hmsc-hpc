@@ -11,24 +11,14 @@ import numpy as np
 from matplotlib import pyplot as plt
 import tensorflow as tf
 from hmsc.gibbs_sampler import GibbsSampler
-
 tfr = tf.random
 
 
-# from hmsc.updaters.updateEta import updateEta
-# from hmsc.updaters.updateAlpha import updateAlpha
-# from hmsc.updaters.updateBetaLambda import updateBetaLambda
-# from hmsc.updaters.updateLambdaPriors import updateLambdaPriors
-# from hmsc.updaters.updateNf import updateNf
-# from hmsc.updaters.updateGammaV import updateGammaV
-# from hmsc.updaters.updateSigma import updateSigma
-# from hmsc.updaters.updateZ import updateZ
-
-from hmsc.utils.jsonutils import (
-    load_model_from_json,
-    save_chains_postList_to_json,
+from hmsc.utils.export_rds_utils import (
+    load_model_from_rds,
+    save_chains_postList_to_rds,
 )
-from hmsc.utils.hmscutils import (
+from hmsc.utils.import_utils import (
     load_model_dims,
     load_model_data,
     load_prior_hyperparams,
@@ -38,19 +28,17 @@ from hmsc.utils.hmscutils import (
 )
 
 def load_params(file_path, dtype=np.float64):
-
-    hmscImport, hmscModel = load_model_from_json(file_path)
+    hmscImport, hmscModel = load_model_from_rds(file_path)
     modelDims = load_model_dims(hmscModel)
     modelData = load_model_data(hmscModel, hmscImport.get("initParList"))
     priorHyperparams = load_prior_hyperparams(hmscModel)
-    modelHyperparams = load_model_hyperparams(hmscModel, hmscImport.get("dataParList"))
-    rLHyperparams = load_random_level_hyperparams(
-        hmscModel, hmscImport.get("dataParList")
-    )
-    initParList = init_params(hmscImport.get("initParList"), modelData, modelDims)
-
+    # currently not used at all
+    # modelHyperparams = load_model_hyperparams(hmscModel, hmscImport.get("dataParList"))
+    modelHyperparams = None
+    rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"))
+    initParList = init_params(hmscImport.get("initParList"), modelData, modelDims, rLHyperparams)
     nChains = int(hmscImport.get("nChains")[0])
-    
+  
     return modelDims, modelData, priorHyperparams, modelHyperparams, rLHyperparams, initParList, nChains
 
 
@@ -61,21 +49,23 @@ def run_gibbs_sampler(
     verbose,
     init_obj_file_path,
     postList_file_path,
-    truncated_normal_library,
-    flag_save_postList_to_json=True,
+    truncated_normal_library=tf,
+    flag_save_eta=True,
+    flag_save_postList_to_rds=True,
 ):
-
     (
         modelDims,
         modelData,
         priorHyperparams,
-        modelHyperparams,
+        modelHyperparams, #this precomputed one (e.g. Qg) is currently not used and is computed at runtime
         rLHyperparams,
         initParList,
         nChains,
     ) = load_params(init_obj_file_path)
     gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
 
+    print("Running TF Gibbs sampler:")
+    startTime = time.time()
     postList = [None] * nChains
     for chain in range(nChains):
         print("\nComputing chain %d" % chain)
@@ -107,9 +97,14 @@ def run_gibbs_sampler(
                 "DeltaRRR": parSamples["DeltaRRR"][n] if "DeltaRRR" in parSamples else None,
             }
             postList[chain][n] = parSnapshot
+        
+        elapsedTime = time.time() - startTime
+        print("\n%d chains completed in %.1f sec" % (chain+1, elapsedTime))
 
-    if flag_save_postList_to_json:
-        save_chains_postList_to_json(postList, postList_file_path, nChains)
+    elapsedTime = time.time() - startTime
+    print("Whole fitting elapsed %.1f" % elapsedTime)
+    if flag_save_postList_to_rds:
+        save_chains_postList_to_rds(postList, postList_file_path, nChains, elapsedTime, flag_save_eta)
 
 
 if __name__ == "__main__":
@@ -140,23 +135,24 @@ if __name__ == "__main__":
         "-i",
         "--input",
         type=str,
-        default="TF-init-obj.json",
-        help="input JSON file with parameters for model initialization",
+        default="TF-init-obj.rds",
+        help="input RDS file with parameters for model initialization",
     )
     argParser.add_argument(
         "-o",
         "--output",
         type=str,
-        default="TF-postList-obj.json",
-        help="output JSON file with recorded posterier samples",
+        default="TF-postList-obj.rds",
+        help="output RDS file with recorded posterier samples",
     )
-    argParser.add_argument(
-        "-p",
-        "--path",
-        type=str,
-        default="..",
-        help="path to hmsc-hpc source code",
-    )
+    #TODO how an arbitrary path can be used for import?
+    # argParser.add_argument(
+    #     "-p",
+    #     "--path",
+    #     type=str,
+    #     default="..",
+    #     help="path to hmsc-hpc source code",
+    # )
     argParser.add_argument(
         "-v",
         "--verbose",
@@ -167,8 +163,14 @@ if __name__ == "__main__":
     argParser.add_argument(
         "--tnlib",
         type=str,
-        default="scipy",
+        default="tf",
         help="which library is used for sampling trunacted normal: scipy, tf or tfd",
+    )
+    argParser.add_argument(
+        "--fse",
+        type=int,
+        default=1,
+        help="whether to save Eta posterior",
     )
 
     args = argParser.parse_args()
@@ -177,16 +179,9 @@ if __name__ == "__main__":
     # print("args.samples=%s" % args.samples)
 
     # path = args.path
-
-    init_obj_file_name = args.input
-    postList_file_name = args.output
-
-    postList_file_path = os.path.join(path, "examples/data/", postList_file_name)
-    init_obj_file_path = os.path.join(path, "examples/data/", init_obj_file_name)
-
-    print("Running TF Gibbs sampler:")
-
-    startTime = time.time()
+    print(os.getcwd())
+    init_obj_file_path = args.input
+    postList_file_path = args.output
 
     run_gibbs_sampler(
         num_samples=args.samples,
@@ -196,16 +191,6 @@ if __name__ == "__main__":
         init_obj_file_path=init_obj_file_path,
         postList_file_path=postList_file_path,
         truncated_normal_library=args.tnlib,
-        flag_save_postList_to_json=True,
+        flag_save_eta = bool(args.fse),
+        flag_save_postList_to_rds=True,
     )
-
-    elapsedTime = time.time() - startTime
-
-    print("\nWhole cycle elapsed %.1f" % elapsedTime)
-
-
-# runfile('/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples/run_gibbs_sampler.py',
-#   args="--samples 250 --transient 25 --thin 1 --verbose 100 " + 
-#     "--input TF-init-obj-model5.json --output TF-postList-obj-model5.json " + 
-#     "--path '/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples/..'",
-#   wdir='/Users/gtikhono/My Drive/HMSC/2022.06.03 HPC development/hmsc-hpc/hmsc/examples')

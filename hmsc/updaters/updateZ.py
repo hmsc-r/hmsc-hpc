@@ -7,8 +7,8 @@ from scipy.stats import truncnorm
 tfd = tfp.distributions
 tfm, tfr = tf.math, tf.random
 
-def updateZ(params, data, poisson_preupdate_z=True, poisson_update_omega=True, poisson_marginalize_z=False,
-            truncated_normal_library="scipy", dtype=np.float64):
+def updateZ(params, data, rLHyperparams, poisson_preupdate_z=True, poisson_update_omega=True, poisson_marginalize_z=False,
+            truncated_normal_library="tf", dtype=np.float64):
     """Update conditional updater(s)
     Z - latent variable.
         
@@ -25,7 +25,7 @@ def updateZ(params, data, poisson_preupdate_z=True, poisson_update_omega=True, p
         Pi - study design
         distr - matrix regulating observation models per outcome
     """
-    INFTY = 1e+12
+    INFTY = 1e+3
 
     ZPrev = params["Z"]
     Beta = params["Beta"]
@@ -45,8 +45,11 @@ def updateZ(params, data, poisson_preupdate_z=True, poisson_update_omega=True, p
     else:
       LFix = tf.einsum("jik,kj->ij", X, Beta)
     LRanLevelList = [None] * nr
-    for r, (Eta, Lambda) in enumerate(zip(EtaList, LambdaList)):
-      LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
+    for r, (Eta, Lambda, rLPar) in enumerate(zip(EtaList, LambdaList, rLHyperparams)):
+      if rLPar["xDim"] == 0:
+        LRanLevelList[r] = tf.gather(tf.matmul(Eta, Lambda), Pi[:,r])
+      else:
+        LRanLevelList[r] = tf.gather(tf.einsum("ih,ik,hjk->ij", Eta, rLPar["xMat"], Lambda), Pi[:,r])
     L = LFix + sum(LRanLevelList)
     Yo = tfm.logical_not(tfm.is_nan(Y))
 

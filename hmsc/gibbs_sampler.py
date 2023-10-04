@@ -112,8 +112,9 @@ class GibbsSampler(tf.Module):
         npVec = self.modelDims["np"]
         params = paramsInput.copy() #TODO due to tf.function requiring not to change its Tensor input
         #TODO potentially move next two lines to somewhere more approriate
-        params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * tf.ones_like(params["Z"]) * params["sigma"]**-2
-        _, _, params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False, poisson_update_omega=True, 
+        params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * params["sigma"]**-2
+        _, _, params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams,
+                                                poisson_preupdate_z=False, poisson_update_omega=True, 
                                                 poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
 
         mcmcSamplesBeta = tf.TensorArray(params["Beta"].dtype, size=num_samples)
@@ -144,24 +145,26 @@ class GibbsSampler(tf.Module):
                 ]
             )
             
-            z_marginalize_iter_cond = lambda it: ((it % 2) == 1) & (it >= 0)
-            z_marginalize_iter_flag = z_marginalize_iter_cond(n)
-            z_marginalize_prev_flag = z_marginalize_iter_cond(n-1)
+            # z_marginalize_iter_cond = lambda it: ((it % 2) == 1) & (it >= 0)
+            # z_marginalize_iter_flag = z_marginalize_iter_cond(n)
+            # z_marginalize_prev_flag = z_marginalize_iter_cond(n-1)
             
-            if z_marginalize_iter_flag == False:
-              if z_marginalize_prev_flag == False:
-                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False,
-                                                                             poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
-              else:
-                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
-                                                                             poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
-            else:
-              if z_marginalize_prev_flag == False:
-                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False,
-                                                                             poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
-              else:
-                params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
-                                                                             poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
+            # if z_marginalize_iter_flag == False:
+            #   if z_marginalize_prev_flag == False:
+            #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False,
+            #                                                                  poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
+            #   else:
+            #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
+            #                                                                  poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
+            # else:
+            #   if z_marginalize_prev_flag == False:
+            #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False,
+            #                                                                  poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
+            #   else:
+            #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
+            #                                                                  poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
+            
+            params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams)
             if print_debug_flag:
               tf.print("Z", tf.reduce_sum(tf.cast(tfm.is_nan(params["Z"]), tf.int32)))
               tf.print("iD", tf.reduce_sum(tf.cast(tfm.is_nan(params["iD"]), tf.int32)))
@@ -199,10 +202,10 @@ class GibbsSampler(tf.Module):
             
             params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
             
-            if z_marginalize_iter_flag == False:
-              params["sigma"] = updateSigma(params, self.modelDims, self.modelData, self.priorHyperparams)
-              if print_debug_flag:
-                tf.print("sigma", tf.reduce_sum(tf.cast(tfm.is_nan(params["sigma"]), tf.int32)))
+            # if z_marginalize_iter_flag == False:
+            params["sigma"] = updateSigma(params, self.modelDims, self.modelData, self.priorHyperparams)
+            if print_debug_flag:
+              tf.print("sigma", tf.reduce_sum(tf.cast(tfm.is_nan(params["sigma"]), tf.int32)))
 
             if n < sample_burnin:
                 params["Lambda"], params["Psi"], params["Delta"], params["Eta"], params["AlphaInd"] = updateNf(params, self.rLHyperparams, n)

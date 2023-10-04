@@ -1,3 +1,4 @@
+'''
 import numpy as np
 import time
 import sys
@@ -213,3 +214,5 @@ if __name__ == "__main__":
 
     elapsedTime = time.time() - startTime
     print("\nTF decorated whole cycle elapsed %.1f" % elapsedTime)
+
+'''

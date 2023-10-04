@@ -7,8 +7,12 @@ library(abind)
 RS = 1
 set.seed(RS)
 nParallel = 8
+flagFitR = 1
 
 path = dirname(dirname(rstudioapi::getSourceEditorContext()$path))
+
+#### Step 1. Load model ####
+
 load(file = file.path(path, "examples/data", "unfitted_models_2.RData"))
 models
 experiments = list(
@@ -24,7 +28,7 @@ experiments = list(
   M10=list(name="model10",id=10),
   M11=list(name="model11",id=NA)
 )
-aaa
+
 selected_experiment = experiments$M4
 if(!is.na(selected_experiment$id)){
   m = models[[selected_experiment$id]]
@@ -58,16 +62,15 @@ if (selected_experiment$name == experiments$M1$name) {
 } else if (selected_experiment$name == experiments$M4$name) { ################################
   nChains =  8
   nSamples = 250
-  thin = 10
-  # mNew = Hmsc(Y=m$Y, XFormula=m$XFormula, XData=m$XData, distr=m$distr,
-  #             studyDesign=m$studyDesign, ranLevels=list(unit=m$ranLevels$unit))
-  # m = mNew
+  thin = 128
   
-  ny = min(Inf, m$ny)
-  nc = min(1, m$nc)
+  ny = min(500, m$ny)
+  nc = min(10, m$nc)
+  nt = min(1, m$nt)
   nf = 5
   
   X = m$X[1:ny,1:nc,drop=FALSE]
+  Tr = m$Tr[1:ns,1:nt,drop=FALSE]
   studyDesign = m$studyDesign[1:ny,]
   for(h in 1:ncol(studyDesign)) studyDesign[,h] = factor(studyDesign[,h], levels=unique(studyDesign[,h]))
   
@@ -78,8 +81,9 @@ if (selected_experiment$name == experiments$M1$name) {
   # sigma = rep(1, m$ns)
   # Y = (X %*% Beta + Eta %*% Lambda + matrix(sigma,ny,m$ns,byrow=TRUE)*matrix(rnorm(ny*m$ns),ny,m$ns) > 0) + 0 #
   Y = m$Y[1:ny,]
-  
-  m = Hmsc(Y=Y, X=X, XScale=FALSE, distr="probit", studyDesign=studyDesign, ranLevels=list(unit=m$ranLevels$unit))
+  rlUnit = m$ranLevels$unit
+  rlUnit = setPriors(rlUnit, nfMin=1, nfMax=ns)
+  m = Hmsc(Y=Y, X=X, XScale=TRUE, Tr=Tr, TrScale=FALSE, distr="probit", studyDesign=studyDesign, ranLevels=list(unit=rlUnit)) #unit=m$ranLevels$unit
 } else if (selected_experiment$name == experiments$M5$name) {
   nChains = 8
   nSamples = 250
@@ -164,32 +168,30 @@ if (selected_experiment$name == experiments$M1$name) {
 transient = nSamples*thin
 verbose = thin*1
 
-#
-# Generate sampled posteriors for TF initialization
-#
+#### Step 2. Export initial model ####
 
 set.seed(RS+42)
 init_obj = sampleMcmc(m, samples=nSamples, thin=thin,
                       transient=transient,
                       nChains=nChains, verbose=verbose, engine="pass")
 
-init_file_name = paste("TF-init-obj-", selected_experiment$name, ".json", sep="")
+init_file_name = sprintf("TF-init-obj-%s.rds", selected_experiment$name)
 init_file_path = file.path(path, "examples/data", init_file_name)
+fitR_file_name = sprintf("R-fit-%s_thin%.4d.RData", selected_experiment$name, thin)
+fitR_file_path = file.path(path, "examples/data", fitR_file_name)
 python_file_name = "run_gibbs_sampler.py"
 python_file_path = file.path(path, "examples", python_file_name)
-postList_file_name = paste("TF-postList-obj-", selected_experiment$name, ".json", sep="")
+postList_file_name = sprintf("TF-postList-obj-%s.rds", selected_experiment$name)
+# postList_file_name = sprintf("TF-postList-obj-%s_tf_thin%.4d.rds", selected_experiment$name, thin)
 postList_file_path = file.path(path, "examples/data", postList_file_name)
 
 nr = init_obj[["hM"]][["nr"]]
 rLNames = init_obj[["hM"]][["ranLevelsUsed"]]
-
 for (r in seq_len(nr)) {
   rLName = rLNames[[r]]
   init_obj[["hM"]][["rL"]][[rLName]][["s"]] = NULL
   init_obj[["hM"]][["ranLevels"]][[rLName]][["s"]] = NULL
-  
   spatialMethod = init_obj[["hM"]][["rL"]][[r]][["spatialMethod"]]
-  
   if (!is.null(spatialMethod)) {
     if (spatialMethod == "NNGP") {
       gN = length(init_obj[["dataParList"]][["rLPar"]][[r]][["iWg"]])
@@ -197,11 +199,9 @@ for (r in seq_len(nr)) {
       for (i in seq_len(gN)) {
         iWg = as(init_obj[["dataParList"]][["rLPar"]][[r]][["iWg"]][[i]], "dgTMatrix")
         RiWg = as(init_obj[["dataParList"]][["rLPar"]][[r]][["RiWg"]][[i]], "dgTMatrix")
-
         init_obj[["dataParList"]][["rLPar"]][[r]][["iWgi"]][[i]] = iWg@i
         init_obj[["dataParList"]][["rLPar"]][[r]][["iWgj"]][[i]] = iWg@j
         init_obj[["dataParList"]][["rLPar"]][[r]][["iWgx"]][[i]] = iWg@x
-    
         init_obj[["dataParList"]][["rLPar"]][[r]][["RiWgi"]][[i]] = RiWg@i
         init_obj[["dataParList"]][["rLPar"]][[r]][["RiWgj"]][[i]] = RiWg@j
         init_obj[["dataParList"]][["rLPar"]][[r]][["RiWgx"]][[i]] = RiWg@x
@@ -213,10 +213,32 @@ for (r in seq_len(nr)) {
       init_obj[["dataParList"]][["rLPar"]][[r]][["nK"]] = nrow(init_obj[["dataParList"]][["rLPar"]][[1]][["Fg"]])
     }
   }
-  else {}
 }
 
-write(to_json(init_obj), file = init_file_path)
+saveRDS(to_json(init_obj), file = init_file_path, compress=TRUE)
+
+#### Step 3. Run R code ####
+
+#
+# Generate sampled posteriors in R
+#
+
+if(flagFitR){
+  set.seed(RS+42)
+  startTime = proc.time()
+  obj.R = sampleMcmc(m, samples = nSamples, thin = thin,
+                     transient = transient, 
+                     nChains = nChains, nParallel=min(nChains,nParallel),
+                     verbose = verbose, updater=list(Gamma2=FALSE, GammaEta=FALSE)) #fitted by R
+  elapsedTime = proc.time() - startTime
+  print(elapsedTime)
+  save(obj.R, elapsedTime, file=fitR_file_path)
+} else{
+  load(file=fitR_file_path)
+}
+
+#### Step 4. Run TF code ####
+
 python_cmd = paste("python", sprintf("'%s'",python_file_path), 
                    "--samples", nSamples,
                    "--transient", transient,
@@ -226,25 +248,11 @@ python_cmd = paste("python", sprintf("'%s'",python_file_path),
                    "--output", postList_file_name,
                    "--path", sprintf("'%s'",path))
 print(python_cmd)
-
-#
-# Generate sampled posteriors in R
-#
-set.seed(RS+42)
-startTime = proc.time()
-obj.R = sampleMcmc(m, samples = nSamples, thin = thin,
-                   transient = transient, 
-                   nChains = nChains, nParallel=min(nChains,nParallel),
-                   verbose = verbose, updater=list(Gamma2=FALSE, GammaEta=FALSE)) #fitted by R
-elapsedTime = proc.time() - startTime
-print(elapsedTime)
 aaa
-
 #
 # Set RStudio to TF env
 #
 # my_conda_env_name = "tensorflow" # name of my conda TF env
-# my_conda_env_name = "tf_241" # name of my conda TF env
 
 # Start one-time python setup
 # INFO. one-time steps to set python for RStudio/reticulate
@@ -273,12 +281,10 @@ system(python_cmd, wait=TRUE) # run TF gibbs sampler
 
 
 
+#### Step 5. Import TF posteriors ####################################################################################
 
+postList.TF <- from_json(readRDS(file = postList_file_path)[[1]])
 
-#
-# Import TF-generated sampled posteriors as JSON in R
-#
-postList.TF <- from_json(postList_file_path)
 # postList_file_str <- paste(readLines(postList_file_path), collapse="\n")
 # s = '{"0":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"1":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"2":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"3":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"4":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"5":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"6":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}},"7":{"0":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null},"1":{"wRRR":null,"rho":null,"PsiRRR":null,"DeltaRRR":null}}}'
 # from_json(s)
@@ -290,6 +296,11 @@ for (chain in seq_len(nChains)) {
 
 obj.TF = init_obj$hM
 obj.TF[["postList"]] = postList.TF
+
+# tmp = obj.R$postList[[1]]
+# obj.R$postList[[1]] = obj.R$postList[[2]]
+# tmp = obj.TF$postList[[1]]
+# obj.TF$postList[[1]] = obj.TF$postList[[2]]
 
 obj.TF$samples = nSamples
 obj.TF$thin = thin
@@ -319,7 +330,7 @@ for (chain in seq_len(nChains)) {
     iV = obj.TF[["postList"]][[chain]][[sample]][["iV"]]
     rho = obj.TF$rhopw[obj.TF[["postList"]][[chain]][[sample]][["rhoInd"]], 1]
     sigma = obj.TF[["postList"]][[chain]][[sample]][["sigma"]]
-    
+
     for(p in 1:nt){
       me = TrScalePar[1,p]
       sc = TrScalePar[2,p]
@@ -330,7 +341,7 @@ for (chain in seq_len(nChains)) {
         }
       }
     }
-    
+
     for(k in 1:ncNRRR){
       me = XScalePar[1,k]
       sc = XScalePar[2,k]
@@ -345,7 +356,7 @@ for (chain in seq_len(nChains)) {
         iV[,k] = iV[,k]*sc
       }
     }
-    
+
     for(k in seq_len(ncRRR)){
       me = XRRRScalePar[1,k]
       sc = XRRRScalePar[2,k]
@@ -360,7 +371,7 @@ for (chain in seq_len(nChains)) {
         iV[,ncNRRR+k] = iV[,ncNRRR+k]*sc
       }
     }
-    
+
     for (i in seq_len(ncsel)){
       XSel = obj.TF$XSelect[[i]]
       for (spg in 1:length(XSel$q)){
@@ -370,7 +381,7 @@ for (chain in seq_len(nChains)) {
         }
       }
     }
-    
+
     obj.TF[["postList"]][[chain]][[sample]][["Beta"]] = Beta
     obj.TF[["postList"]][[chain]][[sample]][["Gamma"]] = Gamma
     obj.TF[["postList"]][[chain]][[sample]][["V"]] = chol2inv(chol(iV))
@@ -381,6 +392,8 @@ for (chain in seq_len(nChains)) {
 }
 obj.TF = alignPosterior(obj.TF)
 
+#### Step 6. Visualize ####
+
 #
 # Plot sampled posteriors summaries from R only and TF
 #
@@ -388,32 +401,34 @@ obj.TF = alignPosterior(obj.TF)
 
 b.R = getPostEstimate(obj.R, "Beta")
 b.TF = getPostEstimate(obj.TF, "Beta")
+par(mfrow=c(ceiling(nc/2),min(2,nc-1)))
 for(k in 1:obj.R$nc){
   plot(b.R$mean[k,], b.TF$mean[k,], main=paste(k, obj.R$covNames[k]))
   abline(0,1)
   # text(b.R$mean[k,], b.TF$mean[k,])
 }
+par(mfrow=c(1,1))
 if(any(obj.R$distr[,2] != 0)){
   s.R = getPostEstimate(obj.R, "sigma")
   s.TF = getPostEstimate(obj.TF, "sigma")
   plot(s.R$mean, s.TF$mean, main="sigma")
   abline(0,1)
 }
-omega.R = getPostEstimate(obj.R, "Omega")$mean
-omega.TF = getPostEstimate(obj.TF, "Omega")$mean
-# plot(crossprod(Lambda), omega.R, ylim=range(c(omega.R,omega.TF)), main="Omega")
-# points(crossprod(Lambda), omega.TF, col="blue")
-# plot(crossprod(Lambda)[-19,-19], omega.R[-19,-19], ylim=range(c(omega.R[-19,-19],omega.TF[-19,-19])), main="Omega")
-# points(crossprod(Lambda)[-19,-19], omega.TF[-19,-19], col="blue")
-plot(omega.R, omega.TF, main="Omega")
-abline(0,1)
-
-
-lambda.R = getPostEstimate(obj.R, "Lambda")$mean[1:2,]
-lambda.TF = getPostEstimate(obj.TF, "Lambda")$mean[1:2,]
-# plot(lambda.R[1,], lambda.TF[2,])
-# plot(lambda.R[2,], lambda.TF[1,])
-
+if(obj.R$nr > 0){
+  omega.R = getPostEstimate(obj.R, "Omega")$mean
+  omega.TF = getPostEstimate(obj.TF, "Omega")$mean
+  # plot(crossprod(Lambda), omega.R, ylim=range(c(omega.R,omega.TF)), main="Omega")
+  # points(crossprod(Lambda), omega.TF, col="blue")
+  # plot(crossprod(Lambda)[-19,-19], omega.R[-19,-19], ylim=range(c(omega.R[-19,-19],omega.TF[-19,-19])), main="Omega")
+  # points(crossprod(Lambda)[-19,-19], omega.TF[-19,-19], col="blue")
+  plot(omega.R, omega.TF, main="Omega")
+  abline(0,1)
+  
+  lambda.R = getPostEstimate(obj.R, "Lambda")$mean[1:2,]
+  lambda.TF = getPostEstimate(obj.TF, "Lambda")$mean[1:2,]
+  # plot(lambda.R[1,], lambda.TF[2,])
+  # plot(lambda.R[2,], lambda.TF[1,])
+}
 
 
 obj.R.TF = obj.R
@@ -425,7 +440,7 @@ varVec = c("Beta","Gamma")
 if(any(obj.R$distr[,2] != 0)) varVec = c(varVec, "Sigma")
 for(variable in 1:length(varVec)){
   for(i in 1:3){
-    mpost = convertToCodaObject(obj.list[[i]], Lambda=FALSE, Omega=FALSE, Psi=FALSE, Delta=FALSE)
+    mpost = convertToCodaObject(obj.list[[i]], Lambda=FALSE, Omega=FALSE, Psi=FALSE, Delta=FALSE, Eta=FALSE)
     mpost.var = mpost[[varVec[variable]]]
     psrf = gelman.diag(mpost.var, multivariate=FALSE)$psrf
     if(i == 1) {ma = psrf[,1]} else {ma = cbind(ma,psrf[,1])}
@@ -451,7 +466,7 @@ maxOmega = 1000 #number of species pairs to be subsampled
 nr = obj.list[[1]]$nr
 for(k in seq_len(nr)){
   for(i in 1:3){
-    mpost = convertToCodaObject(obj.list[[i]])
+    mpost = convertToCodaObject(obj.list[[i]], Beta=FALSE, Lambda=FALSE, Psi=FALSE, Delta=FALSE, Eta=FALSE)
     tmp = mpost$Omega[[k]]
     z = dim(tmp[[1]])[2]
     if(z > maxOmega){
@@ -471,13 +486,6 @@ for(k in seq_len(nr)){
   vioplot(ma,names=names(obj.list),ylim=c(0.9,1.1),main=paste("omega",names(obj.list[[1]]$ranLevels)[k]))
   par(mfrow=c(1,1))
 }
-
-
-
-
-
-
-
 
 #reduced rank regression - effective beta
 if(obj.R$ncRRR > 0){
@@ -504,17 +512,16 @@ if(obj.R$ncRRR > 0){
   par(mfrow=c(1,1))
 }
 
-mpost_R = convertToCodaObject(obj.R)$Sigma
+mpost_R = convertToCodaObject(obj.R, Lambda=FALSE, Omega=FALSE, Psi=FALSE, Delta=FALSE, Eta=FALSE)$V
 plot(mpost_R)
-
-mpost_TF = convertToCodaObject(obj.TF)$Sigma
+mpost_TF = convertToCodaObject(obj.TF, Lambda=FALSE, Omega=FALSE, Psi=FALSE, Delta=FALSE, Eta=FALSE)$V
 plot(mpost_TF)
-
 par(mfrow=c(1,1))
-psrf_R = gelman.diag(mpost_R, multivariate=FALSE)$psrf
-psrf_TF = gelman.diag(mpost_TF, multivariate=FALSE)$psrf
-plot(psrf_R[,1], psrf_TF[,1], type="n")
-text(psrf_R[,1], psrf_TF[,1], 1:nrow(psrf_R))
+
+# psrf_R = gelman.diag(mpost_R, multivariate=FALSE)$psrf
+# psrf_TF = gelman.diag(mpost_TF, multivariate=FALSE)$psrf
+# plot(psrf_R[,1], psrf_TF[,1], type="n")
+# text(psrf_R[,1], psrf_TF[,1], 1:nrow(psrf_R))
 
 
 
