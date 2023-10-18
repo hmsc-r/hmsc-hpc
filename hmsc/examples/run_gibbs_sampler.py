@@ -65,8 +65,6 @@ def run_gibbs_sampler(
     gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
 
     print("Running TF Gibbs sampler:")
-    startTime = time.time()
-    postList = [None] * nChains
     
     print("\nInitializing TF graph")
     parSamples = gibbs.sampling_routine(
@@ -78,6 +76,9 @@ def run_gibbs_sampler(
         truncated_normal_library=truncated_normal_library,
     )
     print("")
+
+    startTime = time.time()
+    postList = [None] * nChains
     
     for chain in range(nChains):
         print("\nComputing chain %d" % chain)
