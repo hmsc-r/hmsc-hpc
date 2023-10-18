@@ -133,7 +133,7 @@ class GibbsSampler(tf.Module):
         mcmcSamplesDeltaRRR = tf.TensorArray(params["DeltaRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         
         step_num = sample_burnin + num_samples * sample_thining
-        print("Iterations %d" % step_num)
+        tf.print("Iterations", step_num)
         for n in tf.range(step_num):
             tf.autograph.experimental.set_loop_options(
                 shape_invariants=[
@@ -232,7 +232,7 @@ class GibbsSampler(tf.Module):
                     mcmcSamplesPsiRRR = mcmcSamplesPsiRRR.write(samInd, params["PsiRRR"])
                     mcmcSamplesDeltaRRR = mcmcSamplesDeltaRRR.write(samInd, params["DeltaRRR"])
 
-        print("\nCompleted iterations %d" % step_num)
+        tf.print("\nCompleted iterations", step_num)
         samples = {}
         samples["Beta"] = mcmcSamplesBeta.stack()
         samples["BetaSel"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesBetaSel]

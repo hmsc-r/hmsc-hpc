@@ -67,14 +67,26 @@ def run_gibbs_sampler(
     print("Running TF Gibbs sampler:")
     startTime = time.time()
     postList = [None] * nChains
+    
+    print("\nInitializing TF graph")
+    parSamples = gibbs.sampling_routine(
+        initParList[0],
+        num_samples=tf.constant(1),
+        sample_burnin=tf.constant(1),
+        sample_thining=tf.constant(1),
+        verbose=verbose,
+        truncated_normal_library=truncated_normal_library,
+    )
+    print("")
+    
     for chain in range(nChains):
         print("\nComputing chain %d" % chain)
 
         parSamples = gibbs.sampling_routine(
             initParList[chain],
-            num_samples=num_samples,
-            sample_burnin=sample_burnin,
-            sample_thining=sample_thining,
+            num_samples=tf.constant(num_samples),
+            sample_burnin=tf.constant(sample_burnin),
+            sample_thining=tf.constant(sample_thining),
             verbose=verbose,
             truncated_normal_library=truncated_normal_library,
         )
@@ -99,7 +111,7 @@ def run_gibbs_sampler(
             postList[chain][n] = parSnapshot
         
         elapsedTime = time.time() - startTime
-        print("\n%d chains completed in %.1f sec" % (chain+1, elapsedTime))
+        print("\n%d chains completed in %.1f sec\n" % (chain+1, elapsedTime))
 
     elapsedTime = time.time() - startTime
     print("Whole fitting elapsed %.1f" % elapsedTime)
