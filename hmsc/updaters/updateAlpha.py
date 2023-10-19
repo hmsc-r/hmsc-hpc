@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
-
 tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
+from hmsc.utils.tf_named_func import tf_named_func
 
-
+@tf_named_func("alpha")
 def updateAlpha(params, rLHyperparams, dtype=np.float64):
     """Update prior(s) for each random level:
     Alpha - scale of site loadings (eta's prior).
@@ -44,9 +44,9 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
                 iFg = rLPar["iFg"]
                 idDg = rLPar["idDg"]
                 idDW12g = rLPar["idDW12g"]
-                EtaT_idD_Eta = tf.einsum("ih,gi,ih->hg", Eta, idDg, Eta)
-                W21idD_Eta = tf.einsum("gia,ih->gah", idDW12g, Eta)
-                EtaT_idDW21_iF_W21idD_Eta  = tf.einsum("gah,gab,gbh->hg", W21idD_Eta, iFg, W21idD_Eta)
+                EtaT_idD_Eta = tf.einsum("ih,gi,ih->hg", Eta, idDg, Eta, name="EtaT_idD_Eta")
+                W21idD_Eta = tf.einsum("gia,ih->gah", idDW12g, Eta, name="W21idD_Eta")
+                EtaT_idDW21_iF_W21idD_Eta  = tf.einsum("gah,gab,gbh->hg", W21idD_Eta, iFg, W21idD_Eta, name="EtaT_idDW21_iF_W21idD_Eta")
                 logLike = tfm.log(alphapw[:,1]) - 0.5 * detDg - 0.5 * (EtaT_idD_Eta - EtaT_idDW21_iF_W21idD_Eta)
 
             elif spatialMethod == "NNGP":
