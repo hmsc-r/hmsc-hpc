@@ -1,8 +1,10 @@
 import numpy as np
 import tensorflow as tf
 tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
+from hmsc.utils.tf_named_func import tf_named_func
 
 
+@tf_named_func("betaLambda")
 def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     """Update conditional updater(s):
     Beta - species niches, and
@@ -78,11 +80,11 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         
       # for computing A only iK11 part is required
       if len(XE.shape.as_list()) == 2:
-        iU = iK + tf.einsum("ic,ij,ik->jck", XE, iD, XE, name="betaLambda-iU")
-        A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None]) + tf.einsum("ik,ij->jk", XE, iD*Z)[:,:,None]
+        iU = iK + tf.einsum("ic,ij,ik->jck", XE, iD, XE, name="iU")
+        A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("ik,ij->jk", XE, iD*Z, name="betaLambda-A.2")[:,:,None]
       else:
-        iU = iK + tf.einsum("jic,ij,jik->jck", XE, iD, XE, name="betaLambda-iU")
-        A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None]) + tf.einsum("jik,ij->jk", XE, iD*Z)[:,:,None]
+        iU = iK + tf.einsum("jic,ij,jik->jck", XE, iD, XE, name="iU")
+        A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("jik,ij->jk", XE, iD*Z, name="betaLambda-A.2")[:,:,None]
 
       LiU = tfla.cholesky(iU)
       M = tfla.cholesky_solve(LiU, A)
@@ -93,7 +95,7 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
       eQ = rhoVec[:,None]*eC + (1-rhoVec)[:,None]
       eiQ05 = tfm.rsqrt(eQ)
       eiQ_block = tf.expand_dims(eiQ05, 0) * tf.expand_dims(eiQ05, 1)
-      PB_stack = tf.einsum("ij,ckj,gj->cikg", VC, eiQ_block*iV[:,:,None], VC, name="betaLambda-PB_stack")
+      PB_stack = tf.einsum("ij,ckj,gj->cikg", VC, eiQ_block*iV[:,:,None], VC, name="PB_stack")
       PB = tf.reshape(PB_stack, [nc*ns,nc*ns])
       iK11_op = tfla.LinearOperatorFullMatrix(PB)
       if nr > 0:
@@ -103,11 +105,11 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         iK = iK11_op.to_dense()
               
       if len(XE.shape.as_list()) == 2:
-        XE_iD_XET = tf.einsum("ic,ij,ik->ckj", XE, iD, XE, name="betaLambda-XE_iD_XET")
-        m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.matmul(XE, iD * Z, transpose_a=True), [na*ns,1])
+        XE_iD_XET = tf.einsum("ic,ij,ik->ckj", XE, iD, XE, name="XE_iD_XET")
+        m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.matmul(XE, iD*Z, transpose_a=True), [na*ns,1])
       else:
-        XE_iD_XET = tf.einsum("jic,ij,jik->ckj", XE, iD, XE, name="betaLambda-XE_iD_XET")
-        m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.einsum("jik,ij->kj", XE, iD * Z), [na*ns,1])
+        XE_iD_XET = tf.einsum("jic,ij,jik->ckj", XE, iD, XE, name="XE_iD_XET")
+        m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.einsum("jik,ij->kj", XE, iD*Z, name="m0.2"), [na*ns,1])
       
       iU = iK + tf.reshape(tf.transpose(tfla.diag(XE_iD_XET), [0,2,1,3]), [na*ns]*2)
       LiU = tfla.cholesky(iU)        
