@@ -3,8 +3,8 @@ import sys
 from contextlib import nullcontext
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-path = os.path.dirname(os.path.dirname(__file__))
-sys.path.append("{}{}".format(path, '/../'))
+# path = os.path.dirname(os.path.dirname(__file__))
+# sys.path.append("{}{}".format(path, '/../'))
 
 import time
 import argparse
