@@ -45,7 +45,8 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
                 idDg = rLPar["idDg"]
                 idDW12g = rLPar["idDW12g"]
                 EtaT_idD_Eta = tf.einsum("ih,gi,ih->hg", Eta, idDg, Eta, name="EtaT_idD_Eta")
-                W21idD_Eta = tf.einsum("gia,ih->gah", idDW12g, Eta, name="W21idD_Eta")
+                # W21idD_Eta = tf.einsum("gia,ih->gah", idDW12g, Eta, name="W21idD_Eta")
+                W21idD_Eta = tf.matmul(idDW12g, Eta, transpose_a=True, name="W21idD_Eta")
                 EtaT_idDW21_iF_W21idD_Eta  = tf.einsum("gah,gab,gbh->hg", W21idD_Eta, iFg, W21idD_Eta, name="EtaT_idDW21_iF_W21idD_Eta")
                 logLike = tfm.log(alphapw[:,1]) - 0.5 * detDg - 0.5 * (EtaT_idD_Eta - EtaT_idDW21_iF_W21idD_Eta)
 
