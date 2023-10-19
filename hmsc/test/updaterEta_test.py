@@ -19,7 +19,7 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     Beta = tfr.normal([nc,ns], dtype=dtype)
     EtaList = [tfr.normal([npVec[r],nfVec[r]], dtype=dtype) for r in range(nr)]
     LambdaList = [tfr.normal([nfVec[r],ns], dtype=dtype) for r in range(nr)]
-    AlphaIndList = [tf.zeros([nfVec[r],1], dtype=tf.int64) for r in range(nr)]
+    AlphaIndList = [tf.zeros([nfVec[r]], dtype=tf.int64) for r in range(nr)]
     sigma = tfr.uniform([ns], dtype=dtype)
 
     X = np.random.normal(size=[ny,nc])
@@ -27,15 +27,15 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     Y = Z = tf.matmul(X,Beta) + sum([tf.matmul(tf.gather(EtaList[r], Pi[:,r]), LambdaList[r]) for r in range(nr)]) + tfr.normal([ny,ns], 0, sigma, dtype=dtype)
     iD = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype) * tf.ones_like(Z) * sigma**-2
  
-    match spatial_method:
-        case "Full":
-            pass
-        case "NNGP":
-            pass
-        case "GPP":
-            pass
-        case _:
-            pass
+    # match spatial_method:
+    #     case "Full":
+    #         pass
+    #     case "NNGP":
+    #         pass
+    #     case "GPP":
+    #         pass
+    #     case _:
+    #         pass
     
     params = {}
     modelData = {}
@@ -62,7 +62,16 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     rLHyperparams = [None] * nr
     for r in range(nr):
         rLPar = {}
-        rLPar["sDim"] = 0
+        rLPar["spatialMethod"] = spatial_method
+        if spatial_method == "None":
+          rLPar["sDim"] = 0
+        elif spatial_method == "Full":
+          rLPar["sDim"] = 1
+          rLPar["iWg"] = tf.eye(npVec[r], batch_shape=[101], dtype=dtype)
+        else:
+          rLPar["spatialMethod"] = "None"
+          rLPar["sDim"] = 0
+          
         rLHyperparams[r] = rLPar
 
     return params, modelDims, modelData, rLHyperparams
@@ -91,3 +100,5 @@ def test_updateEta_shape():
     for r in range(modelDims["nr"]):
         assert tf.shape(EtaList[r])[0] == modelDims["np"][r]
         assert tf.shape(EtaList[r])[1] == modelDims["nf"][r]
+        
+        

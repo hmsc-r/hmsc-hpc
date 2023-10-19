@@ -96,8 +96,9 @@ class GibbsSampler(tf.Module):
         sample_thining=1,
         verbose=1,
         truncated_normal_library="scipy",
+        flag_save_eta=True,
         print_retrace_flag=True,
-        print_debug_flag= False
+        print_debug_flag= False,
     ):
         if print_retrace_flag:
             print("retracing")
@@ -126,6 +127,7 @@ class GibbsSampler(tf.Module):
         mcmcSamplesLambda = [tf.TensorArray(params["Lambda"][r].dtype, size=num_samples) for r in range(nr)]
         mcmcSamplesPsi = [tf.TensorArray(params["Psi"][r].dtype, size=num_samples) for r in range(nr)]
         mcmcSamplesDelta = [tf.TensorArray(params["Delta"][r].dtype, size=num_samples) for r in range(nr)]
+        # if flag_save_eta:
         mcmcSamplesEta = [tf.TensorArray(params["Eta"][r].dtype, size=num_samples) for r in range(nr)]
         mcmcSamplesAlphaInd = [tf.TensorArray(params["AlphaInd"][r].dtype, size=num_samples) for r in range(nr)]
         mcmcSampleswRRR = tf.TensorArray(params["wRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
@@ -225,7 +227,8 @@ class GibbsSampler(tf.Module):
                 mcmcSamplesLambda = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesLambda, params["Lambda"])]
                 mcmcSamplesPsi = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesPsi, params["Psi"])]
                 mcmcSamplesDelta = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesDelta, params["Delta"])]
-                mcmcSamplesEta = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesEta, params["Eta"])]
+                if flag_save_eta:
+                  mcmcSamplesEta = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesEta, params["Eta"])]
                 mcmcSamplesAlphaInd = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesAlphaInd, params["AlphaInd"])]
                 if ncRRR > 0:
                     mcmcSampleswRRR = mcmcSampleswRRR.write(samInd, params["wRRR"])
@@ -243,7 +246,7 @@ class GibbsSampler(tf.Module):
         samples["Lambda"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesLambda]
         samples["Psi"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesPsi]
         samples["Delta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesDelta]
-        samples["Eta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesEta]
+        samples["Eta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesEta] if flag_save_eta else None
         samples["AlphaInd"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesAlphaInd]
         if ncRRR > 0:
           samples["wRRR"] = mcmcSampleswRRR.stack()

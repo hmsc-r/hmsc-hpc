@@ -1,5 +1,6 @@
 import os
 import sys
+from contextlib import nullcontext
 
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 path = os.path.dirname(os.path.dirname(__file__))
@@ -52,6 +53,7 @@ def run_gibbs_sampler(
     truncated_normal_library=tf,
     flag_save_eta=True,
     flag_save_postList_to_rds=True,
+    flag_profile=False,
 ):
     (
         modelDims,
@@ -74,48 +76,55 @@ def run_gibbs_sampler(
         sample_thining=tf.constant(1),
         verbose=verbose,
         truncated_normal_library=truncated_normal_library,
+        flag_save_eta=flag_save_eta,
     )
     print("")
-
-    startTime = time.time()
-    postList = [None] * nChains
     
-    for chain in range(nChains):
-        print("\nComputing chain %d" % chain)
-
-        parSamples = gibbs.sampling_routine(
-            initParList[chain],
-            num_samples=tf.constant(num_samples),
-            sample_burnin=tf.constant(sample_burnin),
-            sample_thining=tf.constant(sample_thining),
-            verbose=verbose,
-            truncated_normal_library=truncated_normal_library,
-        )
-        postList[chain] = [None] * num_samples
-        for n in range(num_samples):
-            parSnapshot = {
-                "Beta": parSamples["Beta"][n],
-                "BetaSel": [samples[n] for samples in parSamples["BetaSel"]],
-                "Gamma": parSamples["Gamma"][n],
-                "iV": parSamples["iV"][n],
-                "rhoInd": parSamples["rhoInd"][n],
-                "sigma": parSamples["sigma"][n],
-                "Lambda": [samples[n] for samples in parSamples["Lambda"]],
-                "Psi": [samples[n] for samples in parSamples["Psi"]],
-                "Delta": [samples[n] for samples in parSamples["Delta"]],
-                "Eta": [samples[n] for samples in parSamples["Eta"]],
-                "AlphaInd": [samples[n] for samples in parSamples["AlphaInd"]],
-                "wRRR": parSamples["wRRR"][n] if "wRRR" in parSamples else None,
-                "PsiRRR": parSamples["PsiRRR"][n] if "PsiRRR" in parSamples else None,
-                "DeltaRRR": parSamples["DeltaRRR"][n] if "DeltaRRR" in parSamples else None,
-            }
-            postList[chain][n] = parSnapshot
+    # if flag_profile:
+    #   tf.profiler.experimental.start('logdir')
+    with tf.profiler.experimental.Profile('logdir') if flag_profile else nullcontext():
+        startTime = time.time()
+        postList = [None] * nChains
         
+        for chain in range(nChains):
+            print("\nComputing chain %d" % chain)
+    
+            parSamples = gibbs.sampling_routine(
+                initParList[chain],
+                num_samples=tf.constant(num_samples),
+                sample_burnin=tf.constant(sample_burnin),
+                sample_thining=tf.constant(sample_thining),
+                verbose=verbose,
+                truncated_normal_library=truncated_normal_library,
+                flag_save_eta=flag_save_eta,
+            )
+            postList[chain] = [None] * num_samples
+            for n in range(num_samples):
+                parSnapshot = {
+                    "Beta": parSamples["Beta"][n],
+                    "BetaSel": [samples[n] for samples in parSamples["BetaSel"]],
+                    "Gamma": parSamples["Gamma"][n],
+                    "iV": parSamples["iV"][n],
+                    "rhoInd": parSamples["rhoInd"][n],
+                    "sigma": parSamples["sigma"][n],
+                    "Lambda": [samples[n] for samples in parSamples["Lambda"]],
+                    "Psi": [samples[n] for samples in parSamples["Psi"]],
+                    "Delta": [samples[n] for samples in parSamples["Delta"]],
+                    "Eta": [samples[n] for samples in parSamples["Eta"]] if flag_save_eta else None,
+                    "AlphaInd": [samples[n] for samples in parSamples["AlphaInd"]],
+                    "wRRR": parSamples["wRRR"][n] if "wRRR" in parSamples else None,
+                    "PsiRRR": parSamples["PsiRRR"][n] if "PsiRRR" in parSamples else None,
+                    "DeltaRRR": parSamples["DeltaRRR"][n] if "DeltaRRR" in parSamples else None,
+                }
+                postList[chain][n] = parSnapshot
+            
+            elapsedTime = time.time() - startTime
+            print("\n%d chains completed in %.1f sec\n" % (chain+1, elapsedTime))
+    
         elapsedTime = time.time() - startTime
-        print("\n%d chains completed in %.1f sec\n" % (chain+1, elapsedTime))
-
-    elapsedTime = time.time() - startTime
-    print("Whole fitting elapsed %.1f" % elapsedTime)
+        print("Whole fitting elapsed %.1f" % elapsedTime)
+    # if flag_profile:
+    #   tf.profiler.experimental.stop()
     if flag_save_postList_to_rds:
         save_chains_postList_to_rds(postList, postList_file_path, nChains, elapsedTime, flag_save_eta)
 
@@ -185,6 +194,12 @@ if __name__ == "__main__":
         default=1,
         help="whether to save Eta posterior",
     )
+    argParser.add_argument(
+        "--profile",
+        type=int,
+        default=0,
+        help="whether to run profiler alongside sampling",
+    )
 
     args = argParser.parse_args()
 
@@ -204,6 +219,7 @@ if __name__ == "__main__":
         init_obj_file_path=init_obj_file_path,
         postList_file_path=postList_file_path,
         truncated_normal_library=args.tnlib,
-        flag_save_eta = bool(args.fse),
+        flag_save_eta=bool(args.fse),
         flag_save_postList_to_rds=True,
+        flag_profile=bool(args.profile),
     )

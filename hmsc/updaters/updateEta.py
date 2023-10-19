@@ -51,14 +51,14 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
         nf = tf.cast(tf.shape(Lambda)[-2], tf.int64)
         if nf > 0:
             S = Z - LFix - sum([LRanLevelList[rInd] for rInd in np.setdiff1d(np.arange(nr), r)])
-            mu0 = tf.scatter_nd(Pi[:,r,None], tf.matmul(iD * S, Lambda, transpose_b=True), [npVec[r],nf])
+            mu0 = tf.scatter_nd(Pi[:,r,None], tf.matmul(iD * S, Lambda, transpose_b=True), [npVec[r],nf], name="eta-mu0")
             # LamInvSigLam = tf.scatter_nd(Pi[:,r,None], tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [npVec[r],nf,nf])
-            Pi_iD = tf.scatter_nd(Pi[:,r,None], iD, [npVec[r],ns])
+            Pi_iD = tf.scatter_nd(Pi[:,r,None], iD, [npVec[r],ns], name="eta-Pi_iD")
             commonFlag = tf.reduce_all(Pi_iD == Pi_iD[0,:])
             if commonFlag:
-              LamInvSigLam = tf.einsum("hj,j,kj->hk", Lambda, Pi_iD[0,:], Lambda)
+              LamInvSigLam = tf.einsum("hj,j,kj->hk", Lambda, Pi_iD[0,:], Lambda, name="eta-LamInvSigLam")
             else:
-              LamInvSigLam = tf.einsum("hj,ij,kj->ihk", Lambda, Pi_iD, Lambda)
+              LamInvSigLam = tf.einsum("hj,ij,kj->ihk", Lambda, Pi_iD, Lambda, name="eta-LamInvSigLam")
 
             if rLPar["sDim"] == 0:
                 if commonFlag:
@@ -90,20 +90,20 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
 def modelNonSpatialCommon(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     # tf.print("using common Eta sampler option")
     iV = tf.eye(nf, dtype=dtype) + LamInvSigLam
-    LiV = tfla.cholesky(iV)
-    mu1 = tfla.triangular_solve(LiV, tfla.matrix_transpose(mu0))
+    LiV = tfla.cholesky(iV, name="eta-LiV")
+    mu1 = tfla.triangular_solve(LiV, tfla.matrix_transpose(mu0), name="eta-mu1")
     Eta = tfla.matrix_transpose(tfla.triangular_solve(LiV, mu1 + tfr.normal([nf,np], dtype=dtype), adjoint=True))
     return Eta
   
 
 def modelNonSpatial(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     iV = tf.eye(nf, dtype=dtype) + LamInvSigLam
-    LiV = tfla.cholesky(iV)
+    LiV = tfla.cholesky(iV, name="eta-LiV")
     # LamInvSigLam_u, LamInvSigLam_id = tf.raw_ops.UniqueV2(x=LamInvSigLam, axis=[0])
     # iV_u = tf.eye(nf, dtype=dtype) + LamInvSigLam_u
     # LiV_u = tfla.cholesky(iV_u)
     # LiV = tf.gather(LiV_u, LamInvSigLam_id)
-    mu1 = tfla.triangular_solve(LiV, tf.expand_dims(mu0, -1))
+    mu1 = tfla.triangular_solve(LiV, tf.expand_dims(mu0, -1), name="eta-mu1")
     Eta = tf.squeeze(tfla.triangular_solve(LiV, mu1 + tfr.normal([np,nf,1], dtype=dtype), adjoint=True), -1)
     return Eta
 
@@ -112,8 +112,8 @@ def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64)
     #TODO a lot of unnecessary tanspositions - rework if considerably affects perfomance
     iWs = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(iWg, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*np,nf*np])
     iUEta = iWs + tf.reshape(tf.transpose(tfla.diag(tf.transpose(LamInvSigLam, [1,2,0])), [0,2,1,3]), [nf*np,nf*np])
-    LiUEta = tfla.cholesky(iUEta)
-    mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf*np,1]))
+    LiUEta = tfla.cholesky(iUEta, name="eta-LiUEta")
+    mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf*np,1]), name="eta-mu1")
     eta = tfla.triangular_solve(LiUEta, mu1 + tfr.normal([nf*np,1], dtype=dtype), adjoint=True)
     Eta = tf.transpose(tf.reshape(eta, [nf,np]))
     return Eta
@@ -134,7 +134,7 @@ def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nK, nu, nf, 
     LH = tfla.cholesky(H)
 
     # iA_mu0 = tf.squeeze(tfla.triangular_solve(LAst, tfla.triangular_solve(LAst, mu0[:,:,None]), adjoint=True), -1)
-    iA_mu0 = tf.einsum("ihg,ih->ig", iAst, mu0)
+    iA_mu0 = tf.einsum("ihg,ih->ig", iAst, mu0, name="eta-iA_mu0")
     W21idD_iA_mu0 = tf.reshape(tf.einsum("hia,ih->ha", idDW12st, iA_mu0), [nf*nK,1])
     iH_W21idD_iA_mu0 = tf.reshape(tfla.cholesky_solve(LH, W21idD_iA_mu0), [nf,nK])
     iA_idDW12_iH_W21idD_iA_mu0 = tf.einsum("ihg,hia,ha->ig", iAst, idDW12st, iH_W21idD_iA_mu0)

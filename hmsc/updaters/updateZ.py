@@ -80,10 +80,11 @@ def updateZ(params, data, rLHyperparams, poisson_preupdate_z=True, poisson_updat
     nsP = tf.size(indColProbit)
     
     if truncated_normal_library == "tfd":
-      ZProbit = tfd.TruncatedNormal(loc=LP, scale=sigmaP, low=low, high=high).sample()
+      ZProbit = tfd.TruncatedNormal(loc=LP, scale=sigmaP, low=low, high=high).sample(name="z-ZProbit")
     elif truncated_normal_library == "tf":
       samTN = parameterized_truncated_normal(shape=[ny*nsP], means=tf.reshape(LP,[ny*nsP]), stddevs=tf.tile(sigmaP,[ny]), 
-                                              minvals=tf.reshape(low,[ny*nsP]), maxvals=tf.reshape(high,[ny*nsP]), dtype=dtype)
+                                              minvals=tf.reshape(low,[ny*nsP]), maxvals=tf.reshape(high,[ny*nsP]), dtype=dtype,
+                                              name="z-samTN")
       ZProbit = tf.reshape(samTN, [ny,nsP])
     elif truncated_normal_library == "scipy":
       loc, scale = tf.reshape(LP,[ny*nsP]), tf.tile(sigmaP,[ny])
