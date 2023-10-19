@@ -128,21 +128,21 @@ def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nK, nu, nf, 
     # idD1W12 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(idDW12g, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nu,nf*nK])
     
     Ast = LamInvSigLam + tfla.diag(tf.transpose(idDst))
-    LAst = tfla.cholesky(Ast)
-    iAst = tfla.cholesky_solve(LAst, tf.eye(nf, batch_shape=[nu], dtype=dtype))
+    LAst = tfla.cholesky(Ast, name="LAst")
+    iAst = tfla.cholesky_solve(LAst, tf.eye(nf, batch_shape=[nu], dtype=dtype), name="iAst")
     W21idD_iA_idDW12 = tf.reshape(tf.einsum("hia,ihg,gib->hagb", idDW12st, iAst, idDW12st, name="W21idD_iA_idDW12"), [nf*nK]*2)
     H = Fmat - W21idD_iA_idDW12
-    LH = tfla.cholesky(H)
+    LH = tfla.cholesky(H, name="LH")
 
     # iA_mu0 = tf.squeeze(tfla.triangular_solve(LAst, tfla.triangular_solve(LAst, mu0[:,:,None]), adjoint=True), -1)
     iA_mu0 = tf.einsum("ihg,ih->ig", iAst, mu0, name="iA_mu0")
-    W21idD_iA_mu0 = tf.reshape(tf.einsum("hia,ih->ha", idDW12st, iA_mu0), [nf*nK,1])
-    iH_W21idD_iA_mu0 = tf.reshape(tfla.cholesky_solve(LH, W21idD_iA_mu0), [nf,nK])
+    W21idD_iA_mu0 = tf.reshape(tf.einsum("hia,ih->ha", idDW12st, iA_mu0, name="W21idD_iA_mu0"), [nf*nK,1])
+    iH_W21idD_iA_mu0 = tf.reshape(tfla.cholesky_solve(LH, W21idD_iA_mu0, name="iH_W21idD_iA_mu0"), [nf,nK])
     iA_idDW12_iH_W21idD_iA_mu0 = tf.einsum("ihg,hia,ha->ig", iAst, idDW12st, iH_W21idD_iA_mu0, name="iA_idDW12_iH_W21idD_iA_mu0")
     etaMu = iA_mu0 + iA_idDW12_iH_W21idD_iA_mu0
     
-    etaR1 = tf.squeeze(tfla.triangular_solve(LAst, tfr.normal([nu,nf,1], dtype=dtype), adjoint=True), -1)
-    tmp = tf.reshape(tfla.triangular_solve(LH, tfr.normal([nf*nK,1], dtype=dtype), adjoint=True), [nf,nK])
+    etaR1 = tf.squeeze(tfla.triangular_solve(LAst, tfr.normal([nu,nf,1], dtype=dtype), adjoint=True, name="etaR1"), -1)
+    tmp = tf.reshape(tfla.triangular_solve(LH, tfr.normal([nf*nK,1], dtype=dtype), adjoint=True, name="tmp"), [nf,nK])
     etaR2 = tf.einsum("ihg,hia,ha->ig", iAst, idDW12st, tmp, name="etaR2")
     Eta = etaMu + etaR1 + etaR2
     # print(Eta)
