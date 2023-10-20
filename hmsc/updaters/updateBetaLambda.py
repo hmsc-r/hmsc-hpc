@@ -80,11 +80,11 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         
       # for computing A only iK11 part is required
       if len(XE.shape.as_list()) == 2:
-        iU = iK + tf.einsum("ic,ij,ik->jck", XE, iD, XE, name="iU")
-        A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("ik,ij->jk", XE, iD*Z, name="betaLambda-A.2")[:,:,None]
+        iU = iK + tf.einsum("ic,ij,ik->jck", XE, iD, XE, name="iU.2")
+        A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("ik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
       else:
-        iU = iK + tf.einsum("jic,ij,jik->jck", XE, iD, XE, name="iU")
-        A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("jik,ij->jk", XE, iD*Z, name="betaLambda-A.2")[:,:,None]
+        iU = iK + tf.einsum("jic,ij,jik->jck", XE, iD, XE, name="iU.2")
+        A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("jik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
 
       LiU = tfla.cholesky(iU)
       M = tfla.cholesky_solve(LiU, A)

@@ -35,6 +35,7 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
     AlphaIndList = params["AlphaInd"]
     X = params["Xeff"]
     Pi = data["Pi"]
+    ny = modelDims["ny"]
     ns = modelDims["ns"]
     nr = modelDims["nr"]
     npVec = modelDims["np"]
@@ -54,7 +55,10 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
             S = Z - LFix - sum([LRanLevelList[rInd] for rInd in np.setdiff1d(np.arange(nr), r)])
             mu0 = tf.scatter_nd(Pi[:,r,None], tf.matmul(iD * S, Lambda, transpose_b=True), [npVec[r],nf], name="mu0")
             # LamInvSigLam = tf.scatter_nd(Pi[:,r,None], tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [npVec[r],nf,nf])
-            Pi_iD = tf.scatter_nd(Pi[:,r,None], iD, [npVec[r],ns], name="Pi_iD")
+            # Pi_iD = tf.scatter_nd(Pi[:,r,None], iD, [npVec[r],ns], name="Pi_iD")
+            piMat = tf.sparse.SparseTensor(tf.stack([Pi[:,r], tf.range(ny,dtype=tf.int64)], axis=-1), tf.ones([ny], dtype), [ny,ny])
+            # tf.print(tf.sparse.to_dense(piMat))
+            Pi_iD = tf.sparse.sparse_dense_matmul(piMat, iD, name="Pi_iD")
             commonFlag = tf.reduce_all(Pi_iD == Pi_iD[0,:])
             if commonFlag:
               LamInvSigLam = tf.einsum("hj,j,kj->hk", Lambda, Pi_iD[0,:], Lambda, name="LamInvSigLam")
@@ -105,7 +109,7 @@ def modelNonSpatial(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     # LiV_u = tfla.cholesky(iV_u)
     # LiV = tf.gather(LiV_u, LamInvSigLam_id)
     mu1 = tfla.triangular_solve(LiV, tf.expand_dims(mu0, -1), name="mu1")
-    Eta = tf.squeeze(tfla.triangular_solve(LiV, mu1 + tfr.normal([np,nf,1], dtype=dtype), adjoint=True), -1)
+    Eta = tf.squeeze(tfla.triangular_solve(LiV, mu1 + tfr.normal([np,nf,1], dtype=dtype), adjoint=True, name="Eta"), -1)
     return Eta
 
 
@@ -115,7 +119,7 @@ def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64)
     iUEta = iWs + tf.reshape(tf.transpose(tfla.diag(tf.transpose(LamInvSigLam, [1,2,0])), [0,2,1,3]), [nf*np,nf*np])
     LiUEta = tfla.cholesky(iUEta, name="LiUEta")
     mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf*np,1]), name="mu1")
-    eta = tfla.triangular_solve(LiUEta, mu1 + tfr.normal([nf*np,1], dtype=dtype), adjoint=True)
+    eta = tfla.triangular_solve(LiUEta, mu1 + tfr.normal([nf*np,1], dtype=dtype), adjoint=True, name="eta")
     Eta = tf.transpose(tf.reshape(eta, [nf,np]))
     return Eta
 
