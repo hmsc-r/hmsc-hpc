@@ -80,15 +80,19 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         
       # for computing A only iK11 part is required
       if len(XE.shape.as_list()) == 2:
-        iU = iK + tf.einsum("ic,ij,ik->jck", XE, iD, XE, name="iU.2")
+        #TODO bottleneck for non-spatial model
+        # iU = iK + tf.einsum("ic,ij,ik->jck", XE, iD, XE, name="iU.2")
+        # A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("ik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
+        iD05_XE = tf.multiply(tfla.matrix_transpose(iD)[:,:,None]**0.5, XE, name="iD05_XE")
+        iU = iK + tf.matmul(iD05_XE, iD05_XE, transpose_a=True, name="iU.2")
         A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("ik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
       else:
         iU = iK + tf.einsum("jic,ij,jik->jck", XE, iD, XE, name="iU.2")
         A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("jik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
 
-      LiU = tfla.cholesky(iU)
-      M = tfla.cholesky_solve(LiU, A)
-      BetaLambda = tf.transpose(tf.squeeze(M + tfla.triangular_solve(LiU, tfr.normal([ns,na,1], dtype=dtype), adjoint=True), -1))
+      LiU = tfla.cholesky(iU, name="LiU")
+      M = tfla.cholesky_solve(LiU, A, name="M")
+      BetaLambda = tf.transpose(tf.squeeze(M + tfla.triangular_solve(LiU, tfr.normal([ns,na,1], dtype=dtype, name="BetaLambda.2"), adjoint=True), -1))
       BetaLambda = BetaLambda
     else:
       rhoVec = tf.gather(rhopw[:,0], tf.gather(rhoInd, rhoGroup))
