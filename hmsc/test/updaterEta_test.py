@@ -51,6 +51,7 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     params["iD"] = iD
     params["Xeff"] = Xeff
 
+    modelDims["ny"] = ny
     modelDims["ns"] = ns
     modelDims["nr"] = nr
     modelDims["np"] = npVec
