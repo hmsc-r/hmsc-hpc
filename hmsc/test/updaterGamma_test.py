@@ -12,28 +12,29 @@ from hmsc.updaters.updateGammaV import updateGammaV
 def _simple_model(has_phylogeny=False, dtype = np.float64):
     # test model - simple integrity
 
-    ns, nc, nt = 7001, 51, 31
+    ns, nc, nt = 701, 17, 11
     
     mGamma = tfr.normal([nc*nt], dtype=dtype)
     iUGamma = tf.eye(nc*nt, dtype=dtype)
-    rhopw = tfr.normal([101,2], dtype=dtype)
+    rhopw = np.stack([np.arange(101)/100, np.ones(101)/101], -1)
     V0 = tf.eye(nc, dtype=dtype)
     f0 = nc + 1
-
     T = np.random.normal(size=[ns,nt])
     
-    Gamma = tfr.normal([nc,nt], dtype=dtype)
+    Gamma = 10*tfr.normal([nc,nt], dtype=dtype)
     iV = tfla.inv(tfp.distributions.WishartTriL(tf.cast(f0, dtype), tfla.cholesky(tfla.inv(V0))).sample())
     #iV = tf.ones([nc,nc], dtype=dtype) + tf.eye(nc, dtype=dtype)
-    rhoInd = tf.cast(tf.constant([0]), tf.int32)
 
     if has_phylogeny:
         rhoGroup = np.asarray([0] * nc)
-        C = np.eye(ns)
+        multIndependent = 0.5
+        C = multIndependent*np.eye(ns) + (1-multIndependent)*np.ones([ns,ns])
         eC, VC = np.linalg.eigh(C)
+        rhoInd = tf.cast(tf.constant([rhopw.shape[0]-1]), tf.int32)
     else:
         rhoGroup = np.asarray([0] * nc)
         C, eC, VC = None, None, None
+        rhoInd = tf.cast(tf.constant([0]), tf.int32)
 
     Beta = tf.matmul(Gamma,T,transpose_b=True) + \
         tf.transpose(tfd.MultivariateNormalFullCovariance(covariance_matrix=tfla.inv(iV)).sample(ns))
@@ -64,8 +65,8 @@ def _simple_model(has_phylogeny=False, dtype = np.float64):
 
     return params, modelDims, modelData, priorHyperparams
 
-#@pytest.mark.parametrize("has_phylogeny", [False, True]) # has_phylogeny=True test is slow; uncomment in final version
-@pytest.mark.parametrize("has_phylogeny", [False, False])
+
+@pytest.mark.parametrize("has_phylogeny", [False,True])
 def test_updateGammaV_sans_phylogeny(has_phylogeny):
 
     params, modelDims, modelData, priorHyperparams = _simple_model(has_phylogeny)
@@ -74,11 +75,10 @@ def test_updateGammaV_sans_phylogeny(has_phylogeny):
 
     Gamma, iV = updateGammaV(params, modelData, priorHyperparams)
 
-    assert_allclose(Gamma, GammaTrue, atol=5.0)
-    assert_allclose(iV, iVTrue, atol=5.0)
-
-    assert_allclose(tf.reduce_mean(Gamma), tf.reduce_mean(GammaTrue), atol=0.05)
-    assert_allclose(tf.reduce_mean(iV), tf.reduce_mean(iVTrue), atol=0.05)
+    # assert_allclose(Gamma, GammaTrue, atol=1)
+    # assert_allclose(iV, iVTrue, atol=3.0)
+    assert_allclose(np.corrcoef(tf.reshape(Gamma,-1), tf.reshape(GammaTrue,-1))[0,1], 1, atol=0.05)
+    assert_allclose(np.corrcoef(tf.reshape(iV,-1), tf.reshape(iVTrue,-1))[0,1], 1, atol=0.05)
 
 def test_updateGamma_shape():
 

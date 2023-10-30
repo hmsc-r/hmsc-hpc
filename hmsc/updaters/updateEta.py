@@ -57,8 +57,8 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
             # LamInvSigLam = tf.scatter_nd(Pi[:,r,None], tf.einsum("hj,ij,kj->ihk", Lambda, iD, Lambda), [npVec[r],nf,nf])
             #TODO bottleneck for non-spatial model
             # Pi_iD = tf.scatter_nd(Pi[:,r,None], iD, [npVec[r],ns], name="Pi_iD")
-            piMat = tf.sparse.SparseTensor(tf.stack([Pi[:,r], tf.range(ny,dtype=tf.int64)], axis=-1), tf.ones([ny], dtype), [ny,ny])
-            Pi_iD = tf.sparse.sparse_dense_matmul(piMat, iD, name="Pi_iD")
+            piMat = tfs.SparseTensor(tf.stack([Pi[:,r], tf.range(ny,dtype=tf.int64)], axis=-1), tf.ones([ny],dtype), [npVec[r],ny])
+            Pi_iD = tfs.sparse_dense_matmul(piMat, iD, name="Pi_iD")
             commonFlag = tf.reduce_all(Pi_iD == Pi_iD[0,:])
             if commonFlag:
               LamInvSigLam = tf.einsum("hj,j,kj->hk", Lambda, Pi_iD[0,:], Lambda, name="LamInvSigLam")
