@@ -50,7 +50,7 @@ def run_gibbs_sampler(
     verbose,
     init_obj_file_path,
     postList_file_path,
-    truncated_normal_library=tf,
+    truncated_normal_library="tf",
     flag_save_eta=True,
     flag_save_postList_to_rds=True,
     flag_profile=False,
