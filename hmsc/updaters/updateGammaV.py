@@ -1,12 +1,12 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-
-tfd = tfp.distributions
-tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 from hmsc.utils.tfla_utils import kron
+from hmsc.utils.tf_named_func import tf_named_func
+tfla, tfm, tfr = tf.linalg, tf.math, tf.random
+tfd = tfp.distributions
 
-
+@tf_named_func("gammaV")
 def updateGammaV(params, data, priorHyperparams, dtype=np.float64):
     """Update prior(s) for whole model:
     Gamma - influence of traits on species niches, and

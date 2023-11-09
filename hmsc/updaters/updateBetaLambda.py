@@ -1,8 +1,7 @@
 import numpy as np
 import tensorflow as tf
-tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
 from hmsc.utils.tf_named_func import tf_named_func
-
+tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
 
 @tf_named_func("betaLambda")
 def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):

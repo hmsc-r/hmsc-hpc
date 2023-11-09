@@ -1,11 +1,11 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-
-tfd = tfp.distributions
+from hmsc.utils.tf_named_func import tf_named_func
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
+tfd = tfp.distributions
 
-
+@tf_named_func("rho")
 def updateRhoInd(params, data, priorHyperparams, dtype=np.float64):
   """Update rho paramters:
   

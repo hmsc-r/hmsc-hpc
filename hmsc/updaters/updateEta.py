@@ -1,11 +1,9 @@
 import numpy as np
 import tensorflow as tf
-tfla, tfm, tfr, tfs = tf.linalg, tf.math, tf.random, tf.sparse
-
 from scipy.sparse.linalg import splu, spsolve_triangular
 from scipy.sparse import csc_matrix, csr_matrix, coo_matrix, block_diag
-from matplotlib import pyplot as plt
 from hmsc.utils.tf_named_func import tf_named_func
+tfla, tfm, tfr, tfs = tf.linalg, tf.math, tf.random, tf.sparse
 
 @tf_named_func("eta")
 def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):

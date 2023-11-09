@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
-
+from hmsc.utils.tf_named_func import tf_named_func
 tfm, tfr = tf.math, tf.random
 
-
+@tf_named_func("nf")
 def updateNf(params, rLHyperparams, it, dtype=np.float64):
 #def updateNf_ml(EtaList, LambdaList, PsiList, DeltaList, iter, rLPar, dtype=np.float64):
     """Update latent factors:

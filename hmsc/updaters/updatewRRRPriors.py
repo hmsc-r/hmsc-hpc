@@ -1,9 +1,10 @@
 import numpy as np
 import tensorflow as tf
+from hmsc.utils.tf_named_func import tf_named_func
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 
+@tf_named_func("RRRPriors")
 def updatewRRRPriors(params, modelDims, priorHyperparams, dtype=tf.float64):
-
     Delta = params["DeltaRRR"]
     Lambda = params["wRRR"]
     nu = priorHyperparams["nuRRR"]

@@ -1,11 +1,11 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-
-tfd = tfp.distributions
+from hmsc.utils.tf_named_func import tf_named_func
 tfm = tf.math
+tfd = tfp.distributions
 
-
+@tf_named_func("sigma")
 def updateSigma(params, modelDims, data, priorHyperparameters, dtype=np.float64):
     """Update prior(s) for whole model:
     sigma - residual variance.

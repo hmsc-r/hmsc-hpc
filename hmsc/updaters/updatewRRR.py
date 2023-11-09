@@ -1,8 +1,9 @@
 import numpy as np
 import tensorflow as tf
+from hmsc.utils.tf_named_func import tf_named_func
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 
-
+@tf_named_func("wRRR")
 def updatewRRR(params, modelDims, modelData, rLHyperparams, dtype=tf.float64):
     ns = modelDims["ns"]
     nr = modelDims["nr"]

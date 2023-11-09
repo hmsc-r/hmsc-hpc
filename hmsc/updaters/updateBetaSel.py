@@ -1,10 +1,11 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-
+from hmsc.utils.tf_named_func import tf_named_func
 tfm, tfla, tfr = tf.math, tf.linalg, tf.random
 tfd = tfp.distributions
 
+@tf_named_func("betaSel")
 def updateBetaSel(params, modelDims, modelData, rLHyperparams, dtype=tf.float64):
     ny = modelDims["ny"]
     ns = modelDims["ns"]
