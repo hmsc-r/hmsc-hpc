@@ -1,20 +1,10 @@
 import os
-import sys
 from contextlib import nullcontext
-
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-# path = os.path.dirname(os.path.dirname(__file__))
-# sys.path.append("{}{}".format(path, '/../'))
-
 import time
 import argparse
 import numpy as np
-from matplotlib import pyplot as plt
 import tensorflow as tf
 from hmsc.gibbs_sampler import GibbsSampler
-tfr = tf.random
-
-
 from hmsc.utils.export_rds_utils import (
     load_model_from_rds,
     save_chains_postList_to_rds,
@@ -27,6 +17,8 @@ from hmsc.utils.import_utils import (
     load_model_hyperparams,
     init_params,
 )
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
 
 def load_params(file_path, dtype=np.float64):
     hmscImport, hmscModel = load_model_from_rds(file_path)
@@ -50,6 +42,7 @@ def run_gibbs_sampler(
     verbose,
     init_obj_file_path,
     postList_file_path,
+    chainIndList=None,
     truncated_normal_library="tf",
     flag_save_eta=True,
     flag_save_postList_to_rds=True,
@@ -62,13 +55,21 @@ def run_gibbs_sampler(
         modelHyperparams, #this precomputed one (e.g. Qg) is currently not used and is computed at runtime
         rLHyperparams,
         initParList,
-        nChains,
+        nChainsTotal,
     ) = load_params(init_obj_file_path)
     gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
-
-    print("Running TF Gibbs sampler:")
     
-    print("\nInitializing TF graph")
+    if chainIndList is None:
+      chainIndList = [*range(nChainsTotal)]
+    else:
+      chainIndListNew = [chainInd for chainInd in chainIndList if chainInd < nChainsTotal]
+      if chainIndList != chainIndListNew:
+        print("Input chainIndList", chainIndList)
+        print("Adjusted chainIndList", chainIndListNew)
+        chainIndList = chainIndListNew
+
+    print("Initializing TF graph")
+    startTime = time.time()
     parSamples = gibbs.sampling_routine(
         initParList[0],
         num_samples=tf.constant(1),
@@ -78,16 +79,16 @@ def run_gibbs_sampler(
         truncated_normal_library=truncated_normal_library,
         flag_save_eta=flag_save_eta,
     )
-    print("")
-    
-    # if flag_profile:
-    #   tf.profiler.experimental.start('logdir')
+    elapsedTime = time.time() - startTime
+    print("TF graph initialized in %.1f sec" % elapsedTime)
+     
+    print("Running TF Gibbs sampler for %d chains with indices" % len(chainIndList), chainIndList)
     with tf.profiler.experimental.Profile('logdir') if flag_profile else nullcontext():
         startTime = time.time()
-        postList = [None] * nChains
+        postList = [None] * len(chainIndList)
         
-        for chain in range(nChains):
-            print("\nComputing chain %d" % chain)
+        for chainInd, chain in enumerate(chainIndList):
+            print("\n", "Computing chain %d" % chain)
     
             parSamples = gibbs.sampling_routine(
                 initParList[chain],
@@ -98,7 +99,7 @@ def run_gibbs_sampler(
                 truncated_normal_library=truncated_normal_library,
                 flag_save_eta=flag_save_eta,
             )
-            postList[chain] = [None] * num_samples
+            postList[chainInd] = [None] * num_samples
             for n in range(num_samples):
                 parSnapshot = {
                     "Beta": parSamples["Beta"][n],
@@ -116,17 +117,16 @@ def run_gibbs_sampler(
                     "PsiRRR": parSamples["PsiRRR"][n] if "PsiRRR" in parSamples else None,
                     "DeltaRRR": parSamples["DeltaRRR"][n] if "DeltaRRR" in parSamples else None,
                 }
-                postList[chain][n] = parSnapshot
+                postList[chainInd][n] = parSnapshot
             
             elapsedTime = time.time() - startTime
-            print("\n%d chains completed in %.1f sec\n" % (chain+1, elapsedTime))
+            print("\n", "%d chains completed in %.1f sec" % (chainInd+1, elapsedTime))
     
         elapsedTime = time.time() - startTime
-        print("Whole fitting elapsed %.1f" % elapsedTime)
-    # if flag_profile:
-    #   tf.profiler.experimental.stop()
+        print("\n", "Whole Gibbs sampler elapsed %.1f" % elapsedTime)
+    
     if flag_save_postList_to_rds:
-        save_chains_postList_to_rds(postList, postList_file_path, nChains, elapsedTime, flag_save_eta)
+        save_chains_postList_to_rds(postList, postList_file_path, len(chainIndList), elapsedTime, flag_save_eta)
 
 
 if __name__ == "__main__":
@@ -154,6 +154,14 @@ if __name__ == "__main__":
         help="number of samples between each recording of posterior samples",
     )
     argParser.add_argument(
+        "-c",
+        "--chains",
+        type=int,
+        nargs='+',
+        default=None,
+        help="indices of chains to fit",
+    )
+    argParser.add_argument(
         "-i",
         "--input",
         type=str,
@@ -167,14 +175,6 @@ if __name__ == "__main__":
         default="TF-postList-obj.rds",
         help="output RDS file with recorded posterier samples",
     )
-    #TODO how an arbitrary path can be used for import?
-    # argParser.add_argument(
-    #     "-p",
-    #     "--path",
-    #     type=str,
-    #     default="..",
-    #     help="path to hmsc-hpc source code",
-    # )
     argParser.add_argument(
         "-v",
         "--verbose",
@@ -186,6 +186,7 @@ if __name__ == "__main__":
         "--tnlib",
         type=str,
         default="tf",
+        choices=["scipy", "tf", "tfd"],
         help="which library is used for sampling trunacted normal: scipy, tf or tfd",
     )
     argParser.add_argument(
@@ -200,14 +201,9 @@ if __name__ == "__main__":
         default=0,
         help="whether to run profiler alongside sampling",
     )
-
     args = argParser.parse_args()
-
     print("args=%s" % args)
-    # print("args.samples=%s" % args.samples)
-
-    # path = args.path
-    print(os.getcwd())
+    print("working directory", os.getcwd())
     init_obj_file_path = args.input
     postList_file_path = args.output
 
@@ -218,6 +214,7 @@ if __name__ == "__main__":
         verbose=args.verbose,
         init_obj_file_path=init_obj_file_path,
         postList_file_path=postList_file_path,
+        chainIndList=args.chains,
         truncated_normal_library=args.tnlib,
         flag_save_eta=bool(args.fse),
         flag_save_postList_to_rds=True,
