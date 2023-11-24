@@ -3,42 +3,55 @@ import sys
 import h5py
 import numpy as np
 
+from collections import abc
 
-def load_model_from_h5(rds_file_path):
+
+def load_model_from_h5(rds_file_path: str) -> None:
+
     pass
 
 
-def is_empty(a):
+def is_empty(a: list) -> bool:
+    """Check whether a nested list is empty."""
 
     return all(map(is_empty, a)) if isinstance(a, list) else False
 
 
-def get_empty_params(postList, params):
+def get_empty_params(postList: list, params: abc.KeysView) -> set:
+    """Get set of None-valued params."""
 
-  empty_params = set()
+    empty_params = set()
 
-  for param in params:
+    for param in params:
 
-    a = postList[0][0][param]
+        a = postList[0][0][param]
 
-    if is_empty(a) or a is None:
-      empty_params.add(param)
-  
-  return empty_params
-
-
-def get_listed_params(postList, params):
-
-  listed_params = set()
-
-  for param in params:
-    if isinstance(postList[0][0][param], list):
-      listed_params.add(param)
-
-  return listed_params
+        if is_empty(a) or a is None:
+            empty_params.add(param)
+    
+    return empty_params
 
 
-def get_param_arr(postList, param, nChains, num_samples, listed_params):
+def get_listed_params(postList: list, params: abc.KeysView) -> set:
+    """Get set of list-based params."""
+
+    listed_params = set()
+
+    for param in params:
+        if isinstance(postList[0][0][param], list):
+            listed_params.add(param)
+
+    return listed_params
+
+
+def get_param_arr(
+    postList: list, 
+    param: str, 
+    nChains: int, 
+    num_samples: int, 
+    listed_params: abc.KeysView
+) -> np.ndarray:
+    """Get params values as numpy arrays."""
 
     if param in listed_params:
         a = np.moveaxis(np.dstack(postList[0][0][param]), -1, 0)
@@ -70,7 +83,43 @@ def get_param_arr(postList, param, nChains, num_samples, listed_params):
     return arr
 
 
-def save_chains_postList_to_h5(postList, h5_filename, nChains, elapsedTime=-1, flag_save_eta=True, dtype='float32'):
+def save_chains_postList_to_h5(
+    postList: list, 
+    h5_filename: str, 
+    nChains: int, 
+    elapsedTime: float = -1, 
+    flag_save_eta: bool = True, 
+    dtype: str = 'float32'
+) -> None:
+
+    """
+    Save posteriors from MCMC chains to a h5 dataset.
+
+    Parameters
+    ----------
+    postList: list
+        list of posteriors, per chain per sample.
+    h5_filename: str
+        file with posteriors in h5 dataset.
+    nChains: int
+        number of MCMC chains run.
+    elapsedTime: float
+        time elapsed by whole Gibbs sampler. By default not recorded, set to -1.
+    flag_save_eta: bool
+        whether to save Eta posterior. By default saved to h5 dataset.
+    dtype: str
+        data type for h5 dataset. By default set to 'float32'.
+
+    Returns
+    -------
+    None
+
+    See Also
+    --------
+    save_chains_postList_to_json
+    save_chains_postList_to_rds
+
+    """
 
     num_chains = len(postList[0])
     num_samples = len(postList[0][0])
