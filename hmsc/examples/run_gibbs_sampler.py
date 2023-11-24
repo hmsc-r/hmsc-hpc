@@ -9,6 +9,10 @@ from hmsc.utils.export_rds_utils import (
     load_model_from_rds,
     save_chains_postList_to_rds,
 )
+from hmsc.utils.export_h5_utils import (
+    load_model_from_h5,
+    save_chains_postList_to_h5,
+)
 from hmsc.utils.import_utils import (
     load_model_dims,
     load_model_data,
@@ -126,7 +130,8 @@ def run_gibbs_sampler(
         print("\n", "Whole Gibbs sampler elapsed %.1f" % elapsedTime)
     
     if flag_save_postList_to_rds:
-        save_chains_postList_to_rds(postList, postList_file_path, len(chainIndList), elapsedTime, flag_save_eta)
+        save_chains_postList_to_h5(postList, postList_file_path, len(chainIndList), elapsedTime, flag_save_eta)
+        #save_chains_postList_to_rds(postList, postList_file_path, len(chainIndList), elapsedTime, flag_save_eta)
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ experiments = list(
   M11=list(name="model11",id=NA)
 )
 
-selected_experiment = experiments$M4
+selected_experiment = experiments$M6
 if(!is.na(selected_experiment$id)){
   m = models[[selected_experiment$id]]
 }
@@ -100,8 +100,11 @@ if (selected_experiment$name == experiments$M1$name) {
   #m$XScaled = 0.5*(m$XScaled[[1]] + m$XScaled[[2]])
   #m$XData = 0.5*(m$XData[[1]] + m$XData[[2]])
 } else if (selected_experiment$name == experiments$M7$name) {
-  print("Not Implemented: XScaled not found error for engine=pass")
-  stop("Not covered")
+  #print("Not Implemented: XScaled not found error for engine=pass")
+  #stop("Not covered")
+  nChains = 8
+  nSamples = 250
+  thin = 1000
 } else if (selected_experiment$name == experiments$M8$name) {
   nChains = 8
   nSamples = 250
@@ -125,6 +128,10 @@ if (selected_experiment$name == experiments$M1$name) {
   for(r in 1:ncol(studyDesignNew)) studyDesignNew[,r] = factor(studyDesignNew$year)
   mNew = Hmsc(Y=m$Y[indSub,], XFormula=m$XFormula, XData=m$XData[indSub,], XSelect=m$XSelect,
               distr=m$distr, studyDesign=studyDesignNew)
+  
+  mNew = Hmsc(Y=m$Y, XFormula=m$XFormula, XData=m$XData, XSelect=m$XSelect,
+              distr=m$distr, studyDesign=m$studyDesign)
+  
   m = mNew
 } else if (selected_experiment$name == experiments$M10$name) {
   nChains = 8
@@ -215,7 +222,87 @@ for (r in seq_len(nr)) {
   }
 }
 
+path = "/Users/anisjyu/Documents/hmsc-hpc/hmsc/examples/data/"
+fname = selected_experiment$name
+
+fn1 = paste(path, fname, "_saved.rds", sep="")
+fn2 = paste(path, fname, "_json.rds", sep="")
+
+saveRDS(init_obj, file = fn1, compress=TRUE)
+saveRDS(to_json(init_obj), file = fn2, compress=TRUE)
+
+init_obj[["hM"]][["XFormula"]] <- NULL
+init_obj[["hM"]][["XRRRFormula"]] <- NULL
+init_obj[["hM"]][["TrFormula"]] <- NULL
+init_obj[["hM"]][["call"]] <- NULL
+
+library(readr)
+
+write_rds(
+  init_obj,
+  file=init_file_path,
+  compress = "bz2",
+  version = 2,
+  text = TRUE,
+)
+
 saveRDS(to_json(init_obj), file = init_file_path, compress=TRUE)
+
+
+path = "/Users/anisjyu/Documents/hmsc-hpc/hmsc/examples/data/"
+fname = "init_2pg_ns622_ny103820_chain01"
+fname = "init_0ns_ns040_ny00100_chain08"
+fname = selected_experiment$name
+
+fn1 = paste(path, fname, ".rds", sep="")
+fn2 = paste(path, fname, "_saved.rds", sep="")
+fn3 = paste(path, fname, "_json.rds", sep="")
+
+# Replace the Hmsc object with a similar list containing the relevant data only
+hM <- init_obj$hM
+hM_list <- list()
+for (key in names(hM)) {
+  value <- hM[[key]]
+  if (is.numeric(value)
+      || is.matrix(value)
+      || is.data.frame(value)
+      || is.list(value)
+  ) {
+    hM_list[[key]] <- value
+  }
+}
+init_obj$hM <- hM_list
+
+saveRDS(init_obj, file = fn2, compress=TRUE)
+saveRDS(to_json(init_obj), file = fn3, compress=TRUE)
+
+install.packages("BiocManager")
+BiocManager::install("rhdf5")
+
+library(rhdf5)
+
+fn = paste(path, 't2.h5', sep='')
+
+h5ls(fn)
+  
+mydata <- h5read(fn, "/Lambda")
+
+str(mydata)
+
+
+fn = paste(path, 't3.h5', sep='')
+
+h5createFile(fn)
+
+t3 <- init_obj
+
+t3[["hM"]][["ranLevels"]] <- NULL
+init_obj[["hM"]][["rL"]][["cell"]] <- NULL
+
+# write a matrix
+h5write(t3$hM, fn,"init_obj")
+
+h5closeAll()
 
 #### Step 3. Run R code ####
 
