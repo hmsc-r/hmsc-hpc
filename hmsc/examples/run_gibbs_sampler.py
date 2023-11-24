@@ -130,8 +130,7 @@ def run_gibbs_sampler(
         print("\n", "Whole Gibbs sampler elapsed %.1f" % elapsedTime)
     
     if flag_save_postList_to_rds:
-        #save_chains_postList_to_h5(postList, postList_file_path, len(chainIndList), elapsedTime, flag_save_eta)
-        save_chains_postList_to_rds(postList, postList_file_path, len(chainIndList), elapsedTime, flag_save_eta)
+        save_chains_postList_to_h5(postList, postList_file_path, len(chainIndList), elapsedTime, flag_save_eta)
 
 
 if __name__ == "__main__":

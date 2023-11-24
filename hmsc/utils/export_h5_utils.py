@@ -128,8 +128,8 @@ def save_chains_postList_to_h5(
 
     """
 
-    num_chains = len(postList[0])
-    num_samples = len(postList[0][0])
+    num_chains = len(postList)
+    num_samples = len(postList[0])
 
     params = postList[0][0].keys()
 
