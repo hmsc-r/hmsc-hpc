@@ -51,7 +51,14 @@ def get_param_arr(
     num_samples: int, 
     listed_params: abc.KeysView
 ) -> np.ndarray:
-    """Get params values as numpy arrays."""
+    """
+    Get params values as numpy arrays.
+    
+    Say for (chain, sample) = (0,0), postList[0][0]['Beta'].shape is an (16,2) 2d-tensor.
+
+    The function returns all 'Beta' tensors stacked into single 4d numpy array.
+    e.g. for 8 chains and 25 samples, arr[8,25,16,2] is returned.
+    """
 
     if param in listed_params:
         a = np.moveaxis(np.dstack(postList[0][0][param]), -1, 0)
