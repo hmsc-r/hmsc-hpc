@@ -46,15 +46,15 @@ def updateZ(params, data, rLHyperparams, *,
     nr = len(EtaList)
 
     if X.ndim == 2:
-      LFix = tf.matmul(X, Beta)
+        LFix = tf.matmul(X, Beta)
     else:
-      LFix = tf.einsum("jik,kj->ij", X, Beta)
+        LFix = tf.einsum("jik,kj->ij", X, Beta)
     LRanLevelList = [None] * nr
     for r, (Eta, Lambda, rLPar) in enumerate(zip(EtaList, LambdaList, rLHyperparams)):
-      if rLPar["xDim"] == 0:
-        LRanLevelList[r] = tf.gather(tf.matmul(Eta, Lambda), Pi[:,r])
-      else:
-        LRanLevelList[r] = tf.gather(tf.einsum("ih,ik,hjk->ij", Eta, rLPar["xMat"], Lambda), Pi[:,r])
+        if rLPar["xDim"] == 0:
+            LRanLevelList[r] = tf.gather(tf.matmul(Eta, Lambda), Pi[:,r])
+        else:
+            LRanLevelList[r] = tf.gather(tf.einsum("ih,ik,hjk->ij", Eta, rLPar["xMat"], Lambda), Pi[:,r])
     L = LFix + sum(LRanLevelList)
     Yo = tfm.logical_not(tfm.is_nan(Y))
 
@@ -104,19 +104,19 @@ def calculate_z_probit(Y, Yo, L, sigma, *, truncated_normal_library, dtype):
     ny, ns = Y.shape
 
     if truncated_normal_library == "tfd":
-      Z = tfd.TruncatedNormal(loc=L, scale=sigma, low=low, high=high).sample(name="z-ZProbit")
+        Z = tfd.TruncatedNormal(loc=L, scale=sigma, low=low, high=high).sample(name="z-ZProbit")
     elif truncated_normal_library == "tf":
-      if ns == 0:
-        samTN = tf.convert_to_tensor((), dtype=dtype)
-      else:
-        samTN = parameterized_truncated_normal(shape=[ny*ns], means=tf.reshape(L,[ny*ns]), stddevs=tf.tile(sigma,[ny]),
+        if ns == 0:
+            samTN = tf.convert_to_tensor((), dtype=dtype)
+        else:
+            samTN = parameterized_truncated_normal(shape=[ny*ns], means=tf.reshape(L,[ny*ns]), stddevs=tf.tile(sigma,[ny]),
                                                minvals=tf.reshape(low,[ny*ns]), maxvals=tf.reshape(high,[ny*ns]), dtype=dtype,
                                                name="z-samTN")
-      Z = tf.reshape(samTN, [ny,ns])
+        Z = tf.reshape(samTN, [ny,ns])
     elif truncated_normal_library == "scipy":
-      loc, scale = tf.reshape(L,[ny*ns]), tf.tile(sigma,[ny])
-      a, b = (tf.reshape(low,[ny*ns]) - loc) / scale, (tf.reshape(high,[ny*ns]) - loc) / scale
-      Z = tf.reshape(tf.numpy_function(truncnorm.rvs, [a, b, loc, scale], dtype), [ny,ns])
+        loc, scale = tf.reshape(L,[ny*ns]), tf.tile(sigma,[ny])
+        a, b = (tf.reshape(low,[ny*ns]) - loc) / scale, (tf.reshape(high,[ny*ns]) - loc) / scale
+        Z = tf.reshape(tf.numpy_function(truncnorm.rvs, [a, b, loc, scale], dtype), [ny,ns])
 
     iD = tf.cast(Yo, dtype) * sigma**-2
 
