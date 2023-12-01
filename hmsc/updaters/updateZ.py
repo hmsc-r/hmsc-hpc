@@ -9,8 +9,10 @@ tfm, tfr = tf.math, tf.random
 tfd = tfp.distributions
 
 @tf_named_func("z")
-def updateZ(params, data, rLHyperparams, poisson_preupdate_z=True, poisson_update_omega=True, poisson_marginalize_z=False,
-            truncated_normal_library="tf", dtype=np.float64):
+def updateZ(params, data, rLHyperparams, *,
+            poisson_preupdate_z=True, poisson_update_omega=True, poisson_marginalize_z=False,
+            truncated_normal_library="tf", dtype=np.float64,
+            seed=None):
     """Update conditional updater(s)
     Z - latent variable.
         
@@ -27,6 +29,9 @@ def updateZ(params, data, rLHyperparams, poisson_preupdate_z=True, poisson_updat
         Pi - study design
         distr - matrix regulating observation models per outcome
     """
+    if seed is not None:
+        tfr.set_seed(seed)
+
     INFTY = 1e+3
 
     ZPrev = params["Z"]
