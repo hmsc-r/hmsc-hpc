@@ -63,14 +63,14 @@ def updateZ(params, data, rLHyperparams, *,
     indColPoisson = np.nonzero(distr[:,0] == 3)[0]
 
     ZNormal, iDNormal = calculate_z_normal(
-            indColNormal, Y, Yo, L, sigma,
+            *gather(Y, Yo, L, sigma, indices=indColNormal),
             dtype=dtype)
     ZProbit, iDProbit = calculate_z_probit(
-            indColProbit, Y, Yo, L, sigma,
+            *gather(Y, Yo, L, sigma, indices=indColProbit),
             truncated_normal_library=truncated_normal_library,
             dtype=dtype)
     ZPoisson, iDPoisson, poisson_omega = calculate_z_poisson(
-            indColPoisson, Y, Yo, L, sigma, ZPrev,
+            *gather(Y, Yo, L, sigma, ZPrev, indices=indColPoisson),
             omega=params.get("poisson_omega"),
             poisson_preupdate_z=poisson_preupdate_z,
             poisson_marginalize_z=poisson_marginalize_z,
@@ -84,42 +84,37 @@ def updateZ(params, data, rLHyperparams, *,
     return ZNew, iDNew, poisson_omega
 
 
-def calculate_z_normal(inds, Y, Yo, L, sigma, *, dtype):
+def gather(*args, indices):
+    return (tf.gather(a, indices, axis=-1) for a in args)
+
+
+def calculate_z_normal(Y, Yo, L, sigma, *, dtype):
     # no data augmentation for normal model in columns with continious unbounded data
-    ny, ns = Y.shape
-    Y = tf.gather(Y, inds, axis=-1)
-    Yo = tf.gather(Yo, inds, axis=-1)
-    L = tf.gather(L, inds, axis=-1)
-    sigma = tf.gather(sigma, inds)
-    Z = tf.where(Yo, Y, L + sigma * tfr.normal([ny, tf.size(inds)], dtype=dtype))
+    Z = tf.where(Yo, Y, L + sigma * tfr.normal(Y.shape, dtype=dtype))
     iD = tf.cast(Yo, dtype) * sigma**-2
     return Z, iD
 
 
-def calculate_z_probit(inds, Y, Yo, L, sigma, *, truncated_normal_library, dtype):
+def calculate_z_probit(Y, Yo, L, sigma, *, truncated_normal_library, dtype):
     # Albert and Chib (1993) data augemntation for probit model in columns with binary data
     INFTY = 1e+3
-    Y = tf.gather(Y, inds, axis=-1)
-    Yo = tf.gather(Yo, inds, axis=-1)
     Ym = tfm.logical_not(Yo)
-    LP = tf.gather(L, inds, axis=-1)
-    sigma = tf.gather(sigma, inds)
     low = tf.where(tfm.logical_or(Y == 0, Ym), tf.cast(-INFTY, dtype), tf.zeros_like(Y))
     high = tf.where(tfm.logical_or(Y == 1, Ym), tf.cast(INFTY, dtype), tf.zeros_like(Y))
     ny, ns = Y.shape
 
     if truncated_normal_library == "tfd":
-      Z = tfd.TruncatedNormal(loc=LP, scale=sigma, low=low, high=high).sample(name="z-ZProbit")
+      Z = tfd.TruncatedNormal(loc=L, scale=sigma, low=low, high=high).sample(name="z-ZProbit")
     elif truncated_normal_library == "tf":
       if ns == 0:
         samTN = tf.convert_to_tensor((), dtype=dtype)
       else:
-        samTN = parameterized_truncated_normal(shape=[ny*ns], means=tf.reshape(LP,[ny*ns]), stddevs=tf.tile(sigma,[ny]),
+        samTN = parameterized_truncated_normal(shape=[ny*ns], means=tf.reshape(L,[ny*ns]), stddevs=tf.tile(sigma,[ny]),
                                                minvals=tf.reshape(low,[ny*ns]), maxvals=tf.reshape(high,[ny*ns]), dtype=dtype,
                                                name="z-samTN")
       Z = tf.reshape(samTN, [ny,ns])
     elif truncated_normal_library == "scipy":
-      loc, scale = tf.reshape(LP,[ny*ns]), tf.tile(sigma,[ny])
+      loc, scale = tf.reshape(L,[ny*ns]), tf.tile(sigma,[ny])
       a, b = (tf.reshape(low,[ny*ns]) - loc) / scale, (tf.reshape(high,[ny*ns]) - loc) / scale
       Z = tf.reshape(tf.numpy_function(truncnorm.rvs, [a, b, loc, scale], dtype), [ny,ns])
 
@@ -128,19 +123,13 @@ def calculate_z_probit(inds, Y, Yo, L, sigma, *, truncated_normal_library, dtype
     return Z, iD
 
 
-def calculate_z_poisson(inds, Y, Yo, L, sigma, Z, *,
+def calculate_z_poisson(Y, Yo, L, sigma, Z, *,
                         omega,
                         poisson_preupdate_z, poisson_marginalize_z, dtype):
     # Lognormal Poisson with external PG sampler
     r = 1000 #Neg-binomial approximation constant
-    Y = tf.gather(Y, inds, axis=-1)
-    Yo = tf.gather(Yo, inds, axis=-1)
-    L = tf.gather(L, inds, axis=-1)
-    sigma = tf.gather(sigma, inds)
 
-    if poisson_preupdate_z == False:
-      Z = tf.gather(Z, inds, axis=-1)
-    else:
+    if poisson_preupdate_z:
       Z = sample_z(Y, L, sigma, omega, r, dtype=dtype)
 
     omega = draw_polya_gamma(Y + r, Z - np.log(r), dtype=dtype)
