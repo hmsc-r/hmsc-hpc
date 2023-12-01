@@ -7,12 +7,34 @@ from pytest import approx
 from hmsc.updaters.updateZ import updateZ
 
 
+def convert_to_tf(data):
+    if isinstance(data, np.ndarray):
+        new = tf.convert_to_tensor(data, dtype=data.dtype)
+    elif isinstance(data, list):
+        new = []
+        for value in data:
+            new.append(convert_to_tf(value))
+    elif isinstance(data, dict):
+        new = {}
+        for key, value in data.items():
+            new[key] = convert_to_tf(value)
+    else:
+        new = data
+
+    return new
+
+
 def run_test(input_values, ref_values, *,
              tnlib='tf',
              poisson_preupdate_z=False,
              poisson_marginalize_z=False,
              seed=42,
-             dtype=np.float64):
+             ):
+
+    # Convert inputs to tf
+    params, data, rLHyperparams = map(convert_to_tf, input_values)
+    dtype = data['Y'].dtype
+    assert dtype == tf.float64
 
     # Calculate
     Z, iD, omega = updateZ(
@@ -27,7 +49,6 @@ def run_test(input_values, ref_values, *,
     iD = iD.numpy()
     omega = omega.numpy()
 
-    params = input_values[0]
     assert Z.shape == params['Z'].shape
     assert iD.shape == params['Z'].shape
     assert omega.shape == params['poisson_omega'].shape
@@ -47,7 +68,7 @@ def run_test(input_values, ref_values, *,
         assert omega == approx(ref_omega)
 
 
-def default_input_values(rng, *, dtype=np.float64):
+def default_input_values(rng):
     ns = 7
     ny = 5
     nb = 11
@@ -61,7 +82,8 @@ def default_input_values(rng, *, dtype=np.float64):
          [1, 1],
          [3, 1],
          [2, 1],
-         [1, 1]]
+         [1, 1]],
+        dtype=np.int32,
     )
 
     Pi = np.array(
@@ -69,34 +91,35 @@ def default_input_values(rng, *, dtype=np.float64):
          [1, 2],
          [2, 2],
          [0, 0],
-         [1, 0]]
+         [1, 0]],
+        dtype=np.int32,
     )
 
     ns3 = np.sum(distr[:, 0] == 3)
 
     params = dict(
-        Z=tf.convert_to_tensor(rng.random(size=(ny, ns)), dtype=dtype),
-        Beta=tf.convert_to_tensor(rng.random(size=(nb, ns)), dtype=dtype),
-        sigma=tf.convert_to_tensor(rng.random(size=ns), dtype=dtype),
-        Xeff=tf.convert_to_tensor(rng.random(size=(ny, nb)), dtype=dtype),
-        poisson_omega=tf.convert_to_tensor(rng.random(size=(ny, ns3)), dtype=dtype),
+        Z=rng.random(size=(ny, ns)),
+        Beta=rng.random(size=(nb, ns)),
+        sigma=rng.random(size=ns),
+        Xeff=rng.random(size=(ny, nb)),
+        poisson_omega=rng.random(size=(ny, ns3)),
     )
     data = dict(
-        Y=tf.convert_to_tensor(rng.integers(2, size=(ny, ns)), dtype=dtype),
-        Pi=tf.convert_to_tensor(Pi, dtype=tf.int32),
-        distr=tf.convert_to_tensor(distr, dtype=tf.int32),
+        Y=rng.integers(2, size=(ny, ns)).astype(np.float64),
+        Pi=Pi,
+        distr=distr,
     )
 
     assert data['distr'].shape == (ns, 2)
     assert data['Pi'].shape == (ny, nr)
 
     EtaList = [
-        tf.convert_to_tensor(rng.random(ne * 2).reshape(ne, 2), dtype=dtype),
-        tf.convert_to_tensor(rng.random(ne * 2).reshape(ne, 2), dtype=dtype),
+        rng.random(ne * 2).reshape(ne, 2),
+        rng.random(ne * 2).reshape(ne, 2),
     ]
     LambdaList = [
-        tf.convert_to_tensor(rng.random(2 * ns).reshape(2, ns), dtype=dtype),
-        tf.convert_to_tensor(rng.random(2 * ns).reshape(2, ns), dtype=dtype),
+        rng.random(2 * ns).reshape(2, ns),
+        rng.random(2 * ns).reshape(2, ns),
     ]
     rLHyperparams = [
         dict(xDim=0),
@@ -133,16 +156,19 @@ def default_reference_values():
 
 
 def test_defaults():
-    rng = np.random.default_rng(seed=42)
+    seed = 42
+    rng = np.random.default_rng(seed=seed)
     run_test(
         default_input_values(rng),
         default_reference_values(),
+        seed=seed,
     )
 
 
 @pytest.mark.parametrize("tnlib", ['tf', 'tfd'])
 def test_tnlib(tnlib):
-    rng = np.random.default_rng(seed=42)
+    seed = 42
+    rng = np.random.default_rng(seed=seed)
     params, data, rLHyperparams = default_input_values(rng)
     Z, iD, omega = default_reference_values()
 
@@ -158,23 +184,22 @@ def test_tnlib(tnlib):
         (params, data, rLHyperparams),
         (Z, iD, omega),
         tnlib=tnlib,
+        seed=seed,
     )
 
 
 @pytest.mark.parametrize("distr_case", [0, 1, 2, 3])
 def test_distr_case(distr_case):
-    rng = np.random.default_rng(seed=42)
+    seed = 42
+    rng = np.random.default_rng(seed=seed)
     params, data, rLHyperparams = default_input_values(rng)
     Z, iD, omega = default_reference_values()
 
     if distr_case in [1, 2, 3]:
-        distr = data['distr'].numpy()
-        distr[:, 0] = distr_case
-        ns3 = np.sum(distr[:, 0] == 3)
-        data['distr'] = tf.convert_to_tensor(distr, dtype=data['distr'].dtype)
-        omega = params['poisson_omega']
-        ny = omega.shape[0]
-        params['poisson_omega'] = tf.convert_to_tensor(rng.random(size=(ny, ns3)), dtype=omega.dtype)
+        data['distr'][:, 0] = distr_case
+        ns3 = np.sum(data['distr'][:, 0] == 3)
+        ny = params['poisson_omega'].shape[0]
+        params['poisson_omega'] = rng.random(size=(ny, ns3))
 
     if distr_case == 1:
         Z = \
@@ -212,20 +237,21 @@ def test_distr_case(distr_case):
     run_test(
         (params, data, rLHyperparams),
         (Z, iD, omega),
+        seed=seed,
     )
 
 
 @pytest.mark.parametrize("x_ndim", [2, 3])
 def test_x_ndim(x_ndim):
-    dtype = np.float64
-    rng = np.random.default_rng(seed=42)
-    params, data, rLHyperparams = default_input_values(rng, dtype=dtype)
+    seed = 42
+    rng = np.random.default_rng(seed=seed)
+    params, data, rLHyperparams = default_input_values(rng)
     Z, iD, omega = default_reference_values()
 
     if x_ndim == 3:
         _, ns = params['Z'].shape
         ny, nb = params['Xeff'].shape
-        params['Xeff'] = tf.convert_to_tensor(rng.random(size=(ns, ny, nb)), dtype=dtype)
+        params['Xeff'] = rng.random(size=(ns, ny, nb))
 
         Z = \
 [[ 0.        ,  3.53200434,  1.75342901,  1.        ,  0.13864651, -0.0499102 ,  1.        ],
@@ -237,13 +263,15 @@ def test_x_ndim(x_ndim):
     run_test(
         (params, data, rLHyperparams),
         (Z, iD, omega),
+        seed=seed,
     )
 
 
 @pytest.mark.parametrize("preupdate", [True, False])
 @pytest.mark.parametrize("marginalize", [True, False])
 def test_poisson_flags(preupdate, marginalize):
-    rng = np.random.default_rng(seed=42)
+    seed = 42
+    rng = np.random.default_rng(seed=seed)
     params, data, rLHyperparams = default_input_values(rng)
     Z, iD, omega = default_reference_values()
 
@@ -297,4 +325,5 @@ def test_poisson_flags(preupdate, marginalize):
         (Z, iD, omega),
         poisson_preupdate_z=preupdate,
         poisson_marginalize_z=marginalize,
+        seed=seed,
     )
