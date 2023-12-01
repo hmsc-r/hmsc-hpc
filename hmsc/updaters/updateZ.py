@@ -1,4 +1,3 @@
-import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from tensorflow.python.ops.random_ops import parameterized_truncated_normal
@@ -11,7 +10,7 @@ tfd = tfp.distributions
 @tf_named_func("z")
 def updateZ(params, data, rLHyperparams, *,
             poisson_preupdate_z=True, poisson_marginalize_z=False,
-            truncated_normal_library="tf", dtype=np.float64,
+            truncated_normal_library="tf", dtype=tf.float64,
             seed=None):
     """Update conditional updater(s)
     Z - latent variable.
@@ -58,9 +57,9 @@ def updateZ(params, data, rLHyperparams, *,
 
     Yo = tfm.logical_not(tfm.is_nan(Y))
 
-    indColNormal = np.nonzero(distr[:,0] == 1)[0]
-    indColProbit = np.nonzero(distr[:,0] == 2)[0]
-    indColPoisson = np.nonzero(distr[:,0] == 3)[0]
+    indColNormal = tf.where(distr[:,0] == 1)[:, 0]
+    indColProbit = tf.where(distr[:,0] == 2)[:, 0]
+    indColPoisson = tf.where(distr[:,0] == 3)[:, 0]
 
     ZNormal, iDNormal = calculate_z_normal(
             *gather(Y, Yo, L, sigma, indices=indColNormal),
@@ -127,15 +126,15 @@ def calculate_z_poisson(Y, Yo, L, sigma, Z, *,
                         omega,
                         preupdate_z, marginalize_z, dtype):
     # Lognormal Poisson with external PG sampler
-    r = 1000 #Neg-binomial approximation constant
+    r = tf.constant(1000., dtype=dtype) #Neg-binomial approximation constant
 
     if preupdate_z:
         Z = sample_z(Y, L, sigma, omega, r, dtype=dtype)
 
-    omega = draw_polya_gamma(Y + r, Z - np.log(r), dtype=dtype)
+    omega = draw_polya_gamma(Y + r, Z - tfm.log(r), dtype=dtype)
     if marginalize_z:
         # marginalize Z for equivalent effect on Beta, Lambda or Eta. Cannot be used for sigma.
-        Z = (Y-r)/(2.*omega) + np.log(r)
+        Z = (Y-r)/(2.*omega) + tfm.log(r)
         iD = tf.cast(Yo, dtype) * (sigma**2. * tf.ones_like(L) + omega**-1)**-1
     else:
         # sample Z. Required for sigma.
@@ -147,12 +146,12 @@ def calculate_z_poisson(Y, Yo, L, sigma, Z, *,
 
 def sample_z(Y, L, sigma, omega, r, dtype):
     sigmaZ2 = (sigma**-2. * tf.ones_like(L) + omega)**-1.
-    mu = sigmaZ2*((Y-r)/2. + omega*np.log(r) + sigma**-2. * L)
+    mu = sigmaZ2*((Y-r)/2. + omega*tfm.log(r) + sigma**-2. * L)
     Z = tfr.normal(Y.shape, mu, tf.sqrt(sigmaZ2), dtype=dtype)
     return Z
 
 
-def draw_polya_gamma(h, z, dtype=np.float64):
+def draw_polya_gamma(h, z, dtype):
   # with h > 50 normal approx is used, so we reimplement only that alternative
   # pg_h = tf.reshape(h, [-1])
   # pg_z = tf.reshape(z, [-1]) # sign does not matter
