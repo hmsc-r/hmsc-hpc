@@ -61,13 +61,24 @@ def updateZ(params, data, rLHyperparams, *,
     indColProbit = tf.where(distr[:,0] == 2)[:, 0]
     indColPoisson = tf.where(distr[:,0] == 3)[:, 0]
 
+    if seed is not None:
+        tfr.set_seed(seed + 1)
+
     ZNormal, iDNormal = calculate_z_normal(
             *gather(Y, Yo, L, sigma, indices=indColNormal),
             dtype=dtype)
+
+    if seed is not None:
+        tfr.set_seed(seed + 2)
+
     ZProbit, iDProbit = calculate_z_probit(
             *gather(Y, Yo, L, sigma, indices=indColProbit),
             truncated_normal_library=truncated_normal_library,
             dtype=dtype)
+
+    if seed is not None:
+        tfr.set_seed(seed + 3)
+
     ZPoisson, iDPoisson, poisson_omega = calculate_z_poisson(
             *gather(Y, Yo, L, sigma, ZPrev, indices=indColPoisson),
             omega=params.get("poisson_omega"),
