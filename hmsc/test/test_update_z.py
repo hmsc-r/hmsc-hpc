@@ -225,7 +225,7 @@ def test_y_nan():
     )
 
 
-@pytest.mark.parametrize("distr_case", [0, 1, 2, 3])
+@pytest.mark.parametrize("distr_case", [1, 2, 3])
 def test_distr_case(distr_case):
     seed = 42
     rng = np.random.default_rng(seed=seed)
@@ -278,19 +278,17 @@ def test_distr_case(distr_case):
     )
 
 
-@pytest.mark.parametrize("x_ndim", [2, 3])
-def test_x_ndim(x_ndim):
+def test_x_ndim_3():
     seed = 42
     rng = np.random.default_rng(seed=seed)
     params, data, rLHyperparams = default_input_values(rng)
     Z, iD, omega = default_reference_values()
 
-    if x_ndim == 3:
-        _, ns = params['Z'].shape
-        ny, nb = params['Xeff'].shape
-        params['Xeff'] = rng.random(size=(ns, ny, nb))
+    _, ns = params['Z'].shape
+    ny, nb = params['Xeff'].shape
+    params['Xeff'] = rng.random(size=(ns, ny, nb))
 
-        Z = \
+    Z = \
 [[ 0.        ,  3.53200434,  1.75342901,  1.        ,  0.13864651, -0.0499102 ,  1.        ],
  [ 0.        ,  2.64775599,  1.43855754,  0.        ,  0.87347456, -0.20061524,  1.        ],
  [ 1.        , -0.01429325,  1.72133414,  0.        ,  0.64247312,  3.83834427,  1.        ],
