@@ -42,20 +42,20 @@ def updateZ(params, data, rLHyperparams, *,
     Y = data["Y"]
     Pi = data["Pi"]
     distr = data["distr"]
-    ny, ns = Y.shape
-    nr = len(EtaList)
 
     if X.ndim == 2:
-        LFix = tf.matmul(X, Beta)
+        L = tf.matmul(X, Beta)
     else:
-        LFix = tf.einsum("jik,kj->ij", X, Beta)
-    LRanLevelList = [None] * nr
+        L = tf.einsum("jik,kj->ij", X, Beta)
+
     for r, (Eta, Lambda, rLPar) in enumerate(zip(EtaList, LambdaList, rLHyperparams)):
-        if rLPar["xDim"] == 0:
-            LRanLevelList[r] = tf.gather(tf.matmul(Eta, Lambda), Pi[:,r])
+        xMat = rLPar.get("xMat")
+        if xMat is None:
+            L2 = tf.matmul(Eta, Lambda)
         else:
-            LRanLevelList[r] = tf.gather(tf.einsum("ih,ik,hjk->ij", Eta, rLPar["xMat"], Lambda), Pi[:,r])
-    L = LFix + sum(LRanLevelList)
+            L2 = tf.einsum("ih,ik,hjk->ij", Eta, xMat, Lambda)
+        L += tf.gather(L2, Pi[:, r])
+
     Yo = tfm.logical_not(tfm.is_nan(Y))
 
     indColNormal = np.nonzero(distr[:,0] == 1)[0]
