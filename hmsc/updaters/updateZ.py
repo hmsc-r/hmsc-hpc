@@ -45,7 +45,7 @@ def updateZ(params, data, rLHyperparams, *,
     ny, ns = Y.shape
     nr = len(EtaList)
 
-    if len(X.shape.as_list()) == 2: #tf.rank(X)
+    if X.ndim == 2:
       LFix = tf.matmul(X, Beta)
     else:
       LFix = tf.einsum("jik,kj->ij", X, Beta)
