@@ -7,12 +7,47 @@ from pytest import approx
 from hmsc.updaters.updateZ import updateZ
 
 
-def input_values(*, distr_case, x_ndim, seed, dtype):
-    assert distr_case in (0, 1, 2, 3)
-    assert x_ndim in (2, 3)
-    # Add test Y including nans
+def run_test(input_values, ref_values, *,
+             tnlib='tf',
+             poisson_preupdate_z=False,
+             poisson_marginalize_z=False,
+             seed=42,
+             dtype=np.float64):
 
-    rng = np.random.default_rng(seed=seed)
+    # Calculate
+    Z, iD, omega = updateZ(
+        *input_values,
+        poisson_preupdate_z=poisson_preupdate_z,
+        poisson_marginalize_z=poisson_marginalize_z,
+        truncated_normal_library=tnlib,
+        seed=seed,
+        dtype=dtype,
+        )
+    Z = Z.numpy()
+    iD = iD.numpy()
+    omega = omega.numpy()
+
+    params = input_values[0]
+    assert Z.shape == params['Z'].shape
+    assert iD.shape == params['Z'].shape
+    assert omega.shape == params['poisson_omega'].shape
+
+    # Print values
+    for name, array in (('Z', Z),
+                        ('iD', iD),
+                        ('omega', omega)):
+        print(f'{name} = \\')
+        print(np.array2string(array, separator=', ', max_line_width=200))
+
+    # Test against reference
+    ref_Z, ref_iD, ref_omega = map(np.asarray, ref_values)
+    assert Z == approx(ref_Z)
+    assert iD == approx(ref_iD)
+    if omega.size > 0 or ref_omega.size > 0:
+        assert omega == approx(ref_omega)
+
+
+def default_input_values(rng, *, dtype=np.float64):
     ns = 7
     ny = 5
     nb = 11
@@ -28,9 +63,6 @@ def input_values(*, distr_case, x_ndim, seed, dtype):
          [2, 1],
          [1, 1]]
     )
-
-    if distr_case in (1, 2, 3):
-        distr[:, 0] = distr_case
 
     Pi = np.array(
         [[0, 2],
@@ -72,59 +104,10 @@ def input_values(*, distr_case, x_ndim, seed, dtype):
     ]
     assert len(EtaList) == len(LambdaList) == len(rLHyperparams) == nr
 
-    if x_ndim == 3:
-        params['Xeff'] = tf.convert_to_tensor(rng.random(size=(ns, ny, nb)), dtype=dtype)
-
     params["Eta"] = EtaList
     params["Lambda"] = LambdaList
 
     return params, data, rLHyperparams
-
-
-def run_test(distr_case=0, x_ndim=2, tnlib='tf',
-             poisson_preupdate_z=False,
-             poisson_marginalize_z=False,
-             ref_values=None,
-             seed=42, dtype=np.float64):
-    input_kwargs = dict(
-        distr_case=distr_case,
-        x_ndim=x_ndim,
-        seed=seed,
-    )
-
-    # Prepare input matrices
-    params, data, rLHyperparams = input_values(**input_kwargs, dtype=dtype)
-
-    # Calculate
-    Z, iD, omega = updateZ(
-        params, data, rLHyperparams,
-        poisson_preupdate_z=poisson_preupdate_z,
-        poisson_marginalize_z=poisson_marginalize_z,
-        truncated_normal_library=tnlib,
-        seed=seed,
-        dtype=dtype,
-        )
-    Z = Z.numpy()
-    iD = iD.numpy()
-    omega = omega.numpy()
-
-    assert Z.shape == params['Z'].shape
-    assert iD.shape == params['Z'].shape
-    assert omega.shape == params['poisson_omega'].shape
-
-    # Print values
-    for name, array in (('Z', Z),
-                        ('iD', iD),
-                        ('omega', omega)):
-        print(f'{name} = \\')
-        print(np.array2string(array, separator=', ', max_line_width=200))
-
-    # Test against reference
-    ref_Z, ref_iD, ref_omega = map(np.asarray, ref_values)
-    assert Z == approx(ref_Z)
-    assert iD == approx(ref_iD)
-    if omega.size > 0 or ref_omega.size > 0:
-        assert omega == approx(ref_omega)
 
 
 def default_reference_values():
@@ -150,11 +133,17 @@ def default_reference_values():
 
 
 def test_defaults():
-    run_test(ref_values=default_reference_values())
+    rng = np.random.default_rng(seed=42)
+    run_test(
+        default_input_values(rng),
+        default_reference_values(),
+    )
 
 
 @pytest.mark.parametrize("tnlib", ['tf', 'tfd'])
 def test_tnlib(tnlib):
+    rng = np.random.default_rng(seed=42)
+    params, data, rLHyperparams = default_input_values(rng)
     Z, iD, omega = default_reference_values()
 
     if tnlib == 'tfd':
@@ -166,59 +155,78 @@ def test_tnlib(tnlib):
  [ 0.        , -0.1906678 ,  1.44970694,  0.        ,  0.32676159,  2.69563436,  0.        ]]
 
     run_test(
+        (params, data, rLHyperparams),
+        (Z, iD, omega),
         tnlib=tnlib,
-        ref_values=(Z, iD, omega),
     )
 
 
 @pytest.mark.parametrize("distr_case", [0, 1, 2, 3])
 def test_distr_case(distr_case):
+    rng = np.random.default_rng(seed=42)
+    params, data, rLHyperparams = default_input_values(rng)
     Z, iD, omega = default_reference_values()
+
+    if distr_case in [1, 2, 3]:
+        distr = data['distr'].numpy()
+        distr[:, 0] = distr_case
+        ns3 = np.sum(distr[:, 0] == 3)
+        data['distr'] = tf.convert_to_tensor(distr, dtype=data['distr'].dtype)
+        omega = params['poisson_omega']
+        ny = omega.shape[0]
+        params['poisson_omega'] = tf.convert_to_tensor(rng.random(size=(ny, ns3)), dtype=omega.dtype)
 
     if distr_case == 1:
         Z = \
-[[0., 0., 1., 0., 0., 0., 1.],
- [1., 0., 1., 0., 1., 1., 1.],
- [0., 1., 0., 1., 0., 0., 0.],
- [1., 0., 1., 0., 0., 1., 0.],
- [1., 1., 0., 0., 0., 1., 1.]]
+[[0., 1., 0., 1., 0., 0., 1.],
+ [0., 1., 1., 0., 0., 0., 1.],
+ [1., 0., 0., 0., 0., 1., 1.],
+ [0., 1., 0., 0., 1., 1., 1.],
+ [0., 0., 0., 0., 1., 1., 0.]]
     elif distr_case == 2:
         Z = \
-[[-2.16731687e-02, -7.26993294e-02,  2.97247856e+00, -2.56566343e-01, -2.82493186e-02, -2.15090045e-01,  1.82051501e+00],
- [ 3.44111121e+00, -8.08565606e-02,  3.02281863e+00, -1.12269164e-01,  3.85723288e+00,  3.10194142e+00,  1.86781389e+00],
- [-1.97487684e-02,  3.19087864e+00, -7.81100111e-03,  3.84275918e+00, -1.37848714e-01, -1.85120295e-02, -9.35641902e-02],
- [ 2.98396344e+00, -2.44607084e-03,  4.53406253e+00, -2.99807014e-01, -1.35385546e-01,  2.85929925e+00, -1.04299383e-01],
- [ 3.86621611e+00,  4.19202896e+00, -1.22456847e-02, -1.25848590e-01, -1.53532906e-01,  2.53178412e+00,  2.94148879e+00]]
+[[-2.08403799e-02,  2.75149757e+00, -1.14963779e-03,  2.95664772e+00, -2.90638976e-02, -1.94257235e-01,  2.48641501e+00],
+ [-5.06593421e-03,  2.53575181e+00,  3.50824437e+00, -1.25499296e-01, -6.67515314e-02, -1.15103214e-01,  2.49429846e+00],
+ [ 3.31221818e+00, -9.73045797e-02, -7.28061119e-03, -1.04481659e-01, -1.39073459e-01,  3.53843102e+00,  3.36584739e+00],
+ [-1.31982845e-02,  3.35420016e+00, -5.91590284e-03, -3.77819950e-01,  2.86462315e+00,  3.15219413e+00,  2.39663354e+00],
+ [-1.61291747e-02, -2.21578580e-01, -1.14318636e-02, -1.41671552e-01,  4.09264949e+00,  2.70324074e+00, -5.99368596e-02]]
     elif distr_case == 3:
         Z = \
-[[1.0157138 , 0.4100475 , 1.3975398 , 0.45718054, 0.14703785, 0.89889734, 0.77702612],
- [0.93864013, 0.16124331, 1.27282378, 0.28755889, 0.83547283, 0.71256083, 0.98335849],
- [0.93121183, 0.47809308, 1.93095805, 0.29002695, 1.18488449, 0.65230171, 0.92880115],
- [0.42809156, 1.1224092 , 1.78635417, 0.70666318, 0.18722986, 0.63402328, 0.11470677],
- [0.5574293 , 0.85028616, 1.43130618, 0.87880138, 0.44498424, 0.25420793, 0.84656094]]
+[[1.08068846, 0.40776981, 1.27446972, 0.44300929, 0.13549434, 0.8884085 , 0.77713921],
+ [1.0086427 , 0.16956534, 1.31792991, 0.2774678 , 0.82880334, 0.72597065, 1.0033521 ],
+ [0.97619397, 0.47797544, 1.94174992, 0.27476818, 1.17503413, 0.64529485, 0.93802499],
+ [0.45121264, 1.09131311, 1.56435178, 0.69240529, 0.1806462 , 0.62468013, 0.07027166],
+ [0.5864055 , 0.81608219, 1.3552109 , 0.86939957, 0.42999498, 0.25728539, 0.83878168]]
 
     if distr_case in [1, 2]:
         omega = \
 []
     elif distr_case == 3:
         omega = \
-[[81.70836675, 75.63906919, 81.970256  , 79.53973508, 73.76147381, 84.78603609, 80.57772435],
- [81.23612849, 73.43414908, 76.19355286, 74.56216626, 80.7187692 , 78.19513098, 83.49581729],
- [77.96440037, 75.55425842, 79.08140616, 74.00632178, 84.13732389, 78.59819836, 83.34528905],
- [75.25213129, 84.97194624, 82.77510123, 80.53394158, 73.69114804, 77.7371134 , 72.00083597],
- [72.77825139, 82.103995  , 79.33289536, 82.3816733 , 76.11819717, 75.78188646, 81.89521818]]
+[[81.70836675, 75.63906919, 81.88817839, 79.53973508, 73.68801896, 84.70176497, 80.65851229],
+ [81.23612849, 73.43414908, 76.19355286, 74.56216626, 80.63686202, 78.19513098, 83.49581729],
+ [77.96440037, 75.55425842, 79.08140616, 74.00632178, 84.05436711, 78.59819836, 83.42744085],
+ [75.25213129, 84.97194624, 82.77510123, 80.53394158, 73.76514384, 77.7371134 , 72.00083597],
+ [72.77825139, 82.02297995, 79.25287452, 82.3816733 , 76.11819717, 75.78188646, 81.89521818]]
 
     run_test(
-        distr_case=distr_case,
-        ref_values=(Z, iD, omega),
+        (params, data, rLHyperparams),
+        (Z, iD, omega),
     )
 
 
 @pytest.mark.parametrize("x_ndim", [2, 3])
 def test_x_ndim(x_ndim):
+    dtype = np.float64
+    rng = np.random.default_rng(seed=42)
+    params, data, rLHyperparams = default_input_values(rng, dtype=dtype)
     Z, iD, omega = default_reference_values()
 
     if x_ndim == 3:
+        _, ns = params['Z'].shape
+        ny, nb = params['Xeff'].shape
+        params['Xeff'] = tf.convert_to_tensor(rng.random(size=(ns, ny, nb)), dtype=dtype)
+
         Z = \
 [[ 0.        ,  3.53200434,  1.75342901,  1.        ,  0.13864651, -0.0499102 ,  1.        ],
  [ 0.        ,  2.64775599,  1.43855754,  0.        ,  0.87347456, -0.20061524,  1.        ],
@@ -227,14 +235,16 @@ def test_x_ndim(x_ndim):
  [ 0.        , -0.06552546,  1.63378067,  0.        ,  0.29615809,  2.05435849,  0.        ]]
 
     run_test(
-        x_ndim=x_ndim,
-        ref_values=(Z, iD, omega),
+        (params, data, rLHyperparams),
+        (Z, iD, omega),
     )
 
 
 @pytest.mark.parametrize("preupdate", [True, False])
 @pytest.mark.parametrize("marginalize", [True, False])
 def test_poisson_flags(preupdate, marginalize):
+    rng = np.random.default_rng(seed=42)
+    params, data, rLHyperparams = default_input_values(rng)
     Z, iD, omega = default_reference_values()
 
     if preupdate and marginalize:
@@ -283,7 +293,8 @@ def test_poisson_flags(preupdate, marginalize):
  [26.5629061 ,  2.03101203]]
 
     run_test(
+        (params, data, rLHyperparams),
+        (Z, iD, omega),
         poisson_preupdate_z=preupdate,
         poisson_marginalize_z=marginalize,
-        ref_values=(Z, iD, omega),
     )
