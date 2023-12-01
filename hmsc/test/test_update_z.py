@@ -2,6 +2,7 @@ import pytest
 import numpy as np
 import tensorflow as tf
 
+from numpy import nan
 from pytest import approx
 
 from hmsc.updaters.updateZ import updateZ
@@ -62,10 +63,10 @@ def run_test(input_values, ref_values, *,
 
     # Test against reference
     ref_Z, ref_iD, ref_omega = map(np.asarray, ref_values)
-    assert Z == approx(ref_Z)
+    assert Z == approx(ref_Z, nan_ok=True)
     assert iD == approx(ref_iD)
     if omega.size > 0 or ref_omega.size > 0:
-        assert omega == approx(ref_omega)
+        assert omega == approx(ref_omega, nan_ok=True)
 
 
 def default_input_values(rng):
@@ -184,6 +185,42 @@ def test_tnlib(tnlib):
         (params, data, rLHyperparams),
         (Z, iD, omega),
         tnlib=tnlib,
+        seed=seed,
+    )
+
+
+def test_y_nan():
+    seed = 42
+    rng = np.random.default_rng(seed=seed)
+    params, data, rLHyperparams = default_input_values(rng)
+    Z, iD, omega = default_reference_values()
+
+    Y = rng.integers(3, size=data['Y'].shape).astype(np.float64)
+    Y[Y == 2] = nan
+    data['Y'] = Y
+
+    Z = \
+[[ 2.6390101 ,  2.53617218,  1.40754338,  1.        ,  0.14450654,  3.479958  ,  1.        ],
+ [ 4.25794634,  2.97700928,         nan,  1.        ,  0.89406079,  3.95376739,  0.        ],
+ [ 1.        ,  3.35260822,  1.78706598,  0.        ,  0.66243985,  3.88307341,  4.65326605],
+ [ 0.        ,  2.47942512,  1.6935875 ,  0.        ,  0.1025117 , -0.02948891,  3.19747972],
+ [ 3.36759254,  2.97494929,         nan,  3.19999282,  0.31382702,  2.30020615,  0.        ]]
+    iD = \
+[[ 0.        ,  2.98066761, 32.00141647,  1.36279137,  1.73806681,  0.        ,  5.35606031],
+ [ 0.        ,  0.        ,  0.        ,  1.36279137,  1.73806681,  1.93189325,  5.35606031],
+ [10.68268147,  0.        , 32.00141647,  1.36279137,  1.73806681,  0.        ,  0.        ],
+ [10.68268147,  2.98066761, 32.00141647,  1.36279137,  1.73806681,  1.93189325,  0.        ],
+ [ 0.        ,  0.        ,  0.        ,  0.        ,  1.73806681,  0.        ,  5.35606031]]
+    omega = \
+[[82.69564925, 73.59783994],
+ [        nan, 80.31543575],
+ [77.85596886, 79.76263482],
+ [81.63810387, 73.06792919],
+ [        nan, 75.27585429]]
+
+    run_test(
+        (params, data, rLHyperparams),
+        (Z, iD, omega),
         seed=seed,
     )
 
