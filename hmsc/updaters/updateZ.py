@@ -32,8 +32,6 @@ def updateZ(params, data, rLHyperparams, *,
     if seed is not None:
         tfr.set_seed(seed)
 
-    INFTY = 1e+3
-
     ZPrev = params["Z"]
     Beta = params["Beta"]
     EtaList = params["Eta"]
@@ -60,22 +58,58 @@ def updateZ(params, data, rLHyperparams, *,
     L = LFix + sum(LRanLevelList)
     Yo = tfm.logical_not(tfm.is_nan(Y))
 
-    # no data augmentation for normal model in columns with continious unbounded data
     indColNormal = np.nonzero(distr[:,0] == 1)[0]
+    indColProbit = np.nonzero(distr[:,0] == 2)[0]
+    indColPoisson = np.nonzero(distr[:,0] == 3)[0]
+
+    ZNormal, iDNormal = calculate_z_normal(
+            indColNormal, Y, Yo, L, sigma,
+            dtype=dtype)
+    ZProbit, iDProbit = calculate_z_probit(
+            indColProbit, Y, Yo, L, sigma,
+            truncated_normal_library=truncated_normal_library,
+            dtype=dtype)
+    ZPoisson, iDPoisson, poisson_omega = calculate_z_poisson(
+            indColPoisson, Y, Yo, L, sigma, ZPrev,
+            omega=params.get("poisson_omega"),
+            poisson_preupdate_z=poisson_preupdate_z,
+            poisson_marginalize_z=poisson_marginalize_z,
+            dtype=dtype)
+
+    ZStack = tf.concat([ZNormal, ZProbit, ZPoisson], -1)
+    iDStack = tf.concat([iDNormal, iDProbit, iDPoisson], -1)
+    indColStack = tf.concat([indColNormal, indColProbit, indColPoisson], 0)
+    ZNew = tf.gather(ZStack, tf.argsort(indColStack), axis=-1)
+    iDNew = tf.gather(iDStack, tf.argsort(indColStack), axis=-1)
+    return ZNew, iDNew, poisson_omega
+
+
+def calculate_z_normal(indColNormal, Y, Yo, L, sigma, *, dtype):
+    # no data augmentation for normal model in columns with continious unbounded data
+    ny, ns = Y.shape
     YN = tf.gather(Y, indColNormal, axis=-1)
     YoN = tf.gather(Yo, indColNormal, axis=-1)
     LN = tf.gather(L, indColNormal, axis=-1)
     sigmaN = tf.gather(sigma, indColNormal)
     ZNormal = tf.where(YoN, YN, LN + sigmaN * tfr.normal([ny, tf.size(indColNormal)], dtype=dtype))
-    iDNormal = tf.cast(YoN, dtype) * sigmaN**dtype(-2)
+    iDNormal = tf.cast(YoN, dtype) * sigmaN**-2
+    return ZNormal, iDNormal
 
+
+def calculate_z_probit(indColProbit, Y, Yo, L, sigma, *, truncated_normal_library, dtype):
     # Albert and Chib (1993) data augemntation for probit model in columns with binary data
-    indColProbit = np.nonzero(distr[:,0] == 2)[0]
+    INFTY = 1e+3
+    ny, ns = Y.shape
     YP = tf.gather(Y, indColProbit, axis=-1)
     YoP = tf.gather(Yo, indColProbit, axis=-1)
     YmP = tfm.logical_not(YoP)
     LP = tf.gather(L, indColProbit, axis=-1)
     sigmaP = tf.gather(sigma, indColProbit)
+    # low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(-np.inf, dtype), tf.zeros_like(YP))
+    # high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(np.inf, dtype), tf.zeros_like(YP))
+    # norm = tfd.Normal(LP, sigmaP)
+    # samUnif = tf.random.uniform(YP.shape, norm.cdf(low), norm.cdf(high), dtype=dtype)
+    # ZP = norm.quantile(samUnif)
     low = tf.where(tfm.logical_or(YP == 0, YmP), tf.cast(-INFTY, dtype), tf.zeros_like(YP))
     high = tf.where(tfm.logical_or(YP == 1, YmP), tf.cast(INFTY, dtype), tf.zeros_like(YP))
     nsP = tf.size(indColProbit)
@@ -95,11 +129,16 @@ def updateZ(params, data, rLHyperparams, *,
       a, b = (tf.reshape(low,[ny*nsP]) - loc) / scale, (tf.reshape(high,[ny*nsP]) - loc) / scale
       ZProbit = tf.reshape(tf.numpy_function(truncnorm.rvs, [a, b, loc, scale], dtype), [ny,nsP])
 
-    iDProbit = tf.cast(YoP, dtype) * sigmaP**dtype(-2)
+    iDProbit = tf.cast(YoP, dtype) * sigmaP**-2
 
+    return ZProbit, iDProbit
+
+
+def calculate_z_poisson(indColPoisson, Y, Yo, L, sigma, ZPrev, *,
+                        omega,
+                        poisson_preupdate_z, poisson_marginalize_z, dtype):
     # Lognormal Poisson with external PG sampler
     r = 1000 #Neg-binomial approximation constant
-    indColPoisson = np.nonzero(distr[:,0] == 3)[0]
     YPo = tf.gather(Y, indColPoisson, axis=-1)
     YoPo = tf.gather(Yo, indColPoisson, axis=-1)
     LPo = tf.gather(L, indColPoisson, axis=-1)
@@ -108,7 +147,6 @@ def updateZ(params, data, rLHyperparams, *,
     if poisson_preupdate_z == False:
       ZPo = tf.gather(ZPrev, indColPoisson, axis=-1)
     else:
-      omega = params["poisson_omega"]
       sigmaZ2 = (sigmaPo**-2. * tf.ones_like(LPo) + omega)**-1.
       muZ = sigmaZ2*((YPo-r)/2. + omega*np.log(r) + sigmaPo**-2. * LPo)
       ZPo = tfr.normal(YPo.shape, muZ, tf.sqrt(sigmaZ2), dtype=dtype)
@@ -125,13 +163,7 @@ def updateZ(params, data, rLHyperparams, *,
       iDPoisson = tf.cast(YoPo, dtype) * (sigmaPo**2. * tf.ones_like(LPo) + omega**-1)**-1
       ZPoisson = (YPo-r)/(2.*omega) + np.log(r)
     poisson_omega = omega
-
-    ZStack = tf.concat([ZNormal, ZProbit, ZPoisson], -1)
-    iDStack = tf.concat([iDNormal, iDProbit, iDPoisson], -1)
-    indColStack = tf.concat([indColNormal, indColProbit, indColPoisson], 0)
-    ZNew = tf.gather(ZStack, tf.argsort(indColStack), axis=-1)
-    iDNew = tf.gather(iDStack, tf.argsort(indColStack), axis=-1)
-    return ZNew, iDNew, poisson_omega
+    return ZPoisson, iDPoisson, poisson_omega
 
 
 def draw_polya_gamma(h, z, dtype=np.float64):
