@@ -72,8 +72,8 @@ def updateZ(params, data, rLHyperparams, *,
     ZPoisson, iDPoisson, poisson_omega = calculate_z_poisson(
             *gather(Y, Yo, L, sigma, ZPrev, indices=indColPoisson),
             omega=params.get("poisson_omega"),
-            poisson_preupdate_z=poisson_preupdate_z,
-            poisson_marginalize_z=poisson_marginalize_z,
+            preupdate_z=poisson_preupdate_z,
+            marginalize_z=poisson_marginalize_z,
             dtype=dtype)
 
     ZStack = tf.concat([ZNormal, ZProbit, ZPoisson], -1)
@@ -125,24 +125,24 @@ def calculate_z_probit(Y, Yo, L, sigma, *, truncated_normal_library, dtype):
 
 def calculate_z_poisson(Y, Yo, L, sigma, Z, *,
                         omega,
-                        poisson_preupdate_z, poisson_marginalize_z, dtype):
+                        preupdate_z, marginalize_z, dtype):
     # Lognormal Poisson with external PG sampler
     r = 1000 #Neg-binomial approximation constant
 
-    if poisson_preupdate_z:
-      Z = sample_z(Y, L, sigma, omega, r, dtype=dtype)
+    if preupdate_z:
+        Z = sample_z(Y, L, sigma, omega, r, dtype=dtype)
 
     omega = draw_polya_gamma(Y + r, Z - np.log(r), dtype=dtype)
-    if poisson_marginalize_z == False:
-      # sample Z. Required for sigma.
-      Z = sample_z(Y, L, sigma, omega, r, dtype=dtype)
-      iD = tf.cast(Yo, dtype) * sigma**-2.
+    if marginalize_z:
+        # marginalize Z for equivalent effect on Beta, Lambda or Eta. Cannot be used for sigma.
+        Z = (Y-r)/(2.*omega) + np.log(r)
+        iD = tf.cast(Yo, dtype) * (sigma**2. * tf.ones_like(L) + omega**-1)**-1
     else:
-      # marginalize Z for equivalent effect on Beta, Lambda or Eta. Cannot be used for sigma.
-      iD = tf.cast(Yo, dtype) * (sigma**2. * tf.ones_like(L) + omega**-1)**-1
-      Z = (Y-r)/(2.*omega) + np.log(r)
-    poisson_omega = omega
-    return Z, iD, poisson_omega
+        # sample Z. Required for sigma.
+        Z = sample_z(Y, L, sigma, omega, r, dtype=dtype)
+        iD = tf.cast(Yo, dtype) * sigma**-2.
+
+    return Z, iD, omega
 
 
 def sample_z(Y, L, sigma, omega, r, dtype):
