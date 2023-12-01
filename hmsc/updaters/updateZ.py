@@ -61,30 +61,45 @@ def updateZ(params, data, rLHyperparams, *,
     indColProbit = tf.where(distr[:,0] == 2)[:, 0]
     indColPoisson = tf.where(distr[:,0] == 3)[:, 0]
 
+    empty = tf.constant(tf.reshape(tf.convert_to_tensor((), dtype=dtype), [Y.shape[0], 0]))
+
     if seed is not None:
         tfr.set_seed(seed + 1)
 
-    ZNormal, iDNormal = calculate_z_normal(
-            *gather(Y, Yo, L, sigma, indices=indColNormal),
-            dtype=dtype)
+    if indColNormal.shape[0] > 0:
+        ZNormal, iDNormal = calculate_z_normal(
+                *gather(Y, Yo, L, sigma, indices=indColNormal),
+                dtype=dtype)
+    else:
+        ZNormal = empty
+        iDNormal = empty
 
     if seed is not None:
         tfr.set_seed(seed + 2)
 
-    ZProbit, iDProbit = calculate_z_probit(
-            *gather(Y, Yo, L, sigma, indices=indColProbit),
-            truncated_normal_library=truncated_normal_library,
-            dtype=dtype)
+    if indColProbit.shape[0] > 0:
+        ZProbit, iDProbit = calculate_z_probit(
+                *gather(Y, Yo, L, sigma, indices=indColProbit),
+                truncated_normal_library=truncated_normal_library,
+                dtype=dtype)
+    else:
+        ZProbit = empty
+        iDProbit = empty
 
     if seed is not None:
         tfr.set_seed(seed + 3)
 
-    ZPoisson, iDPoisson, poisson_omega = calculate_z_poisson(
-            *gather(Y, Yo, L, sigma, ZPrev, indices=indColPoisson),
-            omega=params.get("poisson_omega"),
-            preupdate_z=poisson_preupdate_z,
-            marginalize_z=poisson_marginalize_z,
-            dtype=dtype)
+    if indColPoisson.shape[0] > 0:
+        ZPoisson, iDPoisson, poisson_omega = calculate_z_poisson(
+                *gather(Y, Yo, L, sigma, ZPrev, indices=indColPoisson),
+                omega=params.get("poisson_omega"),
+                preupdate_z=poisson_preupdate_z,
+                marginalize_z=poisson_marginalize_z,
+                dtype=dtype)
+    else:
+        ZPoisson = empty
+        iDPoisson = empty
+        poisson_omega = empty
 
     ZStack = tf.concat([ZNormal, ZProbit, ZPoisson], -1)
     iDStack = tf.concat([iDNormal, iDProbit, iDPoisson], -1)
