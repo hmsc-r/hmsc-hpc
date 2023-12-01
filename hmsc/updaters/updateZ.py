@@ -10,7 +10,7 @@ tfd = tfp.distributions
 
 @tf_named_func("z")
 def updateZ(params, data, rLHyperparams, *,
-            poisson_preupdate_z=True, poisson_update_omega=True, poisson_marginalize_z=False,
+            poisson_preupdate_z=True, poisson_marginalize_z=False,
             truncated_normal_library="tf", dtype=np.float64,
             seed=None):
     """Update conditional updater(s)

@@ -174,7 +174,7 @@ def run_test(distr_case=0, x_ndim=2, tnlib='tf', seed=42, dtype=np.float64):
 
     Z, iD, omega = updateZ(
         params, data, rLHyperparams,
-        poisson_preupdate_z=False, poisson_update_omega=True, poisson_marginalize_z=False,
+        poisson_preupdate_z=False, poisson_marginalize_z=False,
         truncated_normal_library=tnlib, dtype=dtype,
         seed=seed,
         )
