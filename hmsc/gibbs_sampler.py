@@ -115,7 +115,7 @@ class GibbsSampler(tf.Module):
         #TODO potentially move next two lines to somewhere more approriate
         params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * params["sigma"]**-2
         _, _, params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams,
-                                                poisson_preupdate_z=False, poisson_update_omega=True, 
+                                                poisson_preupdate_z=False,
                                                 poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
 
         mcmcSamplesBeta = tf.TensorArray(params["Beta"].dtype, size=num_samples)
