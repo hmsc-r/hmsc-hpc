@@ -1,3 +1,4 @@
+import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
 from tensorflow.python.ops.random_ops import parameterized_truncated_normal
@@ -9,7 +10,7 @@ tfd = tfp.distributions
 
 @tf_named_func("z")
 def updateZ(params, data, rLHyperparams, *,
-            poisson_preupdate_z=True, poisson_marginalize_z=False,
+            poisson_preupdate_z=False, poisson_marginalize_z=False,
             truncated_normal_library="tf", dtype=tf.float64,
             seed=None):
     """Update conditional updater(s)
@@ -43,26 +44,26 @@ def updateZ(params, data, rLHyperparams, *,
     distr = data["distr"]
 
     if X.ndim == 2:
-        L = tf.matmul(X, Beta)
+        LFix = tf.matmul(X, Beta)
     else:
-        L = tf.einsum("jik,kj->ij", X, Beta)
+        LFix = tf.einsum("jik,kj->ij", X, Beta)
 
+    LRanList = []
     for r, (Eta, Lambda, rLPar) in enumerate(zip(EtaList, LambdaList, rLHyperparams)):
         xMat = rLPar.get("xMat")
         if xMat is None:
-            L2 = tf.matmul(Eta, Lambda)
+            LRan = tf.matmul(Eta, Lambda)
         else:
-            L2 = tf.einsum("ih,ik,hjk->ij", Eta, xMat, Lambda)
-        L += tf.gather(L2, Pi[:, r])
+            LRan = tf.einsum("ih,ik,hjk->ij", Eta, xMat, Lambda)
+        LRanList.append(tf.gather(LRan, Pi[:,r]))
+    L = tf.add_n([LFix] + LRanList)
 
     Yo = tfm.logical_not(tfm.is_nan(Y))
-
-    indColNormal = tf.where(distr[:,0] == 1)[:, 0]
-    indColProbit = tf.where(distr[:,0] == 2)[:, 0]
-    indColPoisson = tf.where(distr[:,0] == 3)[:, 0]
-
-    empty = tf.constant(tf.reshape(tf.convert_to_tensor((), dtype=dtype), [Y.shape[0], 0]))
-
+    indColNormal = np.where(distr[:,0] == 1)[0]
+    indColProbit = np.where(distr[:,0] == 2)[0]
+    indColPoisson = np.where(distr[:,0] == 3)[0]
+    empty = tf.zeros([Y.shape[0], 0], dtype)
+    
     if seed is not None:
         tfr.set_seed(seed + 1)
 
@@ -159,11 +160,11 @@ def calculate_z_poisson(Y, Yo, L, sigma, Z, *,
 
     omega = draw_polya_gamma(Y + r, Z - tfm.log(r), dtype=dtype)
     if marginalize_z:
-        # marginalize Z for equivalent effect on Beta, Lambda or Eta. Cannot be used for sigma.
+        # marginalize Z for equivalent effect on BetaLambda or Eta. Cannot be used for conjuately updating sigma.
         Z = (Y-r)/(2.*omega) + tfm.log(r)
         iD = tf.cast(Yo, dtype) * (sigma**2. * tf.ones_like(L) + omega**-1)**-1
     else:
-        # sample Z. Required for sigma.
+        # sample Z. Required for conjuately updating sigma.
         Z = sample_z(Y, L, sigma, omega, r, dtype=dtype)
         iD = tf.cast(Yo, dtype) * sigma**-2.
 
