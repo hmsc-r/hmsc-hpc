@@ -132,9 +132,10 @@ def updateZ(params, data, rLHyperparams, *,
 
     ZStack = tf.concat([ZNormal, ZProbit, ZPoisson], -1)
     iDStack = tf.concat([iDNormal, iDProbit, iDPoisson], -1)
-    indColStack = tf.concat([indColNormal, indColProbit, indColPoisson], 0)
-    ZNew = tf.gather(ZStack, tf.argsort(indColStack), axis=-1)
-    iDNew = tf.gather(iDStack, tf.argsort(indColStack), axis=-1)
+    indColStack = np.concatenate([indColNormal, indColProbit, indColPoisson], 0)
+    indices = np.argsort(indColStack)
+    ZNew = tf.gather(ZStack, indices, axis=-1)
+    iDNew = tf.gather(iDStack, indices, axis=-1)
     return ZNew, iDNew, poisson_omega
 
 
