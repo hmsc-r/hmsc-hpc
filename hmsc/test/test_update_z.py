@@ -39,7 +39,7 @@ def run_test(input_values, ref_values, *,
 
     # Calculate
     Z, iD, omega = updateZ(
-        *input_values,
+        params, data, rLHyperparams,
         poisson_preupdate_z=poisson_preupdate_z,
         poisson_marginalize_z=poisson_marginalize_z,
         truncated_normal_library=tnlib,
