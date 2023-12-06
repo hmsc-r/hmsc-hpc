@@ -147,6 +147,8 @@ class GibbsSampler(tf.Module):
                 ]
             )
             
+            # tf.print("inside tf.function:", tf.random.normal([1]))
+            
             # z_marginalize_iter_cond = lambda it: ((it % 2) == 1) & (it >= 0)
             # z_marginalize_iter_flag = z_marginalize_iter_cond(n)
             # z_marginalize_prev_flag = z_marginalize_iter_cond(n-1)

@@ -43,6 +43,7 @@ def run_gibbs_sampler(
     init_obj_file_path,
     postList_file_path,
     chainIndList=None,
+    rng_seed=0,
     truncated_normal_library="tf",
     flag_save_eta=True,
     flag_save_postList_to_rds=True,
@@ -69,6 +70,8 @@ def run_gibbs_sampler(
         chainIndList = chainIndListNew
 
     print("Initializing TF graph")
+    np.random.seed(rng_seed)
+    tf.random.set_seed(rng_seed)
     startTime = time.time()
     parSamples = gibbs.sampling_routine(
         initParList[0],
@@ -89,6 +92,9 @@ def run_gibbs_sampler(
         
         for chainInd, chain in enumerate(chainIndList):
             print("\n", "Computing chain %d" % chain)
+            np.random.seed(rng_seed + chain)
+            tf.random.set_seed(rng_seed + chain)
+            # tf.print("outside tf.function:", tf.random.normal([1]))
     
             parSamples = gibbs.sampling_routine(
                 initParList[chain],
@@ -201,6 +207,13 @@ if __name__ == "__main__":
         default=0,
         help="whether to run profiler alongside sampling",
     )
+    argParser.add_argument(
+        "--rngseed",
+        type=int,
+        default=0,
+        help="random number generator initialization seed",
+    )
+    
     args = argParser.parse_args()
     print("args=%s" % args)
     print("working directory", os.getcwd())
@@ -215,6 +228,7 @@ if __name__ == "__main__":
         init_obj_file_path=init_obj_file_path,
         postList_file_path=postList_file_path,
         chainIndList=args.chains,
+        rng_seed=args.rngseed,
         truncated_normal_library=args.tnlib,
         flag_save_eta=bool(args.fse),
         flag_save_postList_to_rds=True,
