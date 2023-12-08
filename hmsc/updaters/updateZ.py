@@ -13,7 +13,7 @@ def truncated_normal_tfd(loc, scale, low, high):
 
 
 @tf_named_func("truncated_normal_tf")
-def truncated_normal_tf(loc, scale, low, high, *, seed=None):
+def truncated_normal_tf(loc, scale, low, high):
     from tensorflow.python.ops.random_ops import parameterized_truncated_normal
 
     ny, ns = loc.shape
@@ -45,8 +45,7 @@ def truncated_normal_scipy(loc, scale, low, high):
 @tf_named_func("z")
 def updateZ(params, data, rLHyperparams, *,
             poisson_preupdate_z=False, poisson_marginalize_z=False,
-            truncated_normal_library="tf", dtype=tf.float64,
-            seed=None):
+            truncated_normal_library="tf", dtype=tf.float64):
     """Update conditional updater(s)
     Z - latent variable.
 
@@ -63,9 +62,6 @@ def updateZ(params, data, rLHyperparams, *,
         Pi - study design
         distr - matrix regulating observation models per outcome
     """
-    if seed is not None:
-        tfr.set_seed(seed)
-
     ZPrev = params["Z"]
     Beta = params["Beta"]
     EtaList = params["Eta"]
@@ -97,9 +93,6 @@ def updateZ(params, data, rLHyperparams, *,
     indColProbit = np.where(distr[:,0] == 2)[0]
     indColPoisson = np.where(distr[:,0] == 3)[0]
     empty = tf.zeros([Y.shape[0], 0], dtype)
-    
-    if seed is not None:
-        tfr.set_seed(seed + 1)
 
     if indColNormal.shape[0] > 0:
         ZNormal, iDNormal = calculate_z_normal(
@@ -108,9 +101,6 @@ def updateZ(params, data, rLHyperparams, *,
     else:
         ZNormal = empty
         iDNormal = empty
-
-    if seed is not None:
-        tfr.set_seed(seed + 2)
 
     if indColProbit.shape[0] > 0:
         if truncated_normal_library == 'tfd':
@@ -127,9 +117,6 @@ def updateZ(params, data, rLHyperparams, *,
     else:
         ZProbit = empty
         iDProbit = empty
-
-    if seed is not None:
-        tfr.set_seed(seed + 3)
 
     if indColPoisson.shape[0] > 0:
         ZPoisson, iDPoisson, poisson_omega = calculate_z_poisson(
