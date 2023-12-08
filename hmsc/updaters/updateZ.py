@@ -1,11 +1,45 @@
 import numpy as np
 import tensorflow as tf
-import tensorflow_probability as tfp
-from tensorflow.python.ops.random_ops import parameterized_truncated_normal
-from scipy.stats import truncnorm
 from hmsc.utils.tf_named_func import tf_named_func
 tfm, tfr = tf.math, tf.random
-tfd = tfp.distributions
+
+
+@tf_named_func("truncated_normal_tfd")
+def truncated_normal_tfd(loc, scale, low, high):
+    from tensorflow_probability import distributions as tfd
+
+    Z = tfd.TruncatedNormal(loc=loc, scale=scale, low=low, high=high).sample()
+    return Z
+
+
+@tf_named_func("truncated_normal_tf")
+def truncated_normal_tf(loc, scale, low, high, *, seed=None):
+    from tensorflow.python.ops.random_ops import parameterized_truncated_normal
+
+    ny, ns = loc.shape
+    dtype = loc.dtype
+    if ns == 0:
+        samTN = tf.convert_to_tensor((), dtype=dtype)
+    else:
+        samTN = parameterized_truncated_normal(
+            shape=[ny*ns], means=tf.reshape(loc,[ny*ns]), stddevs=tf.tile(scale,[ny]),
+            minvals=tf.reshape(low,[ny*ns]), maxvals=tf.reshape(high,[ny*ns]), dtype=dtype)
+    Z = tf.reshape(samTN, [ny,ns])
+    return Z
+
+
+@tf_named_func("truncated_normal_scipy")
+def truncated_normal_scipy(loc, scale, low, high):
+    from scipy.stats import truncnorm
+
+    ny, ns = loc.shape
+    dtype = loc.dtype
+    loc = tf.reshape(loc, [ny*ns])
+    scale = tf.tile(scale, [ny])
+    a = (tf.reshape(low, [ny*ns]) - loc) / scale
+    b = (tf.reshape(high,[ny*ns]) - loc) / scale
+    Z = tf.reshape(tf.numpy_function(truncnorm.rvs, [a, b, loc, scale], dtype), [ny,ns])
+    return Z
 
 
 @tf_named_func("z")
@@ -79,9 +113,16 @@ def updateZ(params, data, rLHyperparams, *,
         tfr.set_seed(seed + 2)
 
     if indColProbit.shape[0] > 0:
+        if truncated_normal_library == 'tfd':
+            truncated_normal = truncated_normal_tfd
+        elif truncated_normal_library == 'tf':
+            truncated_normal = truncated_normal_tf
+        elif truncated_normal_library == 'scipy':
+            truncated_normal = truncated_normal_scipy
+
         ZProbit, iDProbit = calculate_z_probit(
                 *gather(Y, Yo, L, sigma, indices=indColProbit),
-                truncated_normal_library=truncated_normal_library,
+                truncated_normal=truncated_normal,
                 dtype=dtype)
     else:
         ZProbit = empty
@@ -121,31 +162,14 @@ def calculate_z_normal(Y, Yo, L, sigma, *, dtype):
     return Z, iD
 
 
-def calculate_z_probit(Y, Yo, L, sigma, *, truncated_normal_library, dtype):
+def calculate_z_probit(Y, Yo, L, sigma, *, truncated_normal, dtype):
     # Albert and Chib (1993) data augemntation for probit model in columns with binary data
     INFTY = 1e+3
     Ym = tfm.logical_not(Yo)
     low = tf.where(tfm.logical_or(Y == 0, Ym), tf.cast(-INFTY, dtype), tf.zeros_like(Y))
     high = tf.where(tfm.logical_or(Y == 1, Ym), tf.cast(INFTY, dtype), tf.zeros_like(Y))
-    ny, ns = Y.shape
-
-    if truncated_normal_library == "tfd":
-        Z = tfd.TruncatedNormal(loc=L, scale=sigma, low=low, high=high).sample(name="z-ZProbit")
-    elif truncated_normal_library == "tf":
-        if ns == 0:
-            samTN = tf.convert_to_tensor((), dtype=dtype)
-        else:
-            samTN = parameterized_truncated_normal(shape=[ny*ns], means=tf.reshape(L,[ny*ns]), stddevs=tf.tile(sigma,[ny]),
-                                               minvals=tf.reshape(low,[ny*ns]), maxvals=tf.reshape(high,[ny*ns]), dtype=dtype,
-                                               name="z-samTN")
-        Z = tf.reshape(samTN, [ny,ns])
-    elif truncated_normal_library == "scipy":
-        loc, scale = tf.reshape(L,[ny*ns]), tf.tile(sigma,[ny])
-        a, b = (tf.reshape(low,[ny*ns]) - loc) / scale, (tf.reshape(high,[ny*ns]) - loc) / scale
-        Z = tf.reshape(tf.numpy_function(truncnorm.rvs, [a, b, loc, scale], dtype), [ny,ns])
-
+    Z = truncated_normal(loc=L, scale=sigma, low=low, high=high)
     iD = tf.cast(Yo, dtype) * sigma**-2
-
     return Z, iD
 
 
