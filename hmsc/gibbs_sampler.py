@@ -99,9 +99,14 @@ class GibbsSampler(tf.Module):
         flag_save_eta=True,
         print_retrace_flag=True,
         print_debug_flag= False,
+        rng_seed=None,
     ):
         if print_retrace_flag:
-            print("retracing")
+          print("retracing")
+        
+        if rng_seed != None:
+          tf.print("random seed set to", rng_seed)
+          tf.keras.utils.set_random_seed(rng_seed)
 
         ns = self.modelDims["ns"]
         nr = self.modelDims["nr"]
@@ -113,10 +118,9 @@ class GibbsSampler(tf.Module):
         npVec = self.modelDims["np"]
         params = paramsInput.copy() #TODO due to tf.function requiring not to change its Tensor input
         #TODO potentially move next two lines to somewhere more approriate
-        params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * params["sigma"]**-2
-        _, _, params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams,
-                                                poisson_preupdate_z=False,
-                                                poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
+        # params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * params["sigma"]**-2
+        params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams,
+                                                poisson_preupdate_z=False,poisson_marginalize_z=False)
 
         mcmcSamplesBeta = tf.TensorArray(params["Beta"].dtype, size=num_samples)
         mcmcSamplesBetaSel = [tf.TensorArray(tf.bool, size=num_samples) for i in range(ncsel)]

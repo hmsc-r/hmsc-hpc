@@ -240,7 +240,7 @@ def init_params(importedInitParList, modelData, modelDims, rLHyperparams, dtype=
 
     initParList = [None] * len(importedInitParList)
     for chainInd, importedInitPar in enumerate(importedInitParList):
-        Z = tf.constant(importedInitPar["Z"], dtype=dtype)
+        # Z = tf.constant(importedInitPar["Z"], dtype=dtype)
         Beta = tf.constant(importedInitPar["Beta"], dtype=dtype)
         Gamma = tf.constant(importedInitPar["Gamma"], dtype=dtype)
         iV = tfla.inv(tf.constant(importedInitPar["V"], dtype=dtype))
@@ -288,7 +288,7 @@ def init_params(importedInitParList, modelData, modelDims, rLHyperparams, dtype=
           Xeff = tf.concat([Xeff, tf.repeat(tf.expand_dims(XeffRRR,0), modelDims["ns"], 0)], axis=-1)
 
         initPar = {}
-        initPar["Z"] = Z
+        initPar["Z"] = None
         initPar["Beta"] = Beta
         initPar["Gamma"] = Gamma
         initPar["iV"] = iV

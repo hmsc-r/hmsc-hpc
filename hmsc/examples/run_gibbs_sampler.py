@@ -70,8 +70,10 @@ def run_gibbs_sampler(
         chainIndList = chainIndListNew
 
     print("Initializing TF graph")
-    np.random.seed(rng_seed)
-    tf.random.set_seed(rng_seed)
+    # print("outside seed %d" % (rng_seed+42))
+    # tf.keras.utils.set_random_seed(rng_seed+42)
+    # tf.config.experimental.enable_op_determinism()
+    # tf.print("outside tf.function:", tf.random.normal([1]))
     startTime = time.time()
     parSamples = gibbs.sampling_routine(
         initParList[0],
@@ -81,6 +83,7 @@ def run_gibbs_sampler(
         verbose=verbose,
         truncated_normal_library=truncated_normal_library,
         flag_save_eta=flag_save_eta,
+        # rng_seed=(rng_seed+42)
     )
     elapsedTime = time.time() - startTime
     print("TF graph initialized in %.1f sec" % elapsedTime)
@@ -92,8 +95,8 @@ def run_gibbs_sampler(
         
         for chainInd, chain in enumerate(chainIndList):
             print("\n", "Computing chain %d" % chain)
-            np.random.seed(rng_seed + chain)
-            tf.random.set_seed(rng_seed + chain)
+            # print("outside seed %d" % (rng_seed + chain))
+            # tf.keras.utils.set_random_seed(rng_seed + chain)
             # tf.print("outside tf.function:", tf.random.normal([1]))
     
             parSamples = gibbs.sampling_routine(
@@ -104,6 +107,7 @@ def run_gibbs_sampler(
                 verbose=verbose,
                 truncated_normal_library=truncated_normal_library,
                 flag_save_eta=flag_save_eta,
+                # rng_seed=(rng_seed+chain)
             )
             postList[chainInd] = [None] * num_samples
             for n in range(num_samples):
