@@ -1,0 +1,62 @@
+[project]
+name = "hmsc"
+description = "Flexible framework for joint species distribution modelling."
+readme = "README.rst"
+requires-python = ">=3.6"
+license = {file = "LICENSE"}
+keywords = [
+	"species distribution modeling",
+	"JSDM",
+]
+maintainers = [
+  {name = "Anis Ur Rahman", email = "aniskhan25@gmail.com"},
+]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.6",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+]
+
+dynamic = ["version"]
+
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyreadr",
+    "scipy",
+    "tensorflow",
+    "tensorflow-probability",
+    "ujson",
+]
+
+[project.optional-dependencies]
+docs = [
+  "matplotlib",
+]
+test = [
+  "pytest",
+]
+
+[project.urls]
+repository = "https://github.com/aniskhan25/hmsc-hpc"
+
+[build-system]
+requires = [
+    "setuptools>=61",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["hmsc*"]
+
+[tool.setuptools.dynamic]
+version = {attr = "hmsc.__version__"}
+

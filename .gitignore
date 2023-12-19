@@ -3,3 +3,4 @@
 *.rds
 *.RData
 *.Rapp.history
+*.egg-info/
