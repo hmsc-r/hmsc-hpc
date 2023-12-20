@@ -151,10 +151,10 @@ def calculate_z_normal(Y, Yo, L, sigma, *, dtype):
 
 def calculate_z_probit(Y, Yo, L, sigma, *, truncated_normal, dtype):
     # Albert and Chib (1993) data augemntation for probit model in columns with binary data
-    INFTY = 1e+3
+    INFTY = tf.constant(1e+3, dtype)
     Ym = tfm.logical_not(Yo)
-    low = tf.where(tfm.logical_or(Y == 0, Ym), tf.cast(-INFTY, dtype), tf.zeros_like(Y))
-    high = tf.where(tfm.logical_or(Y == 1, Ym), tf.cast(INFTY, dtype), tf.zeros_like(Y))
+    low = tf.where(tfm.logical_or(Y == 0, Ym), -INFTY, 0.)
+    high = tf.where(tfm.logical_or(Y == 1, Ym), INFTY, 0.)
     Z = truncated_normal(loc=L, scale=sigma, low=low, high=high)
     iD = tf.cast(Yo, dtype) * sigma**-2
     return Z, iD
