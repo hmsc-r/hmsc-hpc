@@ -43,6 +43,7 @@ def run_gibbs_sampler(
     init_obj_file_path,
     postList_file_path,
     chainIndList=None,
+    rng_seed=0,
     truncated_normal_library="tf",
     flag_save_eta=True,
     flag_save_postList_to_rds=True,
@@ -69,6 +70,10 @@ def run_gibbs_sampler(
         chainIndList = chainIndListNew
 
     print("Initializing TF graph")
+    # print("outside seed %d" % (rng_seed+42))
+    # tf.keras.utils.set_random_seed(rng_seed+42)
+    # tf.config.experimental.enable_op_determinism()
+    # tf.print("outside tf.function:", tf.random.normal([1]))
     startTime = time.time()
     parSamples = gibbs.sampling_routine(
         initParList[0],
@@ -78,6 +83,7 @@ def run_gibbs_sampler(
         verbose=verbose,
         truncated_normal_library=truncated_normal_library,
         flag_save_eta=flag_save_eta,
+        # rng_seed=(rng_seed+42)
     )
     elapsedTime = time.time() - startTime
     print("TF graph initialized in %.1f sec" % elapsedTime)
@@ -89,6 +95,9 @@ def run_gibbs_sampler(
         
         for chainInd, chain in enumerate(chainIndList):
             print("\n", "Computing chain %d" % chain)
+            # print("outside seed %d" % (rng_seed + chain))
+            # tf.keras.utils.set_random_seed(rng_seed + chain)
+            # tf.print("outside tf.function:", tf.random.normal([1]))
     
             parSamples = gibbs.sampling_routine(
                 initParList[chain],
@@ -98,6 +107,7 @@ def run_gibbs_sampler(
                 verbose=verbose,
                 truncated_normal_library=truncated_normal_library,
                 flag_save_eta=flag_save_eta,
+                # rng_seed=(rng_seed+chain)
             )
             postList[chainInd] = [None] * num_samples
             for n in range(num_samples):
@@ -201,6 +211,13 @@ if __name__ == "__main__":
         default=0,
         help="whether to run profiler alongside sampling",
     )
+    argParser.add_argument(
+        "--rngseed",
+        type=int,
+        default=0,
+        help="random number generator initialization seed",
+    )
+    
     args = argParser.parse_args()
     print("args=%s" % args)
     print("working directory", os.getcwd())
@@ -215,6 +232,7 @@ if __name__ == "__main__":
         init_obj_file_path=init_obj_file_path,
         postList_file_path=postList_file_path,
         chainIndList=args.chains,
+        rng_seed=args.rngseed,
         truncated_normal_library=args.tnlib,
         flag_save_eta=bool(args.fse),
         flag_save_postList_to_rds=True,
