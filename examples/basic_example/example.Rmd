@@ -3,47 +3,100 @@ title: "Basic Hmsc-HPC usage example"
 output: html_notebook
 ---
 
-This notebook demonstrates the concept of using Hmsc-HPC extension for `Hmsc` package. Unlike the core `Hmsc`, the Hmsc-HPC extension is written in Python programming language and is executed with Python interpreter. Hence, before a user can use it, a proper Python installation is required. 
+This notebook demonstrates the concept of using Hmsc-HPC extension for `Hmsc` package. Unlike the core `Hmsc`, the Hmsc-HPC extension is written in Python programming language and is executed with Python interpreter. Hence, before a user can use it, a proper Python installation is required.
 
-### Checking Python and TensorFlow installation
+# Preparing Python environment
 
-Depending on your hardware, operating system and user rights, the set of steps to acquire and configure a proper Python distribution may greatly vary. Thus, we would like to relay the installation process itself either to one of multitude guides available on the web, or to the IT support that manages your device. However, we would like to provide some simple advice how-to credibly and quickly ensure whether the following examples in this notebook shall be expected to execute well or not.
+**If you are familiar with using Python within RStudio**, then please configure Python in your preferred way and pip-install the Python package from the distributed zip package (`pip install .../path/to/hmsc-hpc`), and skip to the section [Checking Python environment].
 
-For this purpose, we propose you to test the next chunk of code that tries to check version of Python available in you system, and to execute a basic TensorFlow-based command: 
+**If you are not familiar with using Python within RStudio**, then please follow the detailed instructions below.
+
+## Detailed instructions
+
+### 1. Finding Python installation
+
+Depending on your hardware, operating system and user rights, the set of steps to acquire and configure a proper Python distribution may greatly vary. Thus, we would like to relay the installation process itself either to one of multitude guides available on the web, or to the IT support that manages your device. This section merely checks that a Python installation can be found.
+
+Please test the next chunk of code that tries to check version of Python available in you system:
+
 ```{r}
-testPythonCode = "import tensorflow as tf; print(tf.constant(1))"
-system("python --version", wait=TRUE)
-system(sprintf("python -c '%s'", testPythonCode), wait=TRUE)
+system_python = "python3"
+# system_python = "/Users/gtikhono/opt/anaconda3/envs/tf/bin/python3"
+system(paste(system_python, "--version"), wait=TRUE)
 ```
-If Python distribution in your system is configured well, then the code shall print the version of Python and check the availability of TensorFlow package by printing a scalar. If the first part is failing, they you are likely missing Python altogether, or its path is not configured. If the second line fails, then TensorFlow is not installed, and you shall acquire it, e.g. following the guidelines from the developer's website.
 
-Please note that in some cases you may have several distributions of Python available, and the one intended for Hmsc-HPC is not the default choice. Then you shall either explicitly specify the path to the desired Python distribution --- as we demonstrate in the code chunk below, or use other means to reconfigure it - for instance, `reticulate` package features several functions aimed to achieve that. 
+If the Python distribution in your system is configured well, then the code shall print the version of Python. If this is failing, then you are likely missing Python altogether, or its path is not configured correctly. In some cases you may have several distributions of Python available, and then you shall either explicitly specify the path to the desired Python distribution --- as exemplified in the commented-out `system_python = ...` line above.
+
+### 2. Creating a new virtual environment
+
+The next line creates an empty virtual environment where we will set up Hmsc-HPC:
 
 ```{r}
-pythonPath = "/Users/gtikhono/opt/anaconda3/envs/tf/bin/python3"
-system(sprintf("%s --version", pythonPath), wait=TRUE)
-system(sprintf("%s -c '%s'", pythonPath, testPythonCode), wait=TRUE)
+system(paste(system_python, "-m venv hmsc-venv"), wait=TRUE)
 ```
-We strongly recommend that you ensure that the code chunk above executes well, as we would reuse the same path to relevant Python distribution later on throought this notebook.
 
+Then, we activate this Python environment by defining an appropriate `python` path variable and check that it works by printing the version of Python:
 
-# Setting a toy Hmsc model
+```{r}
+python = file.path(getwd(), "hmsc-venv", "bin", "python")  # for Linux and macOS
+# python = file.path(getwd(), "hmsc-venv", "Scripts", "python")  # for Windows
+system(paste(python, "--version"), wait=TRUE)
+```
+
+If this is failing, then you need to adjust the path to the correct Python executable (note that the path depends on operating system -- see comments in the code block above).
+
+### 3. Install Hmsc-HPC package
+
+For installing the Hmsc-HPC Python package, we need to define the path to the Hmsc-HPC package. Assuming that you have downloaded this notebook as a part of the distributed zip package, the pre-set `package_path` shall work fine. Otherwise, please set the correct `package_path`. (Note for reviewers: after the blind review, the Hmsc-HPC package will be published and can be directly installed from web repository.):
+
+```{r}
+package_path = file.path(getwd(), "..", "..")
+system(paste(python, "-m pip install --upgrade pip"), wait=TRUE)
+system(paste(python, "-m pip install", package_path), wait=TRUE)
+```
+
+After this, you should have a functioning Python environment.
+
+## Checking Python environment
+
+This section is for checking whether the examples in this notebook shall be expected to execute well or not.
+
+The next code chunk tests that the Python environment works by executing a basic TensorFlow-based command and importing Hmsc-HPC package. Please define the correct `python` path to the Python executable. If you have configured Python outside Rstudio, then the default should work fine.
+
+```{r}
+# Choose correct python by uncommenting correct line:
+# python = "python3"  # default
+# python = file.path(getwd(), "hmsc-venv", "bin", "python")  # hmsc-venv for Linux and macOS
+# python = file.path(getwd(), "hmsc-venv", "Scripts", "python")  # hmsc-venv for Windows
+
+Sys.setenv(TF_CPP_MIN_LOG_LEVEL=3)  # reduce debug output from tensorflow
+system(paste(python, "-c 'import tensorflow as tf; print(tf.constant(1))'"), wait=TRUE)
+system(paste(python, "-c 'import hmsc'"), wait=TRUE)
+```
+
+Your Python setup is working correctly if the code does not produce any errors.
+
+### Troubleshooting
+
+If the above check and the detailed instructions do not work for you, please consult one of multitude guides available on the web. You can configure Python within RStudio in multiple ways - for instance, `reticulate` package features several functions aimed to achieve that or you can prepare and activate the correct Python environment outside RStudio.
+
+# Setting up a toy Hmsc model
+
 First, we shall acquire a sufficiently recent `Hmsc` package. Most likely, the actual distribution on CRAN is already suitable, but most certainly it can be done from the master branch of `Hmsc` repo on GitHub.
+
 ```{r eval=FALSE, include=FALSE}
 library(devtools)
 install_github("hmsc-r/HMSC")
 ```
 
-Next, we load the required packages. We also set up the path to the working directory and the path to the Hmsc-HPC package. Assuming that you have downloaded this notebook as a part of the distributed Hmsc-HPC extension, the pre-set relative paths shall work fine. Otherwise, please note that these are user and system-specific, therefore you shall ensure their correctness yourself. 
+Next, we load the required packages. We also set up the path to the working directory and the path to the Hmsc-HPC package. Assuming that you have downloaded this notebook as a part of the distributed Hmsc-HPC extension, the pre-set relative paths shall work fine. Otherwise, please note that these are user and system-specific, therefore you shall ensure their correctness yourself.
 
 ```{r}
 library(Hmsc)
 library(jsonify)
-packagePath = "../../hmsc-hpc"
-python_file_path = file.path(packagePath, "hmsc/examples/run_gibbs_sampler.py")
 ```
 
-Next, we introduce the fundamental model fitting parameters determining the MCMC sampling: number of samples to obtain per MCMC chain, thinning and number of chains. We also define the regularity of progress printing during MCMC sampling. We set the transient phase being equally long as the sampling phase. 
+Next, we introduce the fundamental model fitting parameters determining the MCMC sampling: number of samples to obtain per MCMC chain, thinning and number of chains. We also define the regularity of progress printing during MCMC sampling. We set the transient phase being equally long as the sampling phase.
 
 ```{r}
 nSamples = 100
@@ -55,47 +108,56 @@ transient = nSamples * thin
 
 For the sake of this example close-to-online run times, we deliberately use short MCMC chains that are not expected to reach sufficient convergence. This example can be rerun with longer MCMC chains to ensure their convergence.
 
-We use the `TD` synthetic data, included to the `Hmsc` package for the demonstration purposes. In practice, the users would have to define the model with their own data. We set up the model with `Hmsc(...)` call and fit it with  
+We use the `TD` synthetic data, included to the `Hmsc` package for the demonstration purposes. In practice, the users would have to define the model with their own data. We set up the model with `Hmsc(...)` call and fit it with
 
 ```{r}
 summary(TD)
-m = Hmsc(Y=TD$Y, XData=TD$X, XFormula=~., TrData=TD$Tr[,-1], TrFormula=~., phyloTree=TD$phy,
-         studyDesign=TD$studyDesign, ranLevels=list(plot=TD$rL1, sample=TD$rL2))
+m = Hmsc(Y=TD$Y,
+         XData=TD$X, XFormula=~.,
+         TrData=TD$Tr[,-1], TrFormula=~.,
+         phyloTree=TD$phy,
+         studyDesign=TD$studyDesign,
+         ranLevels=list(plot=TD$rL1, sample=TD$rL2))
 ```
-
 
 ### Standard Hmsc-R fitting
 
-Next, we obtain the reference by fitting `m` using the standard way with `sampleMcmc(...)` call. 
+Next, we obtain the reference by fitting `m` using the standard way with `sampleMcmc(...)` call.
+
 ```{r include=FALSE, results='hide'}
-fitR = sampleMcmc(m, samples=nSamples, thin=thin, transient=transient, nChains=nChains, verbose=200, engine="R")
-```
-We also visualize some possible post-fitting postprocessing available in `Hmsc`package --- by the estimated partition of variance in the fitted model.
-```{r}
-plotVariancePartitioning(fitR, computeVariancePartitioning(fitR), args.legend=list(x="bottomright"))
+fitR = sampleMcmc(m, samples=nSamples, thin=thin,
+                  transient=transient, nChains=nChains,
+                  verbose=verbose, engine="R")
 ```
 
-# Exporting model for Hmsc-HPC 
-
-In order to use Hmsc-HPC, we need to export the model object, created by `Hmsc(...)` call. Also, the current design of `Hmsc-R` and `Hmsc-HPC` interplay requires that the model initialization, which happens just before the MCMC chains are run, is conducted in R. Thus, we use special keyword in the call `sampleMcmc(..., engine="HPC)`, which denotes that we are not interested in sampling the model, but only to initialize the sampling. We save the resulted object in obligatory JSON+RDS format to the working directory.
+We also visualize some possible post-fitting postprocessing available in `Hmsc` package --- by the estimated partition of variance in the fitted model.
 
 ```{r}
-init_obj = sampleMcmc(m, samples=nSamples, thin=thin, transient=transient, nChains=nChains, verbose=verbose, engine="HPC")
-init_file_name = "init_file.rds"
-saveRDS(to_json(init_obj), file=init_file_name)
+plotVariancePartitioning(fitR, computeVariancePartitioning(fitR),
+                         args.legend=list(x="bottomright"))
 ```
 
-# Hmsc-HPC for sequential chains' execution 
+# Exporting model for Hmsc-HPC
+
+In order to use Hmsc-HPC, we need to export the model object, created by `Hmsc(...)` call. Also, the current design of `Hmsc-R` and `Hmsc-HPC` interplay requires that the model initialization, which happens just before the MCMC chains are run, is conducted in R. Thus, we use special keyword in the call `sampleMcmc(..., engine="HPC")`, which denotes that we are not interested in sampling the model, but only to initialize the sampling. We save the resulted object in obligatory JSON+RDS format to the working directory.
+
+```{r}
+init_obj = sampleMcmc(m, samples=nSamples, thin=thin,
+                      transient=transient, nChains=nChains,
+                      verbose=verbose, engine="HPC")
+init_file_path = file.path(getwd(), "init_file.rds")
+saveRDS(to_json(init_obj), file=init_file_path)
+```
+
+# Hmsc-HPC for sequential execution of chains
 
 As the Hmsc-HPC operates in Python, in the next step we programmatically formulate the required call.
 
 ```{r}
-pythonPath = "/Users/gtikhono/opt/anaconda3/envs/tf/bin/python3"
-post_file_name = "post_file.rds"
-cat(sprintf("export PYTHONPATH='%s':$PYTHONPATH", normalizePath(packagePath)), "\n")
-python_cmd = paste(sprintf("'%s' '%s'", pythonPath, normalizePath(python_file_path)),
-                   sprintf("--input '%s'", file.path(getwd(), init_file_name)),
-                   sprintf("--output '%s'", file.path(getwd(), post_file_name)),
+post_file_path = file.path(getwd(), "post_file.rds")
+python_cmd = paste(python, "-m hmsc.run_gibbs_sampler",
+                   "--input", init_file_path,
+                   "--output", post_file_path,
                    "--samples", nSamples,
                    "--transient", transient,
                    "--thin", thin,
@@ -103,21 +165,22 @@ python_cmd = paste(sprintf("'%s' '%s'", pythonPath, normalizePath(python_file_pa
 cat(python_cmd, "\n")
 ```
 
-In this example we implicitly focus on the case of using local machine for MCMC execution, but any properly set-up machine can be used --- the user just need to move the initialized object there. 
+In this example we implicitly focus on the case of using local machine for MCMC execution, but any properly set-up machine can be used --- the user just need to move the initialized object there.
 
-### Running Python model fitting script 
+### Running Python model fitting script
 
 If the user is savvy in running Python scripts from R, then the outputted calls can be executed as a part of R script execution. While this can be accomplished by executing the next chunk of code, we personally have found it to be very sensitive to a very proper Python configuration. Thus, at this stage we recommend to run a shell (command line) and simply paste the two calls, produced by the last chunk there - at least during the user's learning of Hmsc-HPC workflow.
 
 ```{r}
-system(sprintf("export PYTHONPATH='%s':$PYTHONPATH; %s", normalizePath(packagePath), python_cmd), wait=TRUE)
+system(python_cmd, wait=TRUE)
 ```
 
-### Importing computed posterior to R 
+### Importing computed posterior to R
 
 Once the Python call has conducted, the following step is to import the calculated posterior samples back to R. We start by reading the output of `Hmsc-HPC`, which is a stacked list of fitted chains and time elapsed for model fitting.
+
 ```{r}
-importFromHPC = from_json(readRDS(file = post_file_name)[[1]])
+importFromHPC = from_json(readRDS(file = post_file_path)[[1]])
 postList = importFromHPC[1:nChains]
 cat(sprintf("fitting time %.1f sec\n", importFromHPC[[nChains+1]]))
 ```
@@ -134,35 +197,34 @@ We finalize by plotting the variance partition again --- just to ensure the inte
 plotVariancePartitioning(fitTF, computeVariancePartitioning(fitTF), args.legend=list(x="bottomright"))
 ```
 
+# Hmsc-HPC for parallel execution of multiple chains
 
-# Hmsc-HPC for potentially concurrent chains' execution 
-
-If the model fitting with Hmsc-HPC is conducted locally, then there is typically no need for parallel execution of chains. However, if the user's machine features multiple GPUs or a specialized CPU with very large number of cores, there is a need to provide an opportunity for the MCMC being run in parallel. Furhtermore, this is the intended pathway especially once fitting is conducted with HPC infrastructure. Hence, we provide an example of how to execute such pathway as well.
+If the model fitting with Hmsc-HPC is conducted locally, then there is typically no need for parallel execution of chains. However, if the user's machine features multiple GPUs or a specialized CPU with very large number of cores, there is a need to provide an opportunity for the MCMC being run in parallel. Furthermore, this is the intended pathway especially once fitting is conducted with HPC infrastructure. Hence, we provide an example of how to execute such pathway as well.
 
 For this purpose, we need to create chain-specific Python calls, so that each one will handle a single particular chain.
 
 ```{r}
 chain_cmd_list = vector("list", nChains)
 for(cInd in 1:nChains){
-  chain_file_name = sprintf("post_chain%.2d_file.rds", cInd-1)
-  chain_cmd = paste(sprintf("'%s' '%s'", pythonPath, normalizePath(python_file_path)),
-                     sprintf("--input '%s'", file.path(getwd(), init_file_name)),
-                     sprintf("--output '%s'", file.path(getwd(), chain_file_name)),
-                     "--samples", nSamples,
-                     "--transient", transient,
-                     "--thin", thin,
-                     "--verbose", verbose,
-                     "--chain", cInd-1)
+  chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
+  chain_cmd = paste(python, "-m hmsc.run_gibbs_sampler",
+                    "--input", init_file_path,
+                    "--output", chain_file_path,
+                    "--samples", nSamples,
+                    "--transient", transient,
+                    "--thin", thin,
+                    "--verbose", verbose,
+                    "--chain", cInd-1)
   cat(chain_cmd, "\n")
   chain_cmd_list[[cInd]] = chain_cmd
 }
 ```
 
-Next step is to appropriately execute each of these calls. For the sake of runability of this notebook im most users' devices, here we manually mimic the job scheduler, while an example of doing it properly in a `Slurm`-based HPC cluster is provided in the next section. The principal difference from the single call considers above is that each call's output is a separate file with chain-specific results.
+Next step is to appropriately execute each of these calls. For the sake of runnability of this notebook in most users' devices, here we manually mimic the job scheduler, while an example of doing it properly in a Slurm-based HPC cluster is provided in the next section. The principal difference from the single call considers above is that each call's output is a separate file with chain-specific results.
 
 ```{r}
 for(cInd in 1:nChains){
-  system(sprintf("export PYTHONPATH='%s':$PYTHONPATH; %s", normalizePath(packagePath), chain_cmd_list[[cInd]]), wait=TRUE)
+  system(chain_cmd_list[[cInd]], wait=TRUE)
 }
 ```
 
@@ -171,8 +233,8 @@ Therefore, once all Python calls have conducted, the following step is to import
 ```{r}
 chainList = vector("list", nChains)
 for(cInd in 1:nChains){
-  chain_file_name = sprintf("post_chain%.2d_file.rds", cInd-1)
-  chainList[[cInd]] = from_json(readRDS(file = chain_file_name)[[1]])[[1]]
+  chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
+  chainList[[cInd]] = from_json(readRDS(file = chain_file_path)[[1]])[[1]]
 }
 ```
 
@@ -183,25 +245,27 @@ fitSepTF = importPosteriorFromHPC(m, chainList, nSamples, thin, transient)
 plotVariancePartitioning(fitSepTF, computeVariancePartitioning(fitSepTF), args.legend=list(x="bottomright"))
 ```
 
-
 # Running Hmsc-HPC in a cluster
 
-Different computational clusters greatly diverge in how software and scripts are run, both in terms of execution characteristics and in user interface. Thus, it is close to impossible to properly cover all the alternatives related to how Hmsc-HPC can be run in HPC that the particular user is interested and has access to. Therefore, we focus on how we have done it with the HPC under `Slurm` cluster management and job scheduling system, which is used by CSC of Finland that provided HPC resources for this research project.
+Different computational clusters greatly diverge in how software and scripts are run, both in terms of execution characteristics and in user interface. Thus, it is close to impossible to properly cover all the alternatives related to how Hmsc-HPC can be run in HPC that the particular user is interested and has access to. Therefore, we focus on how we have done it with the HPC under Slurm cluster management and job scheduling system, which is used at the supercomputers maintained by CSC (Finland) that provided HPC resources for this research project.
 
 ### Script for parallel execution of chains
 
-The following script shall be run with `sbatch` command from the user interface node of the cluster. 
+The following script is an example to be run with `sbatch` command from the user interface node of the cluster.
 
 ```{bash eval=FALSE}
 #!/bin/bash
 #SBATCH --account=project_123456789
-#SBATCH --ntasks=1 --cpus-per-task=4
-#SBATCH --mem-per-cpu=32G --gpus-per-node=1
-#SBATCH --time=00:14:59 --partition=small-g
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=4
+#SBATCH --mem-per-cpu=32G
+#SBATCH --gpus-per-node=1
+#SBATCH --time=00:15:00
+#SBATCH --partition=small-g
 #SBATCH --array=0-3
 
 module load tensorflow/2.12
-export PYTHONPATH=$PWD/../../hmsc-hpc:$PYTHONPATH
+# pip install hmsc ...
 
 SAM=${1:-100}
 THIN=${2:-10}
@@ -210,8 +274,7 @@ input_path="init_file.rds"
 output_path="post_file.rds"
 output_path=$(printf "post_chain%.2d_file.rds" $SLURM_ARRAY_TASK_ID)
 
-srun python3 $PYTHONPATH/hmsc/examples/run_gibbs_sampler.py --input $input_path --output $output_path --samples $SAM --transient $(($SAM*$THIN)) --thin $THIN --verbose 100 --chain $SLURM_ARRAY_TASK_ID
+srun python3 -m hmsc.run_gibbs_sampler --input $input_path --output $output_path --samples $SAM --transient $(($SAM*$THIN)) --thin $THIN --verbose 100 --chain $SLURM_ARRAY_TASK_ID
 ```
 
-The header of the script may vary according to the used `Slurm` specification, so please consult the help webpage or IT support of the HPC resource that you intend to use. Namely, we have encountered differences in two different clusters iven though these were both run by the same CSC operator. Particularly this presented script was used for runs in LUMI supercomputer. 
-
+Note that the `#SBATCH` settings in the header of the script and the module environment will be different depending on the supercomputer used, so please consult the help webpage or IT support of the HPC resource that you intend to use. This presented script was used for runs in LUMI supercomputer.
