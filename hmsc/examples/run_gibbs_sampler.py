@@ -48,6 +48,7 @@ def run_gibbs_sampler(
     flag_save_eta=True,
     flag_save_postList_to_rds=True,
     flag_profile=False,
+    flag_print_graph=False,
 ):
     (
         modelDims,
@@ -75,7 +76,7 @@ def run_gibbs_sampler(
     # tf.config.experimental.enable_op_determinism()
     # tf.print("outside tf.function:", tf.random.normal([1]))
     startTime = time.time()
-    parSamples = gibbs.sampling_routine(
+    func = gibbs.sampling_routine.get_concrete_function(
         initParList[0],
         num_samples=tf.constant(1),
         sample_burnin=tf.constant(1),
@@ -87,7 +88,15 @@ def run_gibbs_sampler(
     )
     elapsedTime = time.time() - startTime
     print("TF graph initialized in %.1f sec" % elapsedTime, flush=True)
-     
+
+    if flag_print_graph:
+        print(func)
+
+        print('  Nodes:')
+        for node in func.graph.as_graph_def().node:
+            print(f'    {node.input} -> {node.name}')
+        print('', flush=True)
+
     print("Running TF Gibbs sampler for %d chains with indices" % len(chainIndList), chainIndList, flush=True)
     with tf.profiler.experimental.Profile('logdir') if flag_profile else nullcontext():
         startTime = time.time()
@@ -217,7 +226,12 @@ if __name__ == "__main__":
         default=0,
         help="random number generator initialization seed",
     )
-    
+    argParser.add_argument(
+        "--print_graph",
+        action='store_true',
+        help="whether to print tensorflow graph",
+    )
+
     args = argParser.parse_args()
     print("args=%s" % args)
     print("working directory", os.getcwd(), flush=True)
@@ -237,4 +251,5 @@ if __name__ == "__main__":
         flag_save_eta=bool(args.fse),
         flag_save_postList_to_rds=True,
         flag_profile=bool(args.profile),
+        flag_print_graph=args.print_graph,
     )
