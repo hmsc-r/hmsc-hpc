@@ -73,7 +73,7 @@ def updateZ(params, data, rLHyperparams, *,
     Pi = data["Pi"]
     distr = data["distr"]
 
-    if len(X.shape.as_list()) == 2: #tf.rank(X) X.ndim == 2:
+    if X.shape.ndims == 2:
         LFix = tf.matmul(X, Beta)
     else:
         LFix = tf.einsum("jik,kj->ij", X, Beta)
@@ -132,9 +132,10 @@ def updateZ(params, data, rLHyperparams, *,
 
     ZStack = tf.concat([ZNormal, ZProbit, ZPoisson], -1)
     iDStack = tf.concat([iDNormal, iDProbit, iDPoisson], -1)
-    indColStack = tf.concat([indColNormal, indColProbit, indColPoisson], 0)
-    ZNew = tf.gather(ZStack, tf.argsort(indColStack), axis=-1)
-    iDNew = tf.gather(iDStack, tf.argsort(indColStack), axis=-1)
+    indColStack = np.concatenate([indColNormal, indColProbit, indColPoisson], 0)
+    indices = np.argsort(indColStack)
+    ZNew = tf.gather(ZStack, indices, axis=-1)
+    iDNew = tf.gather(iDStack, indices, axis=-1)
     return ZNew, iDNew, poisson_omega
 
 
@@ -142,6 +143,7 @@ def gather(*args, indices):
     return (tf.gather(a, indices, axis=-1) for a in args)
 
 
+@tf_named_func("z_normal")
 def calculate_z_normal(Y, Yo, L, sigma, *, dtype):
     # no data augmentation for normal model in columns with continious unbounded data
     Z = tf.where(Yo, Y, L + sigma * tfr.normal(Y.shape, dtype=dtype))
@@ -149,17 +151,20 @@ def calculate_z_normal(Y, Yo, L, sigma, *, dtype):
     return Z, iD
 
 
+@tf_named_func("z_probit")
 def calculate_z_probit(Y, Yo, L, sigma, *, truncated_normal, dtype):
     # Albert and Chib (1993) data augemntation for probit model in columns with binary data
-    INFTY = 1e+3
+    INFTY = tf.constant(1e+3, dtype)
+    zero = tf.constant(0., dtype)
     Ym = tfm.logical_not(Yo)
-    low = tf.where(tfm.logical_or(Y == 0, Ym), tf.cast(-INFTY, dtype), tf.zeros_like(Y))
-    high = tf.where(tfm.logical_or(Y == 1, Ym), tf.cast(INFTY, dtype), tf.zeros_like(Y))
+    low = tf.where(tfm.logical_or(Y == 0, Ym), -INFTY, zero)
+    high = tf.where(tfm.logical_or(Y == 1, Ym), INFTY, zero)
     Z = truncated_normal(loc=L, scale=sigma, low=low, high=high)
     iD = tf.cast(Yo, dtype) * sigma**-2
     return Z, iD
 
 
+@tf_named_func("z_poisson")
 def calculate_z_poisson(Y, Yo, L, sigma, Z, *,
                         omega,
                         preupdate_z, marginalize_z, dtype):
@@ -189,6 +194,7 @@ def sample_z(Y, L, sigma, omega, r, dtype):
     return Z
 
 
+@tf_named_func("polya_gamma")
 def draw_polya_gamma(h, z, dtype):
   # with h > 50 normal approx is used, so we reimplement only that alternative
   # pg_h = tf.reshape(h, [-1])
