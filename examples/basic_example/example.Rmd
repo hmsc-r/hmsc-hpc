@@ -5,26 +5,80 @@ output: html_notebook
 
 This notebook demonstrates the concept of using Hmsc-HPC extension for `Hmsc` package. Unlike the core `Hmsc`, the Hmsc-HPC extension is written in Python programming language and is executed with Python interpreter. Hence, before a user can use it, a proper Python installation is required.
 
-### Checking Python and TensorFlow installation
+# Preparing Python environment
 
-Depending on your hardware, operating system and user rights, the set of steps to acquire and configure a proper Python distribution may greatly vary. Thus, we would like to relay the installation process itself either to one of multitude guides available on the web, or to the IT support that manages your device. However, we would like to provide some simple advice how-to credibly and quickly ensure whether the following examples in this notebook shall be expected to execute well or not.
+**If you are familiar with using Python within RStudio**, then please configure Python in your preferred way and pip-install the Python package from the distributed zip package (`pip install .../path/to/hmsc-hpc`), and skip to the section [Checking Python environment].
 
-For this purpose, we propose you to test the next chunk of code that tries to check version of Python available in you system, and to execute a basic TensorFlow-based command:
+**If you are not familiar with using Python within RStudio**, then please follow the detailed instructions below.
+
+## Detailed instructions
+
+### 1. Finding Python installation
+
+Depending on your hardware, operating system and user rights, the set of steps to acquire and configure a proper Python distribution may greatly vary. Thus, we would like to relay the installation process itself either to one of multitude guides available on the web, or to the IT support that manages your device. This section merely checks that a Python installation can be found.
+
+Please test the next chunk of code that tries to check version of Python available in you system:
 
 ```{r}
-Sys.setenv(TF_CPP_MIN_LOG_LEVEL=3)  # reduce debug output from tensorflow
-
-python = "python3"
-# python = "/Users/gtikhono/opt/anaconda3/envs/tf/bin/python3"
-system(paste(python, "--version"), wait=TRUE)
-system(paste(python, "-c 'import tensorflow as tf; print(tf.constant(1))'"), wait=TRUE)
+system_python = "python3"
+# system_python = "/Users/gtikhono/opt/anaconda3/envs/tf/bin/python3"
+system(paste(system_python, "--version"), wait=TRUE)
 ```
 
-If Python distribution in your system is configured well, then the code shall print the version of Python and check the availability of TensorFlow package by printing a scalar. If the first part is failing, they you are likely missing Python altogether, or its path is not configured. If the second line fails, then TensorFlow is not installed, and you shall acquire it, e.g. following the guidelines from the developer's website.
+If the Python distribution in your system is configured well, then the code shall print the version of Python. If this is failing, then you are likely missing Python altogether, or its path is not configured correctly. In some cases you may have several distributions of Python available, and then you shall either explicitly specify the path to the desired Python distribution --- as exemplified in the commented-out `system_python = ...` line above.
 
-Please note that in some cases you may have several distributions of Python available, and the one intended for Hmsc-HPC is not the default choice. Then you shall either explicitly specify the path to the desired Python distribution --- as exemplified in the commented-out `python = ...` line above. You can also use other means to reconfigure it - for instance, `reticulate` package features several functions aimed to achieve that or you can activate the correct Python environment outside RStudio.
+### 2. Creating a new virtual environment
 
-Please ensure that the code chunk above executes correctly with the defined `python`, as we will use the same path to the relevant Python distribution throughout this notebook.
+The next line creates an empty virtual environment where we will set up Hmsc-HPC:
+
+```{r}
+system(paste(system_python, "-m venv hmsc-venv"), wait=TRUE)
+```
+
+Then, we activate this Python environment by defining an appropriate `python` path variable and check that it works by printing the version of Python:
+
+```{r}
+python = file.path(getwd(), "hmsc-venv", "bin", "python")  # for Linux and macOS
+# python = file.path(getwd(), "hmsc-venv", "Scripts", "python")  # for Windows
+system(paste(python, "--version"), wait=TRUE)
+```
+
+If this is failing, then you need to adjust the path to the correct Python executable (note that the path depends on operating system -- see comments in the code block above).
+
+### 3. Install Hmsc-HPC package
+
+For installing the Hmsc-HPC Python package, we need to define the path to the Hmsc-HPC package. Assuming that you have downloaded this notebook as a part of the distributed zip package, the pre-set `package_path` shall work fine. Otherwise, please set the correct `package_path`. (Note for reviewers: after the blind review, the Hmsc-HPC package will be published and can be directly installed from web repository.):
+
+```{r}
+package_path = file.path(getwd(), "..", "..")
+system(paste(python, "-m pip install --upgrade pip"), wait=TRUE)
+system(paste(python, "-m pip install", package_path), wait=TRUE)
+```
+
+After this, you should have a functioning Python environment.
+
+## Checking Python environment
+
+This section is for checking whether the examples in this notebook shall be expected to execute well or not.
+
+The next code chunk tests that the Python environment works by executing a basic TensorFlow-based command and importing Hmsc-HPC package. Please define the correct `python` path to the Python executable. If you have configured Python outside Rstudio, then the default should work fine.
+
+```{r}
+# Choose correct python by uncommenting correct line:
+# python = "python3"  # default
+# python = file.path(getwd(), "hmsc-venv", "bin", "python")  # hmsc-venv for Linux and macOS
+# python = file.path(getwd(), "hmsc-venv", "Scripts", "python")  # hmsc-venv for Windows
+
+Sys.setenv(TF_CPP_MIN_LOG_LEVEL=3)  # reduce debug output from tensorflow
+system(paste(python, "-c 'import tensorflow as tf; print(tf.constant(1))'"), wait=TRUE)
+system(paste(python, "-c 'import hmsc'"), wait=TRUE)
+```
+
+Your Python setup is working correctly if the code does not produce any errors.
+
+### Troubleshooting
+
+If the above check and the detailed instructions do not work for you, please consult one of multitude guides available on the web. You can configure Python within RStudio in multiple ways - for instance, `reticulate` package features several functions aimed to achieve that or you can prepare and activate the correct Python environment outside RStudio.
 
 # Setting up a toy Hmsc model
 
