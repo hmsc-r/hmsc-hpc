@@ -136,18 +136,21 @@ if __name__ == "__main__":
         "-s",
         "--samples",
         type=int,
+        default=2,
         help="number of samples obtained per chain",
     )
     argParser.add_argument(
         "-b",
         "--transient",
         type=int,
+        default=0,
         help="number of samples discarded before recording posterior samples",
     )
     argParser.add_argument(
         "-t",
         "--thin",
         type=int,
+        default=1,
         help="number of samples between each recording of posterior samples",
     )
     argParser.add_argument(
@@ -162,19 +165,21 @@ if __name__ == "__main__":
         "-i",
         "--input",
         type=str,
+        default="TF-init-obj.rds",
         help="input RDS file with parameters for model initialization",
     )
     argParser.add_argument(
         "-o",
         "--output",
         type=str,
+        default="TF-postList-obj.rds",
         help="output RDS file with recorded posterier samples",
     )
     argParser.add_argument(
         "-v",
         "--verbose",
         type=int,
-        default=100,
+        default=1,
         help="print out information meassages and progress status",
     )
     argParser.add_argument(
@@ -212,6 +217,6 @@ if __name__ == "__main__":
         chainIndList=args.chains,
         truncated_normal_library=args.tnlib,
         flag_save_eta=bool(args.fse),
-        flag_save_postList_to_rds=postList_file_path is not None,
+        flag_save_postList_to_rds=True,
         flag_profile=bool(args.profile),
     )
