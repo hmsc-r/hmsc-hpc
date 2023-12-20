@@ -73,7 +73,7 @@ def updateZ(params, data, rLHyperparams, *,
     Pi = data["Pi"]
     distr = data["distr"]
 
-    if len(X.shape.as_list()) == 2: #tf.rank(X) X.ndim == 2:
+    if X.shape.ndims == 2:
         LFix = tf.matmul(X, Beta)
     else:
         LFix = tf.einsum("jik,kj->ij", X, Beta)
