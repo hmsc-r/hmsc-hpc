@@ -7,9 +7,9 @@ This notebook demonstrates the concept of using Hmsc-HPC extension for `Hmsc` pa
 
 # Preparing Python environment
 
-**If you are familiar with using Python within RStudio**, then please configure Python in your preferred way and pip-install the Python package from the distributed zip package (`pip install .../path/to/hmsc-hpc`), and skip to the section [Checking Python environment].
+**If you are familiar with using Python within R**, then please configure Python in your preferred way and pip-install the Python package from the distributed zip package (`pip install .../path/to/hmsc-hpc`), and skip to the section [Checking Python environment].
 
-**If you are not familiar with using Python within RStudio**, then please follow the detailed instructions below.
+**If you are not familiar with using Python within R**, then please follow the detailed instructions below.
 
 ## Detailed instructions
 
@@ -21,18 +21,21 @@ Please test the next chunk of code that tries to check version of Python availab
 
 ```{r}
 system_python = "python3"
-# system_python = "/Users/gtikhono/opt/anaconda3/envs/tf/bin/python3"
-system(paste(system_python, "--version"), wait=TRUE)
+# system_python = "/Users/username/opt/anaconda3/envs/tf/bin/python3"
+system2(system_python, "--version")
 ```
 
 If the Python distribution in your system is configured well, then the code shall print the version of Python. If this is failing, then you are likely missing Python altogether, or its path is not configured correctly. In some cases you may have several distributions of Python available, and then you shall either explicitly specify the path to the desired Python distribution --- as exemplified in the commented-out `system_python = ...` line above.
 
 ### 2. Creating a new virtual environment
 
+Please note that this notebook is configured **NOT** to execute the codes that install any software or packages --- both in this and next sections during whole notebook execution. Please execute them manually one by one if needed.
+
+
 The next line creates an empty virtual environment where we will set up Hmsc-HPC:
 
 ```{r}
-system(paste(system_python, "-m venv hmsc-venv"), wait=TRUE)
+system2(system_python, "-m venv hmsc-venv")
 ```
 
 Then, we activate this Python environment by defining an appropriate `python` path variable and check that it works by printing the version of Python:
@@ -40,7 +43,7 @@ Then, we activate this Python environment by defining an appropriate `python` pa
 ```{r}
 python = file.path(getwd(), "hmsc-venv", "bin", "python")  # for Linux and macOS
 # python = file.path(getwd(), "hmsc-venv", "Scripts", "python")  # for Windows
-system(paste(python, "--version"), wait=TRUE)
+system2(python, "--version")
 ```
 
 If this is failing, then you need to adjust the path to the correct Python executable (note that the path depends on operating system -- see comments in the code block above).
@@ -51,8 +54,8 @@ For installing the Hmsc-HPC Python package, we need to define the path to the Hm
 
 ```{r}
 package_path = file.path(getwd(), "..", "..")
-system(paste(python, "-m pip install --upgrade pip"), wait=TRUE)
-system(paste(python, "-m pip install", package_path), wait=TRUE)
+system2(python, "-m pip install --upgrade pip")
+system2(python, paste("-m pip install", shQuote(package_path)))
 ```
 
 After this, you should have a functioning Python environment.
@@ -61,7 +64,7 @@ After this, you should have a functioning Python environment.
 
 This section is for checking whether the examples in this notebook shall be expected to execute well or not.
 
-The next code chunk tests that the Python environment works by executing a basic TensorFlow-based command and importing Hmsc-HPC package. Please define the correct `python` path to the Python executable. If you have configured Python outside Rstudio, then the default should work fine.
+The next code chunk tests that the Python environment works by executing a basic TensorFlow-based command and importing Hmsc-HPC package. Please define the correct `python` path to the Python executable. If you have configured Python outside R, then the default should work fine.
 
 ```{r}
 # Choose correct python by uncommenting correct line:
@@ -70,15 +73,15 @@ The next code chunk tests that the Python environment works by executing a basic
 # python = file.path(getwd(), "hmsc-venv", "Scripts", "python")  # hmsc-venv for Windows
 
 Sys.setenv(TF_CPP_MIN_LOG_LEVEL=3)  # reduce debug output from tensorflow
-system(paste(python, "-c 'import tensorflow as tf; print(tf.constant(1))'"), wait=TRUE)
-system(paste(python, "-c 'import hmsc'"), wait=TRUE)
+system2(python, "-c \"import tensorflow as tf; print(tf.constant(1))\"")
+system2(python, "-c \"import hmsc\"")
 ```
 
 Your Python setup is working correctly if the code does not produce any errors.
 
 ### Troubleshooting
 
-If the above check and the detailed instructions do not work for you, please consult one of multitude guides available on the web. You can configure Python within RStudio in multiple ways - for instance, `reticulate` package features several functions aimed to achieve that or you can prepare and activate the correct Python environment outside RStudio.
+If the above check and the detailed instructions do not work for you, please consult one of multitude guides available on the web. You can configure Python within R in multiple ways - for instance, `reticulate` package features several functions aimed to achieve that or you can prepare and activate the correct Python environment outside R.
 
 # Setting up a toy Hmsc model
 
@@ -102,7 +105,7 @@ Next, we introduce the fundamental model fitting parameters determining the MCMC
 nSamples = 100
 thin = 2
 nChains = 4
-verbose = 10
+verbose = 100
 transient = nSamples * thin
 ```
 
@@ -113,11 +116,11 @@ We use the `TD` synthetic data, included to the `Hmsc` package for the demonstra
 ```{r}
 summary(TD)
 m = Hmsc(Y=TD$Y,
-         XData=TD$X, XFormula=~.,
-         TrData=TD$Tr[,-1], TrFormula=~.,
-         phyloTree=TD$phy,
-         studyDesign=TD$studyDesign,
-         ranLevels=list(plot=TD$rL1, sample=TD$rL2))
+				 XData=TD$X, XFormula=~.,
+				 TrData=TD$Tr[,-1], TrFormula=~.,
+				 phyloTree=TD$phy,
+				 studyDesign=TD$studyDesign,
+				 ranLevels=list(plot=TD$rL1, sample=TD$rL2))
 ```
 
 ### Standard Hmsc-R fitting
@@ -126,15 +129,15 @@ Next, we obtain the reference by fitting `m` using the standard way with `sample
 
 ```{r include=FALSE, results='hide'}
 fitR = sampleMcmc(m, samples=nSamples, thin=thin,
-                  transient=transient, nChains=nChains,
-                  verbose=verbose, engine="R")
+									transient=transient, nChains=nChains,
+									verbose=verbose, engine="R")
 ```
 
 We also visualize some possible post-fitting postprocessing available in `Hmsc` package --- by the estimated partition of variance in the fitted model.
 
 ```{r}
 plotVariancePartitioning(fitR, computeVariancePartitioning(fitR),
-                         args.legend=list(x="bottomright"))
+												 args.legend=list(x="bottomright"))
 ```
 
 # Exporting model for Hmsc-HPC
@@ -143,8 +146,8 @@ In order to use Hmsc-HPC, we need to export the model object, created by `Hmsc(.
 
 ```{r}
 init_obj = sampleMcmc(m, samples=nSamples, thin=thin,
-                      transient=transient, nChains=nChains,
-                      verbose=verbose, engine="HPC")
+											transient=transient, nChains=nChains,
+											verbose=verbose, engine="HPC")
 init_file_path = file.path(getwd(), "init_file.rds")
 saveRDS(to_json(init_obj), file=init_file_path)
 ```
@@ -155,14 +158,14 @@ As the Hmsc-HPC operates in Python, in the next step we programmatically formula
 
 ```{r}
 post_file_path = file.path(getwd(), "post_file.rds")
-python_cmd = paste(python, "-m hmsc.run_gibbs_sampler",
-                   "--input", init_file_path,
-                   "--output", post_file_path,
-                   "--samples", nSamples,
-                   "--transient", transient,
-                   "--thin", thin,
-                   "--verbose", verbose)
-cat(python_cmd, "\n")
+python_cmd_args = paste("-m hmsc.run_gibbs_sampler",
+												"--input", shQuote(init_file_path),
+												"--output", shQuote(post_file_path),
+												"--samples", nSamples,
+												"--transient", transient,
+												"--thin", thin,
+												"--verbose", verbose)
+cat(paste(shQuote(python), python_cmd_args), "\n")
 ```
 
 In this example we implicitly focus on the case of using local machine for MCMC execution, but any properly set-up machine can be used --- the user just need to move the initialized object there.
@@ -172,7 +175,7 @@ In this example we implicitly focus on the case of using local machine for MCMC 
 If the user is savvy in running Python scripts from R, then the outputted calls can be executed as a part of R script execution. While this can be accomplished by executing the next chunk of code, we personally have found it to be very sensitive to a very proper Python configuration. Thus, at this stage we recommend to run a shell (command line) and simply paste the two calls, produced by the last chunk there - at least during the user's learning of Hmsc-HPC workflow.
 
 ```{r}
-system(python_cmd, wait=TRUE)
+system2(python, python_cmd_args)
 ```
 
 ### Importing computed posterior to R
@@ -204,19 +207,19 @@ If the model fitting with Hmsc-HPC is conducted locally, then there is typically
 For this purpose, we need to create chain-specific Python calls, so that each one will handle a single particular chain.
 
 ```{r}
-chain_cmd_list = vector("list", nChains)
+chain_cmd_args_list = vector("list", nChains)
 for(cInd in 1:nChains){
-  chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
-  chain_cmd = paste(python, "-m hmsc.run_gibbs_sampler",
-                    "--input", init_file_path,
-                    "--output", chain_file_path,
-                    "--samples", nSamples,
-                    "--transient", transient,
-                    "--thin", thin,
-                    "--verbose", verbose,
-                    "--chain", cInd-1)
-  cat(chain_cmd, "\n")
-  chain_cmd_list[[cInd]] = chain_cmd
+	chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
+	chain_cmd_args = paste("-m hmsc.run_gibbs_sampler",
+												 "--input", shQuote(init_file_path),
+												 "--output", shQuote(chain_file_path),
+												 "--samples", nSamples,
+												 "--transient", transient,
+												 "--thin", thin,
+												 "--verbose", verbose,
+												 "--chain", cInd-1)
+	cat(paste(shQuote(python), chain_cmd_args), "\n")
+	chain_cmd_args_list[[cInd]] = chain_cmd_args
 }
 ```
 
@@ -224,7 +227,7 @@ Next step is to appropriately execute each of these calls. For the sake of runna
 
 ```{r}
 for(cInd in 1:nChains){
-  system(chain_cmd_list[[cInd]], wait=TRUE)
+	system2(python, chain_cmd_args_list[[cInd]])
 }
 ```
 
@@ -233,8 +236,8 @@ Therefore, once all Python calls have conducted, the following step is to import
 ```{r}
 chainList = vector("list", nChains)
 for(cInd in 1:nChains){
-  chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
-  chainList[[cInd]] = from_json(readRDS(file = chain_file_path)[[1]])[[1]]
+	chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
+	chainList[[cInd]] = from_json(readRDS(file = chain_file_path)[[1]])[[1]]
 }
 ```
 
@@ -251,7 +254,7 @@ Different computational clusters greatly diverge in how software and scripts are
 
 ### Script for parallel execution of chains
 
-The following script is an example to be run with `sbatch` command from the user interface node of the cluster.
+The following script is an example to be run with `sbatch` command from the login node of the cluster.
 
 ```{bash eval=FALSE}
 #!/bin/bash
