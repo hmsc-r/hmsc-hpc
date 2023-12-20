@@ -102,7 +102,7 @@ class GibbsSampler(tf.Module):
         rng_seed=None,
     ):
         if print_retrace_flag:
-          print("retracing")
+          print("retracing", flush=True)
         
         if rng_seed != None:
           tf.print("random seed set to", rng_seed)
