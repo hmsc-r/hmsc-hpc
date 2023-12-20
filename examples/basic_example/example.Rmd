@@ -40,8 +40,6 @@ Next, we load the required packages. We also set up the path to the working dire
 ```{r}
 library(Hmsc)
 library(jsonify)
-packagePath = "../../hmsc-hpc"
-python_file_path = file.path(packagePath, "hmsc/examples/run_gibbs_sampler.py")
 ```
 
 Next, we introduce the fundamental model fitting parameters determining the MCMC sampling: number of samples to obtain per MCMC chain, thinning and number of chains. We also define the regularity of progress printing during MCMC sampling. We set the transient phase being equally long as the sampling phase.
@@ -102,10 +100,8 @@ saveRDS(to_json(init_obj), file=init_file_name)
 As the Hmsc-HPC operates in Python, in the next step we programmatically formulate the required call.
 
 ```{r}
-pythonPath = "/Users/gtikhono/opt/anaconda3/envs/tf/bin/python3"
 post_file_name = "post_file.rds"
-cat(sprintf("export PYTHONPATH='%s':$PYTHONPATH", normalizePath(packagePath)), "\n")
-python_cmd = paste(sprintf("'%s' '%s'", pythonPath, normalizePath(python_file_path)),
+python_cmd = paste(python, "-m hmsc.run_gibbs_sampler",
                    sprintf("--input '%s'", file.path(getwd(), init_file_name)),
                    sprintf("--output '%s'", file.path(getwd(), post_file_name)),
                    "--samples", nSamples,
@@ -122,7 +118,7 @@ In this example we implicitly focus on the case of using local machine for MCMC 
 If the user is savvy in running Python scripts from R, then the outputted calls can be executed as a part of R script execution. While this can be accomplished by executing the next chunk of code, we personally have found it to be very sensitive to a very proper Python configuration. Thus, at this stage we recommend to run a shell (command line) and simply paste the two calls, produced by the last chunk there - at least during the user's learning of Hmsc-HPC workflow.
 
 ```{r}
-system(sprintf("export PYTHONPATH='%s':$PYTHONPATH; %s", normalizePath(packagePath), python_cmd), wait=TRUE)
+system(python_cmd, wait=TRUE)
 ```
 
 ### Importing computed posterior to R
@@ -157,7 +153,7 @@ For this purpose, we need to create chain-specific Python calls, so that each on
 chain_cmd_list = vector("list", nChains)
 for(cInd in 1:nChains){
   chain_file_name = sprintf("post_chain%.2d_file.rds", cInd-1)
-  chain_cmd = paste(sprintf("'%s' '%s'", pythonPath, normalizePath(python_file_path)),
+  chain_cmd = paste(python, "-m hmsc.run_gibbs_sampler",
                      sprintf("--input '%s'", file.path(getwd(), init_file_name)),
                      sprintf("--output '%s'", file.path(getwd(), chain_file_name)),
                      "--samples", nSamples,
@@ -174,7 +170,7 @@ Next step is to appropriately execute each of these calls. For the sake of runna
 
 ```{r}
 for(cInd in 1:nChains){
-  system(sprintf("export PYTHONPATH='%s':$PYTHONPATH; %s", normalizePath(packagePath), chain_cmd_list[[cInd]]), wait=TRUE)
+  system(chain_cmd_list[[cInd]], wait=TRUE)
 }
 ```
 
@@ -212,7 +208,7 @@ The following script shall be run with `sbatch` command from the user interface 
 #SBATCH --array=0-3
 
 module load tensorflow/2.12
-export PYTHONPATH=$PWD/../../hmsc-hpc:$PYTHONPATH
+# pip install hmsc ...
 
 SAM=${1:-100}
 THIN=${2:-10}
@@ -221,7 +217,7 @@ input_path="init_file.rds"
 output_path="post_file.rds"
 output_path=$(printf "post_chain%.2d_file.rds" $SLURM_ARRAY_TASK_ID)
 
-srun python3 $PYTHONPATH/hmsc/examples/run_gibbs_sampler.py --input $input_path --output $output_path --samples $SAM --transient $(($SAM*$THIN)) --thin $THIN --verbose 100 --chain $SLURM_ARRAY_TASK_ID
+srun python3 -m hmsc.run_gibbs_sampler --input $input_path --output $output_path --samples $SAM --transient $(($SAM*$THIN)) --thin $THIN --verbose 100 --chain $SLURM_ARRAY_TASK_ID
 ```
 
 The header of the script may vary according to the used `Slurm` specification, so please consult the help webpage or IT support of the HPC resource that you intend to use. Namely, we have encountered differences in two different clusters even though these were both run by the same CSC operator. Particularly this presented script was used for runs in LUMI supercomputer.
