@@ -143,6 +143,7 @@ def gather(*args, indices):
     return (tf.gather(a, indices, axis=-1) for a in args)
 
 
+@tf_named_func("z_normal")
 def calculate_z_normal(Y, Yo, L, sigma, *, dtype):
     # no data augmentation for normal model in columns with continious unbounded data
     Z = tf.where(Yo, Y, L + sigma * tfr.normal(Y.shape, dtype=dtype))
@@ -150,6 +151,7 @@ def calculate_z_normal(Y, Yo, L, sigma, *, dtype):
     return Z, iD
 
 
+@tf_named_func("z_probit")
 def calculate_z_probit(Y, Yo, L, sigma, *, truncated_normal, dtype):
     # Albert and Chib (1993) data augemntation for probit model in columns with binary data
     INFTY = tf.constant(1e+3, dtype)
@@ -161,6 +163,7 @@ def calculate_z_probit(Y, Yo, L, sigma, *, truncated_normal, dtype):
     return Z, iD
 
 
+@tf_named_func("z_poisson")
 def calculate_z_poisson(Y, Yo, L, sigma, Z, *,
                         omega,
                         preupdate_z, marginalize_z, dtype):
@@ -190,6 +193,7 @@ def sample_z(Y, L, sigma, omega, r, dtype):
     return Z
 
 
+@tf_named_func("polya_gamma")
 def draw_polya_gamma(h, z, dtype):
   # with h > 50 normal approx is used, so we reimplement only that alternative
   # pg_h = tf.reshape(h, [-1])
