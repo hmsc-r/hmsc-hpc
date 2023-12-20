@@ -12,21 +12,19 @@ Depending on your hardware, operating system and user rights, the set of steps t
 For this purpose, we propose you to test the next chunk of code that tries to check version of Python available in you system, and to execute a basic TensorFlow-based command:
 
 ```{r}
-testPythonCode = "import tensorflow as tf; print(tf.constant(1))"
-system("python --version", wait=TRUE)
-system(sprintf("python -c '%s'", testPythonCode), wait=TRUE)
+Sys.setenv(TF_CPP_MIN_LOG_LEVEL=3)  # reduce debug output from tensorflow
+
+python = "python3"
+# python = "/Users/gtikhono/opt/anaconda3/envs/tf/bin/python3"
+system(paste(python, "--version"), wait=TRUE)
+system(paste(python, "-c 'import tensorflow as tf; print(tf.constant(1))'"), wait=TRUE)
 ```
 
 If Python distribution in your system is configured well, then the code shall print the version of Python and check the availability of TensorFlow package by printing a scalar. If the first part is failing, they you are likely missing Python altogether, or its path is not configured. If the second line fails, then TensorFlow is not installed, and you shall acquire it, e.g. following the guidelines from the developer's website.
 
-Please note that in some cases you may have several distributions of Python available, and the one intended for Hmsc-HPC is not the default choice. Then you shall either explicitly specify the path to the desired Python distribution --- as we demonstrate in the code chunk below, or use other means to reconfigure it - for instance, `reticulate` package features several functions aimed to achieve that. 
+Please note that in some cases you may have several distributions of Python available, and the one intended for Hmsc-HPC is not the default choice. Then you shall either explicitly specify the path to the desired Python distribution --- as exemplified in the commented-out `python = ...` line above. You can also use other means to reconfigure it - for instance, `reticulate` package features several functions aimed to achieve that or you can activate the correct Python environment outside RStudio.
 
-```{r}
-pythonPath = "/Users/gtikhono/opt/anaconda3/envs/tf/bin/python3"
-system(sprintf("%s --version", pythonPath), wait=TRUE)
-system(sprintf("%s -c '%s'", pythonPath, testPythonCode), wait=TRUE)
-```
-We strongly recommend that you ensure that the code chunk above executes well, as we would reuse the same path to relevant Python distribution later on throought this notebook.
+Please ensure that the code chunk above executes correctly with the defined `python`, as we will use the same path to the relevant Python distribution throughout this notebook.
 
 # Setting up a toy Hmsc model
 
