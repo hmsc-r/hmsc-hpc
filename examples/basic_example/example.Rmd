@@ -91,8 +91,8 @@ In order to use Hmsc-HPC, we need to export the model object, created by `Hmsc(.
 init_obj = sampleMcmc(m, samples=nSamples, thin=thin,
                       transient=transient, nChains=nChains,
                       verbose=verbose, engine="HPC")
-init_file_name = "init_file.rds"
-saveRDS(to_json(init_obj), file=init_file_name)
+init_file_path = file.path(getwd(), "init_file.rds")
+saveRDS(to_json(init_obj), file=init_file_path)
 ```
 
 # Hmsc-HPC for sequential execution of chains
@@ -100,10 +100,10 @@ saveRDS(to_json(init_obj), file=init_file_name)
 As the Hmsc-HPC operates in Python, in the next step we programmatically formulate the required call.
 
 ```{r}
-post_file_name = "post_file.rds"
+post_file_path = file.path(getwd(), "post_file.rds")
 python_cmd = paste(python, "-m hmsc.run_gibbs_sampler",
-                   sprintf("--input '%s'", file.path(getwd(), init_file_name)),
-                   sprintf("--output '%s'", file.path(getwd(), post_file_name)),
+                   "--input", init_file_path,
+                   "--output", post_file_path,
                    "--samples", nSamples,
                    "--transient", transient,
                    "--thin", thin,
@@ -126,7 +126,7 @@ system(python_cmd, wait=TRUE)
 Once the Python call has conducted, the following step is to import the calculated posterior samples back to R. We start by reading the output of `Hmsc-HPC`, which is a stacked list of fitted chains and time elapsed for model fitting.
 
 ```{r}
-importFromHPC = from_json(readRDS(file = post_file_name)[[1]])
+importFromHPC = from_json(readRDS(file = post_file_path)[[1]])
 postList = importFromHPC[1:nChains]
 cat(sprintf("fitting time %.1f sec\n", importFromHPC[[nChains+1]]))
 ```
@@ -152,15 +152,15 @@ For this purpose, we need to create chain-specific Python calls, so that each on
 ```{r}
 chain_cmd_list = vector("list", nChains)
 for(cInd in 1:nChains){
-  chain_file_name = sprintf("post_chain%.2d_file.rds", cInd-1)
+  chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
   chain_cmd = paste(python, "-m hmsc.run_gibbs_sampler",
-                     sprintf("--input '%s'", file.path(getwd(), init_file_name)),
-                     sprintf("--output '%s'", file.path(getwd(), chain_file_name)),
-                     "--samples", nSamples,
-                     "--transient", transient,
-                     "--thin", thin,
-                     "--verbose", verbose,
-                     "--chain", cInd-1)
+                    "--input", init_file_path,
+                    "--output", chain_file_path,
+                    "--samples", nSamples,
+                    "--transient", transient,
+                    "--thin", thin,
+                    "--verbose", verbose,
+                    "--chain", cInd-1)
   cat(chain_cmd, "\n")
   chain_cmd_list[[cInd]] = chain_cmd
 }
@@ -179,8 +179,8 @@ Therefore, once all Python calls have conducted, the following step is to import
 ```{r}
 chainList = vector("list", nChains)
 for(cInd in 1:nChains){
-  chain_file_name = sprintf("post_chain%.2d_file.rds", cInd-1)
-  chainList[[cInd]] = from_json(readRDS(file = chain_file_name)[[1]])[[1]]
+  chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
+  chainList[[cInd]] = from_json(readRDS(file = chain_file_path)[[1]])[[1]]
 }
 ```
 
