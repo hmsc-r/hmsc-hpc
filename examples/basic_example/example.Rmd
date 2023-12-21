@@ -172,7 +172,7 @@ In this example we implicitly focus on the case of using local machine for MCMC 
 
 ### Running Python model fitting script
 
-If the user is savvy in running Python scripts from R, then the outputted calls can be executed as a part of R script execution. While this can be accomplished by executing the next chunk of code, we personally have found it to be very sensitive to a very proper Python configuration. Thus, at this stage we recommend to run a shell (command line) and simply paste the two calls, produced by the last chunk there - at least during the user's learning of Hmsc-HPC workflow.
+If the user is savvy in running Python scripts from R, then the outputted calls can be executed as a part of R script execution. While this can be accomplished by executing the next chunk of code, we personally have found it to be very sensitive to a very proper Python configuration. Thus, at this stage we recommend to run a shell (command line) and simply paste the call produced by the previous chunk - at least during the user's learning of Hmsc-HPC workflow.
 
 ```{r}
 system2(python, python_cmd_args)
