@@ -97,26 +97,6 @@ class GibbsSampler(tf.Module):
                 ]
             )
             
-            # tf.print("inside tf.function:", tf.random.normal([1]))
-            
-            # z_marginalize_iter_cond = lambda it: ((it % 2) == 1) & (it >= 0)
-            # z_marginalize_iter_flag = z_marginalize_iter_cond(n)
-            # z_marginalize_prev_flag = z_marginalize_iter_cond(n-1)
-            
-            # if z_marginalize_iter_flag == False:
-            #   if z_marginalize_prev_flag == False:
-            #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False,
-            #                                                                  poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
-            #   else:
-            #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
-            #                                                                  poisson_marginalize_z=False, truncated_normal_library=truncated_normal_library)
-            # else:
-            #   if z_marginalize_prev_flag == False:
-            #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=False,
-            #                                                                  poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
-            #   else:
-            #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
-            #                                                                  poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
             
             params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams)
             if print_debug_flag:
@@ -156,14 +136,12 @@ class GibbsSampler(tf.Module):
             
             params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
             
-            # if z_marginalize_iter_flag == False:
             params["sigma"] = updateSigma(params, self.modelDims, self.modelData, self.priorHyperparams)
             if print_debug_flag:
               tf.print("sigma", tf.reduce_sum(tf.cast(tfm.is_nan(params["sigma"]), tf.int32)))
 
             if n < sample_burnin:
                 params["Lambda"], params["Psi"], params["Delta"], params["Eta"], params["AlphaInd"] = updateNf(params, self.rLHyperparams, n)
-            # tf.print(tf.shape(params["Lambda"][0])[0])
 
             samInd = tf.cast((n - sample_burnin + 1) / sample_thining - 1, tf.int32)
             if (n + 1) % verbose == 0:
