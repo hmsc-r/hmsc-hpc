@@ -1,16 +1,15 @@
-
 ========
 Hmsc-HPC
 ========
 
-This repository contains the TensorFlow implementation of Hierarchical Modelling of Species Communities (HMSC), serving as an extension to the existing R package, Hmsc-R. The implementation provides a flexible framework for Joint Species Distribution Modelling (JSDM), enabling robust analysis and modeling of species communities.
+This repository contains the TensorFlow implementation of Hierarchical Modelling of Species Communities (HMSC), serving as an extension to the existing R package, Hmsc-R. It provides a flexible framework for Joint Species Distribution Modelling (JSDM), enabling robust analysis and modeling of species communities.
 
 Contents
 --------
 
-* Code (Directory: hmsc/*): contains GPU-compatible implementation of HMSC model fitting algorithm.
-* Demo (Directory: examples/basic_example/*): demonstrates the implementation. It serves as a comprehensive guide and example showcasing the functionalities and usage of Hmsc-HPC.
-* Data (Directory: examples/big_spatial/*): contains the data and scripts used for performance comparisons presented in the manuscript.
+* **Code (Directory: hmsc/\*):** contains GPU-compatible implementation of HMSC model fitting algorithm.
+* **Demo (Directory: examples/basic_example/\*):** demonstrates the implementation. It serves as a comprehensive guide and example showcasing the functionalities and usage of Hmsc-HPC.
+* **Data (Directory: examples/big_spatial/\*):** contains the data and scripts used for performance comparisons presented in the manuscript.
 
 Instructions for Reviewers
 --------------------------
