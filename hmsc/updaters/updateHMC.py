@@ -4,7 +4,7 @@ import tensorflow_probability as tfp
 from hmsc.utils.tf_named_func import tf_named_func
 tfm, tfla, tfd, tfb = tf.math, tf.linalg, tfp.distributions, tfp.bijectors
 
-@tf.function
+# @tf.function
 def logProb(Beta, Gamma, LiV, sigma, LRan, Y, X, Tr, priorHyperparams, dtype=np.float64):
   Mu = tf.matmul(Gamma, Tr, transpose_b=True)
   # print(iV)
