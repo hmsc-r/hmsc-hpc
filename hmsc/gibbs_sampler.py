@@ -35,6 +35,7 @@ from hmsc.updaters.updateSigma import updateSigma
 from hmsc.updaters.updateZ import updateZ
 from hmsc.updaters.updatewRRR import updatewRRR
 from hmsc.updaters.updatewRRRPriors import updatewRRRPriors
+from hmsc.updaters.updateHMC import updateHMC, get_hmc_kernel_results
 tfm = tf.math
 
 
@@ -138,6 +139,7 @@ class GibbsSampler(tf.Module):
         mcmcSamplesPsiRRR = tf.TensorArray(params["PsiRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         mcmcSamplesDeltaRRR = tf.TensorArray(params["DeltaRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         
+        hmc_kernel_results = get_hmc_kernel_results(params, self.modelData, self.priorHyperparams, self.rLHyperparams, sample_burnin)
         step_num = sample_burnin + num_samples * sample_thining
         tf.print("sampling")
         for n in tf.range(step_num):
@@ -171,6 +173,9 @@ class GibbsSampler(tf.Module):
             #   else:
             #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
             #                                                                  poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
+            
+            hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, sample_burnin, hmc_kernel_results)
+            params["Beta"], params["Gamma"], params["iV"], hmc_kernel_results = hmc_res
             
             params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams)
             if print_debug_flag:
