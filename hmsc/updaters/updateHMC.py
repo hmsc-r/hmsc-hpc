@@ -5,25 +5,22 @@ from hmsc.utils.tf_named_func import tf_named_func
 tfm, tfla, tfd, tfb = tf.math, tf.linalg, tfp.distributions, tfp.bijectors
 
 # @tf.function
-def logProb(Beta, Gamma, LiV, sigma, LRan, Y, X, Tr, priorHyperparams, dtype=np.float64):
+def logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, Pi, priorHyperparams, rLHyperparams, dtype=np.float64):
   Mu = tf.matmul(Gamma, Tr, transpose_b=True)
-  # print(iV)
-  # logLikeBeta1 = tfd.MultivariateNormalFullCovariance(tfla.matrix_transpose(Mu), tfla.inv(iV)).log_prob(tfla.matrix_transpose(Beta))
   BM = Beta - Mu
-  # LiV = tfla.cholesky(iV)
   logDetV = -2*tf.reduce_sum(tfm.log(tfla.diag_part(LiV)))
-  # logLikeBeta = -0.5*tf.einsum("cj,ck,kj->j",BM,iV,BM) - 0.5*logDetV - tf.cast(Beta.shape[0],dtype)/2*tfm.log(2*tf.cast(np.pi,dtype))
   qFBM = tf.reduce_sum(tf.matmul(LiV,BM,transpose_a=True)**2, 0)
   logLikeBeta = -0.5*qFBM - 0.5*logDetV - tf.cast(Beta.shape[0],dtype)/2*tfm.log(2*tf.cast(np.pi,dtype))
 
-  # tf.print(logLikeBeta1 - logLikeBeta)
-
-  
   if len(X.shape.as_list()) == 2: #tf.rank(X) X.ndim == 2:
       LFix = tf.matmul(X, Beta)
   else:
       LFix = tf.einsum("jik,kj->ij", X, Beta)
-  L = LFix + LRan
+  LRanList = []
+  for r, (Eta, Lambda, rLPar) in enumerate(zip(EtaList, LambdaList, rLHyperparams)):
+      LRan = tf.matmul(Eta, Lambda)
+      LRanList.append(tf.gather(LRan, Pi[:,r]))
+  L = tf.add_n([LFix] + LRanList)
   
   #logLikeY = tfd.Normal(L, sigma).log_prob(Z)
   obsDist = tfd.Normal(L,sigma)
@@ -37,87 +34,110 @@ def logProb(Beta, Gamma, LiV, sigma, LRan, Y, X, Tr, priorHyperparams, dtype=np.
   logPriorV = tfd.WishartTriL(f0, LiV0).log_prob(tf.matmul(LiV,LiV,transpose_b=True))
   mGamma = priorHyperparams["mGamma"]
   iUGamma = priorHyperparams["iUGamma"]
-  logPriorGamma = tfd.MultivariateNormalFullCovariance(mGamma, iUGamma).log_prob(tf.reshape(tfla.matrix_transpose(Gamma), [-1]))
+  logPriorGamma = tfd.MultivariateNormalTriL(mGamma, tfla.cholesky(iUGamma)).log_prob(tf.reshape(tfla.matrix_transpose(Gamma), [-1]))
+  logProbFix = tf.reduce_sum(logLikeBeta) + logPriorV + logPriorGamma
+  
+  logLikeEtaList = []
+  logLambdaEtaList = []
+  logDeltaEtaList = []
+  for r, (Eta, Lambda, Delta, rLPar) in enumerate(zip(EtaList, LambdaList, DeltaList, rLHyperparams)):
+    nf = tf.shape(Lambda)[0]
+    nu = rLPar["nu"]
+    a1 = rLPar["a1"]
+    b1 = rLPar["b1"]
+    a2 = rLPar["a2"]
+    b2 = rLPar["b2"]
+    aDelta = tf.concat([a1 * tf.ones([1, 1], dtype), a2 * tf.ones([nf-1, 1], dtype)], 0)
+    bDelta = tf.concat([b1 * tf.ones([1, 1], dtype), b2 * tf.ones([nf-1, 1], dtype)], 0)
+    Tau = tfm.cumprod(Delta, 0)
+    
+    if rLPar["sDim"] == 0:
+      llEta = tfd.Normal(tf.cast(0,dtype),tf.cast(1,dtype)).log_prob(Eta)
+    else:
+      llEta = tfd.Normal(tf.cast(0,dtype),tf.cast(1,dtype)).log_prob(Eta)
+    llLambda = tfd.StudentT(nu,tf.cast(0,dtype),tfm.sqrt(Tau)).log_prob(Delta)
+    llDelta = tfd.Gamma(aDelta,bDelta).log_prob(Delta)
+    logLikeEtaList.append(tf.reduce_sum(llEta))
+    logLambdaEtaList.append(tf.reduce_sum(llLambda))
+    logDeltaEtaList.append(tf.reduce_sum(llDelta))
+    
+  logLikeEta = tf.add_n([tf.cast(0,dtype)] + logLikeEtaList)
+  logLikeLambda = tf.add_n([tf.cast(0,dtype)] + logLambdaEtaList)
+  logLikeDelta = tf.add_n([tf.cast(0,dtype)] + logDeltaEtaList)
+  logProbRan = logLikeEta + logLikeLambda + logLikeDelta
+
   # tf.print(logPriorV, logPriorGamma)
   # tf.print(logLikeY.shape, logLikeBeta.shape)
-  log_prob = tf.reduce_sum(logLikeBeta) + tf.reduce_sum(logLikeY) + logPriorV + logPriorGamma
+  log_prob =  tf.reduce_sum(logLikeY) + logProbFix + logProbRan
   return(log_prob)
 
   
   
 @tf_named_func("hmc")
-def updateHMC(params, data, priorHyperparams, rLHyperparams, sample_burnin, kernel_results, dtype=tf.float64):
+def updateHMC(params, data, priorHyperparams, rLHyperparams, sample_burnin, 
+              step=0, step_size=None, log_averaging_step=None, error_sum=None, init=False, dtype=tf.float64):
     Y = data["Y"]
     X = params["Xeff"]
     Tr = data["T"]
+    Pi = data["Pi"]
+    Beta = params["Beta"]
+    Gamma = params["Gamma"]
     sigma = params["sigma"]
-
     EtaList = params["Eta"]
     LambdaList = params["Lambda"]
-    Pi = data["Pi"]
+    DeltaList = params["Delta"]
     distr = data["distr"]
-    LRanList = []
-    for r, (Eta, Lambda, rLPar) in enumerate(zip(EtaList, LambdaList, rLHyperparams)):
-        xMat = rLPar.get("xMat")
-        if xMat is None:
-            LRan = tf.matmul(Eta, Lambda)
-        else:
-            LRan = tf.einsum("ih,ik,hjk->ij", Eta, xMat, Lambda)
-        LRanList.append(tf.gather(LRan, Pi[:,r]))
-    LRan = tf.add_n([tf.zeros(Y.shape, dtype)] + LRanList)
-    # LRan = tf.zeros(Y.shape, dtype)
+    nr = len(EtaList)
     
-    unnormalized_log_prob = lambda Beta, Gamma, LiV: logProb(Beta, Gamma, LiV, sigma, LRan, Y, X, Tr, priorHyperparams)
-    bijectorList = [tfb.Identity(), tfb.Identity(), tfb.FillScaleTriL(diag_shift=tf.constant(1e-6,dtype))]
-    hmc = tfp.mcmc.HamiltonianMonteCarlo(target_log_prob_fn=unnormalized_log_prob, num_leapfrog_steps=10, step_size=0.01)
-    hmc_unconstrained = tfp.mcmc.TransformedTransitionKernel(hmc, bijector=bijectorList)
-    hmc_unconstrained_adaptive = tfp.mcmc.DualAveragingStepSizeAdaptation(hmc_unconstrained, int(0.8*float(sample_burnin)))
-
-    Beta = params["Beta"]
-    Gamma = params["Gamma"]
     LiV = tfla.cholesky(params["iV"])
-    log_prob = logProb(Beta, Gamma, LiV, sigma, LRan, Y, X, Tr, priorHyperparams, dtype=tf.float64)
+    log_prob = logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, Pi, priorHyperparams, rLHyperparams, dtype=tf.float64)
     tf.print(log_prob)
     
-    current_state = [Beta, Gamma, LiV]
-    tmp = hmc_unconstrained_adaptive.bootstrap_results(current_state)
-    inner_tmp = hmc_unconstrained_adaptive.step_size_setter_fn(tmp.inner_results, kernel_results.new_step_size)
-    tmp = tmp._replace(step=kernel_results.step, inner_results=inner_tmp)
-    tmp = tmp._replace(new_step_size=kernel_results.new_step_size, log_averaging_step=kernel_results.log_averaging_step)
-    tmp = tmp._replace(error_sum=kernel_results.error_sum)
-    kernel_results = tmp
-    inner = kernel_results.inner_results.inner_results
-    tf.print(kernel_results.step, inner.accepted_results.step_size)
-    next_state, next_kernel_results = hmc_unconstrained_adaptive.one_step(current_state, kernel_results)
-    tf.print(next_kernel_results.inner_results.inner_results.is_accepted, next_kernel_results.new_step_size)
+    def unnormalized_log_prob(Beta, Gamma, LiV, EtaList, LambdaList, DeltaList):
+      return logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, Pi, priorHyperparams, rLHyperparams)
     
-    Beta, Gamma, LiV = next_state
+    def unnormalized_log_prob_flat(*argv):
+      Beta, Gamma, LiV = argv[:3]
+      EtaList = argv[3:3+nr]
+      LambdaList = argv[3+nr:3+2*nr]
+      DeltaList = argv[3+2*nr:3+3*nr]
+      return unnormalized_log_prob(Beta, Gamma, LiV, EtaList, LambdaList, DeltaList)
+    
+    bijectorListFix = [tfb.Identity(), tfb.Identity(), tfb.FillScaleTriL(diag_shift=tf.constant(1e-6,dtype))]
+    bijectorListRan_flat = [tfb.Identity()]*nr + [tfb.Identity()]*nr + [tfb.Softplus()]*nr
+    bijectorList_flat = bijectorListFix + bijectorListRan_flat
+    hmc = tfp.mcmc.HamiltonianMonteCarlo(target_log_prob_fn=unnormalized_log_prob_flat, num_leapfrog_steps=10, step_size=0.01)
+    hmc_unconstrained = tfp.mcmc.TransformedTransitionKernel(hmc, bijector=bijectorList_flat)
+    hmc_unconstrained_adaptive = tfp.mcmc.DualAveragingStepSizeAdaptation(hmc_unconstrained, int(0.8*float(sample_burnin)))
+    
+    current_state_flat = [Beta, Gamma, LiV] + EtaList + LambdaList + DeltaList
+    if init == False:
+      tmp = hmc_unconstrained_adaptive.bootstrap_results(current_state_flat)
+      # inner_tmp = hmc_unconstrained_adaptive.step_size_setter_fn(tmp.inner_results, kernel_results.new_step_size)
+      # tmp = tmp._replace(step=kernel_results.step, inner_results=inner_tmp)
+      # tmp = tmp._replace(new_step_size=kernel_results.new_step_size, log_averaging_step=kernel_results.log_averaging_step)
+      # tmp = tmp._replace(error_sum=kernel_results.error_sum)
+      inner_tmp = hmc_unconstrained_adaptive.step_size_setter_fn(tmp.inner_results, step_size)
+      tmp = tmp._replace(step=step, inner_results=inner_tmp, new_step_size=step_size, log_averaging_step=log_averaging_step)
+      tmp = tmp._replace(error_sum=error_sum)
+      kernel_results = tmp
+      inner = kernel_results.inner_results.inner_results
+      tf.print(kernel_results.step, inner.accepted_results.step_size)
+      next_state_flat, next_kernel_results = hmc_unconstrained_adaptive.one_step(current_state_flat, kernel_results)
+      tf.print(next_kernel_results.inner_results.inner_results.is_accepted, next_kernel_results.new_step_size)
+      Beta, Gamma, LiV = next_state_flat[:3]
+      EtaList = next_state_flat[3:3+nr]
+      LambdaList = next_state_flat[3+nr:3+2*nr]
+      DeltaList = next_state_flat[3+2*nr:3+3*nr]
+    else:
+      next_kernel_results = hmc_unconstrained_adaptive.bootstrap_results(current_state_flat)
+    
+    new_step_size = next_kernel_results.new_step_size
+    new_log_averaging_step  = next_kernel_results.log_averaging_step
+    new_error_sum = next_kernel_results.error_sum
     iV = tf.matmul(LiV, LiV, transpose_b=True)
-    return Beta, Gamma, iV, next_kernel_results
+    return Beta, Gamma, iV, EtaList, LambdaList, DeltaList, new_step_size, new_log_averaging_step, new_error_sum
     
-def get_hmc_kernel_results(params, data, priorHyperparams, rLHyperparams, sample_burnin, dtype=tf.float64):
-    Y = data["Y"]
-    X = params["Xeff"]
-    Tr = data["T"]
-    sigma = params["sigma"]
-    LRan = tf.zeros(Y.shape, dtype)
-    
-    unnormalized_log_prob = lambda Beta, Gamma, LiV: logProb(Beta, Gamma, LiV, sigma, LRan, Y, X, Tr, priorHyperparams)
-    bijectorList = [tfb.Identity(), tfb.Identity(), tfb.FillScaleTriL(diag_shift=tf.constant(1e-6,dtype))]
-    hmc = tfp.mcmc.HamiltonianMonteCarlo(target_log_prob_fn=unnormalized_log_prob, num_leapfrog_steps=2, step_size=0.01)
-    hmc_unconstrained = tfp.mcmc.TransformedTransitionKernel(hmc, bijector=bijectorList)
-    hmc_unconstrained_adaptive = tfp.mcmc.DualAveragingStepSizeAdaptation(hmc_unconstrained, int(0.8*float(sample_burnin)))
-
-    Beta = params["Beta"]
-    Gamma = params["Gamma"]
-    LiV = tfla.cholesky(params["iV"])
-    log_prob = logProb(Beta, Gamma, LiV, sigma, LRan, Y, X, Tr, priorHyperparams, dtype=tf.float64)
-    tf.print(log_prob)
-    
-    current_state = [Beta, Gamma, LiV]
-    kernel_results = hmc_unconstrained_adaptive.bootstrap_results(current_state)
-    
-    return kernel_results
   
 
 # from matplotlib import pyplot as plt 
@@ -226,3 +246,5 @@ def get_hmc_kernel_results(params, data, priorHyperparams, rLHyperparams, sample
 # # 99 0.010153
 # # True 0.010153
 # # 0.12239301308455708
+
+
