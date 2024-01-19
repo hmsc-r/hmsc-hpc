@@ -139,21 +139,19 @@ class GibbsSampler(tf.Module):
         mcmcSamplesPsiRRR = tf.TensorArray(params["PsiRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         mcmcSamplesDeltaRRR = tf.TensorArray(params["DeltaRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         
-        nfVal = None
-        # thinHMC = 1
-        hmc_sample_burnin = int(sample_burnin/1)
-        hmc_res= updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, hmc_sample_burnin, init=True)
+        thinHMC = 20
+        hmc_res= updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, sample_burnin, init=True)
         _,_,_,_,_,_, hmc_ss, hmc_las, hmc_es = hmc_res
         step_num = sample_burnin + num_samples * sample_thining
         tf.print("sampling")
         for n in tf.range(step_num):
             tf.autograph.experimental.set_loop_options(
                 shape_invariants=[
-                    (params["Eta"], [tf.TensorShape([npVec[r], nfVal]) for r in range(nr)]),
-                    (params["Lambda"], [tf.TensorShape([nfVal, ns])] * nr),
-                    (params["Psi"], [tf.TensorShape([nfVal, ns])] * nr),
-                    (params["Delta"], [tf.TensorShape([nfVal, 1])] * nr),
-                    (params["AlphaInd"], [tf.TensorShape(nfVal)] * nr),
+                    (params["Eta"], [tf.TensorShape([npVec[r], None]) for r in range(nr)]),
+                    (params["Lambda"], [tf.TensorShape([None, ns])] * nr),
+                    (params["Psi"], [tf.TensorShape([None, ns])] * nr),
+                    (params["Delta"], [tf.TensorShape([None, 1])] * nr),
+                    (params["AlphaInd"], [tf.TensorShape(None)] * nr),
                 ]
             )
             
@@ -178,11 +176,11 @@ class GibbsSampler(tf.Module):
             #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
             #                                                                  poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
             
-            # if (n + 1) % thinHMC == 0:
-            hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, hmc_sample_burnin, n, hmc_ss, hmc_las, hmc_es)
-            params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"] = hmc_res[:-3]
-            hmc_ss, hmc_las, hmc_es = hmc_res[-3:]
-            params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
+            if n % thinHMC == 0:
+              hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, sample_burnin, n, hmc_ss, hmc_las, hmc_es)
+              params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"] = hmc_res[:-3]
+              hmc_ss, hmc_las, hmc_es = hmc_res[-3:]
+              params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
             # else:
               # hmc_res = params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"], hmc_kernel_results
             
