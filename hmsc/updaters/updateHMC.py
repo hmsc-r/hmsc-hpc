@@ -54,7 +54,13 @@ def logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, P
     if rLPar["sDim"] == 0:
       llEta = tfd.Normal(tf.cast(0,dtype),tf.cast(1,dtype)).log_prob(Eta)
     else:
-      llEta = tfd.Normal(tf.cast(0,dtype),tf.cast(1,dtype)).log_prob(Eta)
+      alphapw = rLPar["alphapw"]
+      detWg = rLPar["detWg"]
+      iWg = rLPar["iWg"]
+      EtaTiWEta = tf.einsum("ah,gab,bh->hg", Eta, iWg, Eta)
+      logLike = tfm.log(alphapw[:,1]) - 0.5 * detWg - 0.5 * EtaTiWEta
+      llEta = tfm.reduce_logsumexp(logLike, -1)
+      
     llLambda = tfd.StudentT(nu,tf.cast(0,dtype),tfm.sqrt(Tau)).log_prob(Delta)
     llDelta = tfd.Gamma(aDelta,bDelta).log_prob(Delta)
     logLikeEtaList.append(tf.reduce_sum(llEta))

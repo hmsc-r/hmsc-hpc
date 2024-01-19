@@ -181,6 +181,7 @@ class GibbsSampler(tf.Module):
               params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"] = hmc_res[:-3]
               hmc_ss, hmc_las, hmc_es = hmc_res[-3:]
               params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
+              params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
             # else:
               # hmc_res = params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"], hmc_kernel_results
             
