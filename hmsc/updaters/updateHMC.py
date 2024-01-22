@@ -61,7 +61,7 @@ def logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, P
       logLike = tfm.log(alphapw[:,1]) - 0.5 * detWg - 0.5 * EtaTiWEta
       llEta = tfm.reduce_logsumexp(logLike, -1)
       
-    llLambda = tfd.StudentT(nu,tf.cast(0,dtype),tfm.sqrt(Tau)).log_prob(Delta)
+    llLambda = tfd.StudentT(nu,tf.cast(0,dtype),tfm.rsqrt(Tau)).log_prob(Lambda)
     llDelta = tfd.Gamma(aDelta,bDelta).log_prob(Delta)
     logLikeEtaList.append(tf.reduce_sum(llEta))
     logLambdaEtaList.append(tf.reduce_sum(llLambda))
