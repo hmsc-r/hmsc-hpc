@@ -140,7 +140,7 @@ class GibbsSampler(tf.Module):
         mcmcSamplesDeltaRRR = tf.TensorArray(params["DeltaRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         
         thinHMC = 20
-        hmc_res= updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, sample_burnin, init=True)
+        hmc_res= updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, 10, sample_burnin, init=True)
         _,_,_,_,_,_, hmc_ss, hmc_las, hmc_es = hmc_res
         step_num = sample_burnin + num_samples * sample_thining
         tf.print("sampling")
@@ -177,7 +177,7 @@ class GibbsSampler(tf.Module):
             #                                                                  poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
             
             if n % thinHMC == 0:
-              hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, sample_burnin, n, hmc_ss, hmc_las, hmc_es)
+              hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, 10, sample_burnin, n, hmc_ss, hmc_las, hmc_es)
               params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"] = hmc_res[:-3]
               hmc_ss, hmc_las, hmc_es = hmc_res[-3:]
               params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
