@@ -87,6 +87,8 @@ def updateZ(params, data, rLHyperparams, *,
             LRan = tf.einsum("ih,ik,hjk->ij", Eta, xMat, Lambda)
         LRanList.append(tf.gather(LRan, Pi[:,r]))
     L = tf.add_n([LFix] + LRanList)
+    if ZPrev is None:
+        ZPrev = L
 
     Yo = tfm.logical_not(tfm.is_nan(Y))
     indColNormal = np.where(distr[:,0] == 1)[0]
