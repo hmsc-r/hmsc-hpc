@@ -96,8 +96,7 @@ class GibbsSampler(tf.Module):
                     (params["AlphaInd"], [tf.TensorShape(None)] * nr),
                 ]
             )
-            
-            
+                        
             params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams)
             if print_debug_flag:
               tf.print("Z", tf.reduce_sum(tf.cast(tfm.is_nan(params["Z"]), tf.int32)))
