@@ -54,8 +54,7 @@ def updateGammaV(params, data, priorHyperparams, dtype=np.float64):
       
     Vn = tfla.cholesky_solve(tfla.cholesky(A + V0), tf.eye(nc, dtype=dtype))
     LVn = tfla.cholesky(Vn)
-    #print(np.sum(np.isnan(LVn)))
-    iV = tfd.WishartTriL(tf.cast(f0 + ns, dtype), LVn).sample()
+    iV = tfd.WishartTriL(tf.cast(f0+ns, dtype), LVn).sample()
     
     if C is None:
       iSigmaGamma = iUGamma + kron(tf.matmul(T, T, transpose_a=True), iV)
