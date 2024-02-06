@@ -23,13 +23,13 @@ os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 def load_params(file_path, dtype=np.float64):
     hmscImport, hmscModel = load_model_from_rds(file_path)
     modelDims = load_model_dims(hmscModel)
-    modelData = load_model_data(hmscModel, hmscImport.get("initParList"))
+    modelData = load_model_data(hmscModel, hmscImport.get("initParList"), dtype)
     priorHyperparams = load_prior_hyperparams(hmscModel)
     # currently not used at all
     # modelHyperparams = load_model_hyperparams(hmscModel, hmscImport.get("dataParList"))
     modelHyperparams = None
-    rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"))
-    initParList = init_params(hmscImport.get("initParList"), modelData, modelDims, rLHyperparams)
+    rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"), dtype)
+    initParList = init_params(hmscImport.get("initParList"), modelData, modelDims, rLHyperparams, dtype)
     nChains = int(hmscImport.get("nChains")[0])
   
     return modelDims, modelData, priorHyperparams, modelHyperparams, rLHyperparams, initParList, nChains
@@ -48,6 +48,7 @@ def run_gibbs_sampler(
     flag_save_eta=True,
     flag_save_postList_to_rds=True,
     flag_profile=False,
+    dtype=np.float64,
 ):
     (
         modelDims,
@@ -57,7 +58,7 @@ def run_gibbs_sampler(
         rLHyperparams,
         initParList,
         nChainsTotal,
-    ) = load_params(init_obj_file_path)
+    ) = load_params(init_obj_file_path, dtype)
     gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
     
     if chainIndList is None:
@@ -83,7 +84,8 @@ def run_gibbs_sampler(
         verbose=verbose,
         truncated_normal_library=truncated_normal_library,
         flag_save_eta=flag_save_eta,
-        # rng_seed=(rng_seed+42)
+        # rng_seed=(rng_seed+42),
+        dtype=dtype,
     )
     elapsedTime = time.time() - startTime
     print("TF graph initialized in %.1f sec" % elapsedTime)
@@ -107,7 +109,8 @@ def run_gibbs_sampler(
                 verbose=verbose,
                 truncated_normal_library=truncated_normal_library,
                 flag_save_eta=flag_save_eta,
-                # rng_seed=(rng_seed+chain)
+                # rng_seed=(rng_seed+chain),
+                dtype=dtype,
             )
             postList[chainInd] = [None] * num_samples
             for n in range(num_samples):
@@ -217,12 +220,21 @@ if __name__ == "__main__":
         default=0,
         help="random number generator initialization seed",
     )
-    
+    argParser.add_argument(
+        "--fp",
+        type=int,
+        default=64,
+        choices=[32, 64],
+        help="which precision mode is used for sampling: fp32 or fp64",
+    )
+
     args = argParser.parse_args()
     print("args=%s" % args)
     print("working directory", os.getcwd())
     init_obj_file_path = args.input
     postList_file_path = args.output
+
+    dtype = np.float32 if args.fp == 32 else np.float64
 
     run_gibbs_sampler(
         num_samples=args.samples,
@@ -237,4 +249,7 @@ if __name__ == "__main__":
         flag_save_eta=bool(args.fse),
         flag_save_postList_to_rds=True,
         flag_profile=bool(args.profile),
+        dtype=dtype,
     )
+
+print("done")

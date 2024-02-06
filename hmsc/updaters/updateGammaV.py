@@ -29,14 +29,14 @@ def updateGammaV(params, data, priorHyperparams, dtype=np.float64):
     Beta = params["Beta"]
     Gamma = params["Gamma"]
     rhoInd = params["rhoInd"]
-    T = data["T"]
+    T = tf.constant(data["T"], dtype=dtype)
     C, eC, VC = data["C"], data["eC"], data["VC"]
     rhoGroup = data["rhoGroup"]
     mGamma = priorHyperparams["mGamma"]
-    iUGamma = priorHyperparams["iUGamma"]
+    iUGamma = rhopw = tf.constant(priorHyperparams["iUGamma"], dtype=dtype)
     V0 = priorHyperparams["V0"]
     f0 = priorHyperparams["f0"]
-    rhopw = priorHyperparams["rhopw"]
+    rhopw = tf.constant(priorHyperparams["rhopw"], dtype=dtype)
 
     nc, ns = Beta.shape
     nt = Gamma.shape[-1]

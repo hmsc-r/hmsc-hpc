@@ -73,11 +73,11 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
                     LamInvSigLam = tf.tile(LamInvSigLam[None,:,:], [npVec[r],1,1])
                     
                 if rLPar["spatialMethod"] == "Full":
-                    EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], npVec[r], nf)
+                    EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], npVec[r], nf, dtype)
                 elif rLPar["spatialMethod"] == "GPP":
-                    EtaListNew[r] = modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, rLPar["Fg"], rLPar["idDg"], rLPar["idDW12g"], rLPar["nK"], npVec[r], nf)
+                    EtaListNew[r] = modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, rLPar["Fg"], rLPar["idDg"], rLPar["idDW12g"], rLPar["nK"], npVec[r], nf, dtype)
                 elif rLPar["spatialMethod"] == "NNGP":                
-                    modelSpatialNNGP_local = lambda LamInvSigLam, mu0, Alpha, nf: modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, rLPar["iWList_csr"], npVec[r], nf)
+                    modelSpatialNNGP_local = lambda LamInvSigLam, mu0, Alpha, nf: modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, rLPar["iWList_csr"], npVec[r], nf, dtype)
                     # EtaListNew[r] = modelSpatialNNGP_local(LamInvSigLam, mu0, AlphaInd, nf)
                     Eta = tf.numpy_function(modelSpatialNNGP_local, [LamInvSigLam, mu0, AlphaInd, nf], dtype)
                     EtaListNew[r] = tf.ensure_shape(Eta, [npVec[r], None])              
@@ -170,5 +170,5 @@ def modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, iWList, nu, nf, dtype=np.fl
     LiUEta = csr_matrix(L.multiply(np.sqrt(U.diagonal())))
     mu1 = spsolve_triangular(LiUEta, np.reshape(mu0, [nu*nf]))
     eta = spsolve_triangular(LiUEta.transpose(), mu1 + np.random.normal(dtype(0), dtype(1), size=[nf*nu]), lower=False)
-    Eta = np.reshape(eta, [nu,nf])
+    Eta = np.reshape(eta, [nu,nf]).astype(dtype)
     return Eta

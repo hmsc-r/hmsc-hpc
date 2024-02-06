@@ -24,7 +24,7 @@ def updateRhoInd(params, data, priorHyperparams, dtype=np.float64):
   T = data["T"]
   C, eC, VC = data["C"], data["eC"], data["VC"]
   rhoGroup = data["rhoGroup"]
-  rhopw = priorHyperparams["rhopw"]
+  rhopw = tf.constant(priorHyperparams["rhopw"], dtype=dtype)
   
   if not (C is None):
     nc, ns = Beta.shape

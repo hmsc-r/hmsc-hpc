@@ -26,7 +26,7 @@ def load_model_data(hmscModel, importedInitParList, dtype=np.float64):
     if C_import is None or len(C_import) == 0:
         modelData["C"], modelData["eC"], modelData["VC"] = None, None, None
     else:
-        C = np.asarray(C_import)
+        C = tf.cast(np.asarray(C_import), dtype=dtype)
         modelData["C"] = C
         modelData["eC"], modelData["VC"] = np.linalg.eigh(C)  # TODO replace once implemented in R as well
     modelData["rhoGroup"] = rhoGroup
@@ -125,26 +125,25 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
             rLPar["alphapw"] = np.array(hmscModel.get("rL")[rLName]["alphapw"])
             gN = rLPar["alphapw"].shape[0]
             if rLPar["spatialMethod"] == "Full":
-                distMat = np.reshape(dataParList["rLPar"][r]["distMat"], [npVec[r], npVec[r]])
-                tmp = distMat / rLPar["alphapw"][:,0,None,None]
+                distMat = np.reshape(dataParList["rLPar"][r]["distMat"], [npVec[r], npVec[r]]).astype(dtype)
+                tmp = distMat / rLPar["alphapw"][:,0,None,None].astype(dtype)
                 tmp[np.isnan(tmp)] = 0
                 rLPar["Wg"] = np.exp(-tmp)
-                LWg = tfla.cholesky(rLPar["Wg"])
+                LWg = tfla.cholesky(rLPar["Wg"].astype(dtype))
                 rLPar["iWg"] = tfla.cholesky_solve(LWg, tf.eye(npVec[r], npVec[r], [gN], dtype))
                 rLPar["LiWg"] = tfla.cholesky(rLPar["iWg"])
                 rLPar["detWg"] = 2*tf.reduce_sum(tfm.log(tfla.diag_part(LWg)), -1)
 
             elif rLPar["spatialMethod"] == "GPP":
                 nK = int(dataParList["rLPar"][r]["nKnots"][0])
-                d12 = np.reshape(dataParList["rLPar"][r]["distMat12"], [npVec[r], nK])
-                d22 = np.reshape(dataParList["rLPar"][r]["distMat22"], [nK, nK])
-                W12 = d12 / rLPar["alphapw"][:,0,None,None]
+                d12 = np.reshape(dataParList["rLPar"][r]["distMat12"], [npVec[r], nK]).astype(dtype)
+                d22 = np.reshape(dataParList["rLPar"][r]["distMat22"], [nK, nK]).astype(dtype)
+                W12 = d12 / rLPar["alphapw"][:,0,None,None].astype(dtype)
                 W12[np.isnan(W12)] = 0
                 W12 = tf.exp(-W12)
-                W22 = d22 / rLPar["alphapw"][:,0,None,None]
+                W22 = d22 / rLPar["alphapw"][:,0,None,None].astype(dtype)
                 W22[np.isnan(W22)] = 0
                 W22 = tf.exp(-W22)
-                
                 LW22 = tfla.cholesky(W22)
                 iW22 = tfla.cholesky_solve(LW22, tf.eye(nK, nK, [gN], dtype))
                 dD = 1 - tf.einsum("gik,gkh,gih->gi", W12, iW22, W12)
@@ -158,7 +157,7 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 rLPar["idDg"] = idD
                 rLPar["idDW12g"] = iDW12
                 rLPar["Fg"] = F
-                rLPar["iFg"] = tfla.cholesky_solve(tfla.cholesky(F), tf.eye(nK, nK, [gN], dtype))
+                rLPar["iFg"] = tfla.cholesky_solve(tf.cast(tfla.cholesky(F), dtype=dtype), tf.eye(nK, nK, [gN], dtype))
                 rLPar["detDg"] = detD
                 
             elif rLPar["spatialMethod"] == "NNGP":
@@ -168,7 +167,7 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 detW = np.zeros([gN], dtype)
                 indMat = np.concatenate([ind for ind in indList if len(ind) > 0], 1).T.astype(int) - 1
                 for ag in range(gN):
-                  alpha = rLPar["alphapw"][ag,0]
+                  alpha = rLPar["alphapw"][ag,0].astype(dtype)
                   if alpha == 0:
                     RiWList[ag] = tfs.eye(npVec[r], dtype=dtype)
                     iWList_csr[ag] = sparse.eye(npVec[r], dtype=dtype)
@@ -178,13 +177,13 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                     valList = [[]] * npVec[r]
                     for i in range(1,npVec[r]):
                       if len(indList[i]) > 1:
-                        Kp = np.exp(-np.array(distList[i])/alpha)
+                        Kp = np.exp(-np.array(distList[i]).astype(dtype)/alpha)
                         valList[i] = np.linalg.solve(Kp[:-1,:-1], Kp[:-1,-1])
                         D[i] = Kp[-1,-1] - np.matmul(Kp[:-1,-1], valList[i])
                       else:
                         D[i] = 1
-                    iD05_csr = sparse.csr_array((D**-0.5, (np.arange(npVec[r]),np.arange(npVec[r]))), [npVec[r]]*2)
-                    A = sparse.csr_array((np.concatenate(valList), (indMat[:,0],indMat[:,1])), [npVec[r]]*2)
+                    iD05_csr = sparse.csr_array((D**-0.5, (np.arange(npVec[r]),np.arange(npVec[r]))), [npVec[r]]*2, dtype=dtype)
+                    A = sparse.csr_array((np.concatenate(valList), (indMat[:,0],indMat[:,1])), [npVec[r]]*2, dtype=dtype)
                     B = sparse.eye(npVec[r], dtype=dtype) - A
                     RiW = iD05_csr @ B
                     iWList_csr[ag] = RiW.T @ RiW
