@@ -167,7 +167,7 @@ def modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, iWList, nu, nf, dtype=np.fl
     # iUEta = sum(iWs) + LamInvSigLam_bdiag
     LU_factor = splu(iUEta, "NATURAL", diag_pivot_thresh=0)
     L, U = LU_factor.L, LU_factor.U
-    LiUEta = csr_matrix(L.multiply(np.sqrt(U.diagonal())))
+    LiUEta = csr_matrix(L.multiply(np.sqrt(U.diagonal())), dtype=dtype)
     mu1 = spsolve_triangular(LiUEta, np.reshape(mu0, [nu*nf]))
     eta = spsolve_triangular(LiUEta.transpose(), mu1 + np.random.normal(dtype(0), dtype(1), size=[nf*nu]), lower=False)
     Eta = np.reshape(eta, [nu,nf]).astype(dtype)
