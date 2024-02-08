@@ -30,10 +30,10 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
         nf = tf.cast(tf.shape(Eta)[1], tf.int32)
         if sDim > 0:
             spatialMethod = rLPar["spatialMethod"]
-            alphapw = tf.constant(rLPar["alphapw"], dtype=dtype)
+            alphapw = rLPar["alphapw"]
 
             if spatialMethod == "Full":
-                detWg = tf.constant(rLPar["detWg"], dtype=dtype)
+                detWg = rLPar["detWg"]
                 iWg = rLPar["iWg"]
                 EtaTiWEta = tf.einsum("ah,gab,bh->hg", Eta, iWg, Eta)
                 logLike = tfm.log(alphapw[:,1]) - 0.5 * detWg - 0.5 * EtaTiWEta

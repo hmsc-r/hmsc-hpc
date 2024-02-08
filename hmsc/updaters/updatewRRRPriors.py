@@ -15,8 +15,8 @@ def updatewRRRPriors(params, modelDims, priorHyperparams, dtype=tf.float64):
     nf = modelDims["ncRRR"]
     ns = modelDims["ns"]
     
-    aVec = tf.cast(tf.concat([[a1], tf.repeat(a2, nf-1)], 0), dtype=dtype)
-    bVec = tf.cast(tf.concat([[b1], tf.repeat(b2, nf-1)], 0), dtype=dtype)
+    aVec = tf.concat([[a1], tf.repeat(a2, nf-1)], 0)
+    bVec = tf.concat([[b1], tf.repeat(b2, nf-1)], 0)
 
     Tau = tfm.cumprod(Delta)
     Lambda2 = Lambda**2

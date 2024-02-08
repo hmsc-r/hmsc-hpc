@@ -24,7 +24,7 @@ def load_params(file_path, dtype=np.float64):
     hmscImport, hmscModel = load_model_from_rds(file_path)
     modelDims = load_model_dims(hmscModel)
     modelData = load_model_data(hmscModel, hmscImport.get("initParList"), dtype)
-    priorHyperparams = load_prior_hyperparams(hmscModel)
+    priorHyperparams = load_prior_hyperparams(hmscModel, dtype)
     # currently not used at all
     # modelHyperparams = load_model_hyperparams(hmscModel, hmscImport.get("dataParList"))
     modelHyperparams = None

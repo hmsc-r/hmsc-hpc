@@ -8,7 +8,7 @@ tfla, tfr, tfs, tfm = tf.linalg, tf.random, tf.sparse, tf.math
 def load_model_data(hmscModel, importedInitParList, dtype=np.float64):
 
     Y = np.asarray(hmscModel.get("YScaled")).astype(dtype)
-    T = np.asarray(hmscModel.get("TrScaled"))
+    T = np.asarray(hmscModel.get("TrScaled")).astype(dtype)
     C_import = hmscModel.get("C")
     if isinstance(hmscModel.get("XScaled"), dict):
         X = np.stack([np.asarray(hmscModel.get("XScaled")[x]) for x in hmscModel.get("XScaled")], 0)
@@ -26,7 +26,7 @@ def load_model_data(hmscModel, importedInitParList, dtype=np.float64):
     if C_import is None or len(C_import) == 0:
         modelData["C"], modelData["eC"], modelData["VC"] = None, None, None
     else:
-        C = tf.cast(np.asarray(C_import), dtype=dtype)
+        C = np.asarray(C_import).astype(dtype)
         modelData["C"] = C
         modelData["eC"], modelData["VC"] = np.linalg.eigh(C)  # TODO replace once implemented in R as well
     modelData["rhoGroup"] = rhoGroup
@@ -122,7 +122,7 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
         rLPar["xDim"] = int(hmscModel.get("rL")[rLName]["xDim"][0])
         if rLPar["sDim"] > 0:
             rLPar["spatialMethod"] = hmscModel.get("rL")[rLName]["spatialMethod"][0]
-            rLPar["alphapw"] = np.array(hmscModel.get("rL")[rLName]["alphapw"])
+            rLPar["alphapw"] = np.array(hmscModel.get("rL")[rLName]["alphapw"]).astype(dtype)
             gN = rLPar["alphapw"].shape[0]
             if rLPar["spatialMethod"] == "Full":
                 distMat = np.reshape(dataParList["rLPar"][r]["distMat"], [npVec[r], npVec[r]]).astype(dtype)
@@ -202,20 +202,20 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
     return rLParams
 
 
-def load_prior_hyperparams(hmscModel):
+def load_prior_hyperparams(hmscModel, dtype=np.float64):
 
-    mGamma = np.asarray(hmscModel.get("mGamma"))
-    UGamma = np.asarray(hmscModel.get("UGamma"))
+    mGamma = np.asarray(hmscModel.get("mGamma")).astype(dtype)
+    UGamma = np.asarray(hmscModel.get("UGamma")).astype(dtype)
     f0 = np.squeeze(hmscModel.get("f0"))
     V0 = np.squeeze(hmscModel.get("V0"))
-    rhopw = np.asarray(hmscModel.get("rhopw"))
+    rhopw = np.asarray(hmscModel.get("rhopw")).astype(dtype)
     aSigma = np.asarray(hmscModel.get("aSigma"))
     bSigma = np.asarray(hmscModel.get("bSigma"))
     nuRRR = np.squeeze(hmscModel.get("nuRRR"))
-    a1RRR = np.squeeze(hmscModel.get("a1RRR"))
-    b1RRR = np.squeeze(hmscModel.get("b1RRR"))
-    a2RRR = np.squeeze(hmscModel.get("a2RRR"))
-    b2RRR = np.squeeze(hmscModel.get("b2RRR"))
+    a1RRR = np.squeeze(hmscModel.get("a1RRR")).astype(dtype)
+    b1RRR = np.squeeze(hmscModel.get("b1RRR")).astype(dtype)
+    a2RRR = np.squeeze(hmscModel.get("a2RRR")).astype(dtype)
+    b2RRR = np.squeeze(hmscModel.get("b2RRR")).astype(dtype)
 
     priorHyperParams = {}
     priorHyperParams["mGamma"] = mGamma

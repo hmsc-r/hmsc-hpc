@@ -66,7 +66,7 @@ def updateZ(params, data, rLHyperparams, *,
     Beta = params["Beta"]
     EtaList = params["Eta"]
     LambdaList = params["Lambda"]
-    sigma = tf.cast(params["sigma"], dtype=dtype)
+    sigma = params["sigma"]
     X = params["Xeff"]
 
     Y = data["Y"]

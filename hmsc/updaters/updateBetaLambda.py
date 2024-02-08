@@ -40,7 +40,7 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     C, eC, VC = data["C"], data["eC"], data["VC"]
     rhoGroup = data["rhoGroup"]
     Pi = data["Pi"]
-    rhopw = tf.constant(priorHyperparams["rhopw"], dtype=dtype)
+    rhopw = priorHyperparams["rhopw"]
 
     ny, nc = X.shape[-2:]
     _, ns = Z.shape
