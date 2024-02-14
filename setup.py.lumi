@@ -6,12 +6,8 @@ setup(
     author="[removed for review]",
     license='GPLv3+',
     install_requires=[
-        'numpy',
-        'pandas',
         'pyreadr',
-        'scipy',
-        'tensorflow',
-        'tensorflow-probability',
+        'tensorflow-probability==0.20.0',
         'ujson',
     ]
 )
