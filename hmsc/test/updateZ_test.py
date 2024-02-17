@@ -30,6 +30,7 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     params = {}
     modelData = {}
     modelDims = {}
+    priorHyperparams = {}
     rLHyperparams = {}
 
     params["Z"] = Z
@@ -58,11 +59,11 @@ def _simple_model(spatial_method="None", dtype = np.float64):
         rLPar["xDim"] = 0
         rLHyperparams[r] = rLPar
 
-    return params, modelDims, modelData, rLHyperparams
+    return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 def test_updateZ():
 
-    params, modelDims, modelData, rLHyperparams = _simple_model()
+    params, modelDims, modelData, _, rLHyperparams = _simple_model()
 
     ZTrue = params["Z"]
 
@@ -74,7 +75,7 @@ def test_updateZ():
 
 def test_updateZ_shape():
 
-    params, modelDims, modelData, rLHyperparams = _simple_model()
+    params, modelDims, modelData, _, rLHyperparams = _simple_model()
     
     Z, _, _ = updateZ(params, modelData, rLHyperparams, poisson_preupdate_z=False)
 

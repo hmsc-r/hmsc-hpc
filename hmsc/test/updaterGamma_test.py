@@ -42,6 +42,7 @@ def _simple_model(has_phylogeny=False, dtype = np.float64):
     modelData = {}
     modelDims = {}
     priorHyperparams = {}
+    rLHyperparams = {}
 
     params["Beta"] = Beta
     params["Gamma"] = Gamma
@@ -62,13 +63,13 @@ def _simple_model(has_phylogeny=False, dtype = np.float64):
     priorHyperparams["V0"] = V0
     priorHyperparams["f0"] = f0
 
-    return params, modelDims, modelData, priorHyperparams
+    return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 
 @pytest.mark.parametrize("has_phylogeny", [False,True])
 def test_updateGammaV_sans_phylogeny(has_phylogeny):
 
-    params, modelDims, modelData, priorHyperparams = _simple_model(has_phylogeny)
+    params, modelDims, modelData, priorHyperparams, _ = _simple_model(has_phylogeny)
 
     GammaTrue, iVTrue = params["Gamma"], params["iV"]
 
@@ -76,12 +77,13 @@ def test_updateGammaV_sans_phylogeny(has_phylogeny):
 
     # assert_allclose(Gamma, GammaTrue, atol=1)
     # assert_allclose(iV, iVTrue, atol=3.0)
+
     assert_allclose(np.corrcoef(tf.reshape(Gamma,-1), tf.reshape(GammaTrue,-1))[0,1], 1, atol=0.05)
     assert_allclose(np.corrcoef(tf.reshape(iV,-1), tf.reshape(iVTrue,-1))[0,1], 1, atol=0.05)
 
 def test_updateGamma_shape():
 
-    params, modelDims, modelData, priorHyperparams = _simple_model()
+    params, modelDims, modelData, priorHyperparams, _ = _simple_model()
     
     Gamma, iV = updateGammaV(params, modelData, priorHyperparams)
 

@@ -29,12 +29,7 @@ def _simple_model(dtype=np.float64):
     Xeff = tf.constant(X, dtype=dtype)
     Y = Z = (
         tf.matmul(X, Beta)
-        + sum(
-            [
-                tf.matmul(tf.gather(EtaList[r], Pi[:, r]), LambdaList[r])
-                for r in range(nr)
-            ]
-        )
+        + sum([tf.matmul(tf.gather(EtaList[r], Pi[:, r]), LambdaList[r]) for r in range(nr)])
         + tfr.normal([ny, ns], 0, sigma, dtype=dtype)
     )
     iD = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype) * tf.ones_like(Z) * sigma**-2
@@ -43,6 +38,7 @@ def _simple_model(dtype=np.float64):
     params = {}
     modelData = {}
     modelDims = {}
+    priorHyperparams = {}
     rLHyperparams = {}
 
     params["Z"] = Z
@@ -67,12 +63,12 @@ def _simple_model(dtype=np.float64):
         rLPar["xDim"] = 0
         rLHyperparams[r] = rLPar
 
-    return params, modelDims, rLHyperparams
+    return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 
 def test_updateAlpha():
 
-    params, modelDims, rLHyperparams = _simple_model()
+    params, modelDims, _, _, rLHyperparams = _simple_model()
 
     AlphaListTrue = params["AlphaInd"]
 
@@ -89,7 +85,7 @@ def test_updateAlpha():
 
 def test_updateAlpha_shape():
 
-    params, modelDims, rLHyperparams = _simple_model()
+    params, modelDims, _, _, rLHyperparams = _simple_model()
 
     AlphaList = updateAlpha(params, rLHyperparams)
 

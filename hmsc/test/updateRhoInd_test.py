@@ -142,7 +142,7 @@ def _simple_model(has_phylogeny=False, dtype=np.float64):
         rLPar = {}
         rLPar["sDim"] = 0
         rLPar["xDim"] = 0
-        rLPar["nu"] = 3 + r
+        rLPar["nu"] = 3
         rLPar["a1"] = 50
         rLPar["b1"] = 1
         rLPar["a2"] = 50
@@ -154,7 +154,7 @@ def _simple_model(has_phylogeny=False, dtype=np.float64):
 
 def test_updatewRRRPriors():
 
-    params, modelDims, modelData, priorHyperparams, rLHyperparams = _simple_model()
+    params, modelDims, modelData, priorHyperparams, _ = _simple_model()
 
     rhoIndTrue = params["rhoInd"]
 
@@ -165,7 +165,7 @@ def test_updatewRRRPriors():
 
 def test_updatewRRRPriors_shape():
 
-    params, modelDims, modelData, priorHyperparams, rLHyperparams = _simple_model()
+    params, modelDims, modelData, priorHyperparams, _ = _simple_model()
 
     rhoInd = updateRhoInd(params, modelData, priorHyperparams)
 

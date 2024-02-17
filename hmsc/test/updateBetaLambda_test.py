@@ -58,6 +58,7 @@ def _simple_model(has_phylogeny=False, dtype = np.float64):
     modelData = {}
     modelDims = {}
     priorHyperparams = {}
+    rLHyperparams = {}
 
     params["Beta"] = Beta
     params["Gamma"] = Gamma
@@ -89,13 +90,13 @@ def _simple_model(has_phylogeny=False, dtype = np.float64):
     priorHyperparams["V0"] = V0
     priorHyperparams["f0"] = f0
 
-    return params, modelDims, modelData, priorHyperparams
+    return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 #@pytest.mark.parametrize("has_phylogeny", [False, True]) # has_phylogeny=True test is slow; uncomment in final version
 @pytest.mark.parametrize("has_phylogeny", [False, False])
 def test_updateGammaV(has_phylogeny):
 
-    params, modelDims, modelData, priorHyperparams = _simple_model()
+    params, modelDims, modelData, priorHyperparams, _ = _simple_model()
 
     BetaTrue = params["Beta"]
     LambdaListTrue = params["Lambda"]
@@ -110,7 +111,7 @@ def test_updateGammaV(has_phylogeny):
 
 def test_updateBetaLambda_shape():
 
-    params, modelDims, modelData, priorHyperparams = _simple_model()
+    params, modelDims, modelData, priorHyperparams, _ = _simple_model()
     
     Beta, LambdaList = updateBetaLambda(params, modelData, priorHyperparams)
 

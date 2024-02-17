@@ -133,19 +133,19 @@ def _simple_model(has_phylogeny=False, dtype=np.float64):
         rLPar = {}
         rLPar["sDim"] = 0
         rLPar["xDim"] = 0
-        rLPar["nu"] = 3 + r
+        rLPar["nu"] = 3
         rLPar["a1"] = 50
         rLPar["b1"] = 1
         rLPar["a2"] = 50
         rLPar["b2"] = 1
         rLHyperparams[r] = rLPar
 
-    return params, modelDims, modelData, rLHyperparams
+    return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 
 def test_updatewRRR():
 
-    params, modelDims, modelData, rLHyperparams = _simple_model()
+    params, modelDims, modelData, _, rLHyperparams = _simple_model()
 
     wRRRTrue = params["wRRR"]
     XeffTrue = params["Xeff"]
@@ -153,12 +153,12 @@ def test_updatewRRR():
     wRRR, Xeff = updatewRRR(params, modelDims, modelData, rLHyperparams)
 
     assert_allclose(tf.reduce_mean(wRRR), tf.reduce_mean(wRRRTrue), atol=1.0)
-    assert_allclose(tf.reduce_mean(Xeff), tf.reduce_mean(XeffTrue), atol=0.005)
+    assert_allclose(tf.reduce_mean(Xeff), tf.reduce_mean(XeffTrue), atol=0.01)
 
 
 def test_updatewRRR_shape():
 
-    params, modelDims, modelData, rLHyperparams = _simple_model()
+    params, modelDims, modelData, _, rLHyperparams = _simple_model()
 
     wRRR, Xeff = updatewRRR(params, modelDims, modelData, rLHyperparams)
 

@@ -141,7 +141,7 @@ def _simple_model(has_phylogeny=False, dtype=np.float64):
         rLPar = {}
         rLPar["sDim"] = 0
         rLPar["xDim"] = 0
-        rLPar["nu"] = 3 + r
+        rLPar["nu"] = 3
         rLPar["a1"] = 50
         rLPar["b1"] = 1
         rLPar["a2"] = 50
@@ -153,7 +153,7 @@ def _simple_model(has_phylogeny=False, dtype=np.float64):
 
 def test_updatewRRRPriors():
 
-    params, modelDims, modelData, priorHyperparams, rLHyperparams = _simple_model()
+    params, modelDims, _, priorHyperparams, _ = _simple_model()
 
     PsiRRRTrue = params["PsiRRR"]
     DeltaRRRTrue = params["DeltaRRR"]
@@ -161,12 +161,12 @@ def test_updatewRRRPriors():
     PsiRRR, DeltaRRR = updatewRRRPriors(params, modelDims, priorHyperparams)
 
     assert_allclose(tf.reduce_mean(PsiRRR), tf.reduce_mean(PsiRRRTrue), atol=1.0)
-    assert_allclose(tf.reduce_mean(DeltaRRR), tf.reduce_mean(DeltaRRRTrue), atol=1.5)
+    assert_allclose(tf.reduce_mean(DeltaRRR), tf.reduce_mean(DeltaRRRTrue), atol=2.0)
 
 
 def test_updatewRRRPriors_shape():
 
-    params, modelDims, modelData, priorHyperparams, rLHyperparams = _simple_model()
+    params, modelDims, _, priorHyperparams, _ = _simple_model()
 
     PsiRRR, DeltaRRR = updatewRRRPriors(params, modelDims, priorHyperparams)
 

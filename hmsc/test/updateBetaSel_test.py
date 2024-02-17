@@ -118,11 +118,11 @@ def _simple_model(has_phylogeny=False, dtype = np.float64):
         rLPar["xDim"] = 0
         rLHyperparams[r] = rLPar
 
-    return params, modelDims, modelData, rLHyperparams
+    return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 def test_updateBetaSel():
     
-    params, modelDims, modelData, rLHyperparams = _simple_model()
+    params, modelDims, modelData, _, rLHyperparams = _simple_model()
 
     BetaSelTrue = params["BetaSel"]
     XeffTrue = params["Xeff"]
@@ -137,7 +137,7 @@ def test_updateBetaSel():
 
 def test_updateBetaLambda_shape():
 
-    params, modelDims, modelData, rLHyperparams = _simple_model()
+    params, modelDims, modelData, _, rLHyperparams = _simple_model()
 
     BetaSel, Xeff = updateBetaSel(params, modelDims, modelData, rLHyperparams)
 

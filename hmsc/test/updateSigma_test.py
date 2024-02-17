@@ -31,6 +31,7 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     modelData = {}
     modelDims = {}
     priorHyperparams = {}
+    rLHyperparams = {}
 
     params["Z"] = Z
     params["Beta"] = Beta
@@ -54,23 +55,22 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     priorHyperparams["aSigma"] = aSigma
     priorHyperparams["bSigma"] = bSigma
 
-    return params, modelDims, modelData, priorHyperparams
+    return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 def test_updateSigma():
 
-    params, modelDims, modelData, priorHyperparams = _simple_model()
+    params, modelDims, modelData, priorHyperparams, _ = _simple_model()
 
     sigmaTrue = params["sigma"]
 
     sigma = updateSigma(params, modelDims, modelData, priorHyperparams)
 
     # assert_allclose(sigma, sigmaTrue, atol=0.1)
-
-    # assert_allclose(tf.reduce_mean(sigma), tf.reduce_mean(sigmaTrue), atol=0.001)
+    assert_allclose(tf.reduce_mean(sigma), tf.reduce_mean(sigmaTrue), atol=0.01)
 
 def test_updateSigma_shape():
 
-    params, modelDims, modelData, priorHyperparams = _simple_model()
+    params, modelDims, modelData, priorHyperparams, _ = _simple_model()
     
     sigma = updateSigma(params, modelDims, modelData, priorHyperparams)
 

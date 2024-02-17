@@ -39,6 +39,7 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     params = {}
     modelData = {}
     modelDims = {}
+    priorHyperparams = {}
     rLHyperparams = {}
 
     params["Z"] = Z
@@ -65,12 +66,12 @@ def _simple_model(spatial_method="None", dtype = np.float64):
         rLPar["sDim"] = 0
         rLHyperparams[r] = rLPar
 
-    return params, modelDims, modelData, rLHyperparams
+    return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 @pytest.mark.parametrize("spatial_method", ["Full", "NNGP", "GPP", "None"])
 def test_updateEta(spatial_method):
 
-    params, modelDims, modelData, rLHyperparams = _simple_model(spatial_method)
+    params, modelDims, modelData, _, rLHyperparams = _simple_model(spatial_method)
 
     EtaTrue = params["Eta"]
 
@@ -84,7 +85,7 @@ def test_updateEta(spatial_method):
 
 def test_updateEta_shape():
 
-    params, modelDims, modelData, rLHyperparams = _simple_model()
+    params, modelDims, modelData, _, rLHyperparams = _simple_model()
     
     EtaList = updateEta(params, modelDims, modelData, rLHyperparams)
 

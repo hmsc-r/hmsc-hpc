@@ -144,7 +144,7 @@ def _simple_model(has_phylogeny=False, dtype=np.float64):
         rLPar = {}
         rLPar["sDim"] = 0
         rLPar["xDim"] = 0
-        rLPar["nu"] = 3 + r
+        rLPar["nu"] = 3
         rLPar["a1"] = 50
         rLPar["b1"] = 1
         rLPar["a2"] = 50
@@ -156,9 +156,9 @@ def _simple_model(has_phylogeny=False, dtype=np.float64):
     return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 
-def test_updatewRRRPriors():
+def test_updatewNf():
 
-    params, modelDims, modelData, priorHyperparams, rLHyperparams = _simple_model()
+    params, modelDims, _, _, rLHyperparams = _simple_model()
 
     LambdaListTrue = params["Lambda"]
     PsiListTrue = params["Psi"]
@@ -182,9 +182,9 @@ def test_updatewRRRPriors():
         assert_allclose(tf.reduce_mean(AlphaIndList[r]), tf.reduce_mean(AlphaIndListTrue[r]), atol=0.001)
 
 
-def test_updatewRRRPriors_shape():
+def test_updateNf_shape():
 
-    params, modelDims, modelData, priorHyperparams, rLHyperparams = _simple_model()
+    params, modelDims, _, _, rLHyperparams = _simple_model()
 
     LambdaList, PsiList, DeltaList, EtaList, AlphaIndList = updateNf(params, rLHyperparams, it=0)
 
@@ -192,10 +192,10 @@ def test_updatewRRRPriors_shape():
         assert tf.shape(LambdaList[r])[0] == modelDims["nf"][r]
         assert tf.shape(LambdaList[r])[1] == modelDims["ns"]
 
-        assert tf.shape(PsiList[r])[0] == rLHyperparams[r]["nu"]
+        assert tf.shape(PsiList[r])[0] == rLHyperparams[r]["nu"] + r
         assert tf.shape(PsiList[r])[1] == modelDims["ns"]
 
-        assert tf.shape(DeltaList[r])[0] == rLHyperparams[r]["nu"]
+        assert tf.shape(DeltaList[r])[0] == rLHyperparams[r]["nu"] + r
 
         assert tf.shape(EtaList[r])[0] == modelDims["np"][r]
         assert tf.shape(EtaList[r])[1] == modelDims["nf"][r]
