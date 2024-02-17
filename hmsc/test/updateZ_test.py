@@ -4,10 +4,10 @@ import pytest
 import tensorflow as tf
 tfr, tfm = tf.random, tf.math
 
-from hmsc.updaters.updateEta import updateEta
+from hmsc.updaters.updateZ import updateZ
 
 def _simple_model(spatial_method="None", dtype = np.float64):
-    
+
     ny, ns, nc, nf, nr = 701, 1001, 31, 17, 7
     
     npVec = np.maximum((ny / (2**np.arange(nr))).astype(int), 2)
@@ -18,24 +18,15 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     Beta = tfr.normal([nc,ns], dtype=dtype)
     EtaList = [tfr.normal([npVec[r],nfVec[r]], dtype=dtype) for r in range(nr)]
     LambdaList = [tfr.normal([nfVec[r],ns], dtype=dtype) for r in range(nr)]
-    AlphaIndList = [tf.zeros([nfVec[r]], dtype=tf.int64) for r in range(nr)]
+    AlphaIndList = [tf.zeros([nfVec[r],1], dtype=tf.int64) for r in range(nr)]
     sigma = tfr.uniform([ns], dtype=dtype)
 
     X = np.random.normal(size=[ny,nc])
     Xeff = tf.constant(X, dtype=dtype)
     Y = Z = tf.matmul(X,Beta) + sum([tf.matmul(tf.gather(EtaList[r], Pi[:,r]), LambdaList[r]) for r in range(nr)]) + tfr.normal([ny,ns], 0, sigma, dtype=dtype)
     iD = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype) * tf.ones_like(Z) * sigma**-2
- 
-    # match spatial_method:
-    #     case "Full":
-    #         pass
-    #     case "NNGP":
-    #         pass
-    #     case "GPP":
-    #         pass
-    #     case _:
-    #         pass
-    
+    distr = np.ones([ns,2])
+     
     params = {}
     modelData = {}
     modelDims = {}
@@ -58,47 +49,34 @@ def _simple_model(spatial_method="None", dtype = np.float64):
 
     modelData["Pi"] = Pi
     modelData["Y"] = Y
+    modelData["distr"] = distr
 
     rLHyperparams = [None] * nr
     for r in range(nr):
         rLPar = {}
-        rLPar["spatialMethod"] = spatial_method
-        if spatial_method == "None":
-          rLPar["sDim"] = 0
-        elif spatial_method == "Full":
-          rLPar["sDim"] = 1
-          rLPar["iWg"] = tf.eye(npVec[r], batch_shape=[101], dtype=dtype)
-        else:
-          rLPar["spatialMethod"] = "None"
-          rLPar["sDim"] = 0
-          
+        rLPar["sDim"] = 0
+        rLPar["xDim"] = 0
         rLHyperparams[r] = rLPar
 
     return params, modelDims, modelData, rLHyperparams
 
-@pytest.mark.parametrize("spatial_method", ["Full", "NNGP", "GPP", "None"])
-def test_updateEta(spatial_method):
+def test_updateZ():
 
-    params, modelDims, modelData, rLHyperparams = _simple_model(spatial_method)
+    params, modelDims, modelData, rLHyperparams = _simple_model()
 
-    EtaTrue = params["Eta"]
+    ZTrue = params["Z"]
 
-    Eta = updateEta(params, modelDims, modelData, rLHyperparams)
+    Z, _, _ = updateZ(params, modelData, rLHyperparams, poisson_preupdate_z=False)
 
-    for r in range(modelDims["nr"]):
-        assert_allclose(Eta[r], EtaTrue[r], atol=0.1)
+    assert_allclose(Z, ZTrue, atol=0.1)
 
-    for r in range(modelDims["nr"]):
-        assert_allclose(tf.reduce_mean(Eta[r]), tf.reduce_mean(EtaTrue[r]), atol=0.001)
+    assert_allclose(tf.reduce_mean(Z), tf.reduce_mean(ZTrue), atol=0.001)
 
-def test_updateEta_shape():
+def test_updateZ_shape():
 
     params, modelDims, modelData, rLHyperparams = _simple_model()
     
-    EtaList = updateEta(params, modelDims, modelData, rLHyperparams)
+    Z, _, _ = updateZ(params, modelData, rLHyperparams, poisson_preupdate_z=False)
 
-    for r in range(modelDims["nr"]):
-        assert tf.shape(EtaList[r])[0] == modelDims["np"][r]
-        assert tf.shape(EtaList[r])[1] == modelDims["nf"][r]
-        
-        
+    assert tf.shape(Z)[0] == modelDims["ny"]
+    assert tf.shape(Z)[1] == modelDims["ns"]
