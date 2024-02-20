@@ -1,38 +1,20 @@
-====
-HMSC
-====
+========
+Hmsc-HPC
+========
 
+This repository contains the TensorFlow implementation of Hierarchical Modelling of Species Communities (HMSC), serving as an extension to the existing R package, Hmsc-R. It provides a flexible framework for Joint Species Distribution Modelling (JSDM), enabling robust analysis and modeling of species communities.
 
-.. image:: https://img.shields.io/pypi/v/hmsc.svg
-        :target: https://pypi.python.org/pypi/hmsc
-
-.. image:: https://img.shields.io/travis/aniskhan25/hmsc.svg
-        :target: https://travis-ci.com/aniskhan25/hmsc
-
-.. image:: https://readthedocs.org/projects/hmsc/badge/?version=latest
-        :target: https://hmsc.readthedocs.io/en/latest/?version=latest
-        :alt: Documentation Status
-
-
-
-
-Hierarchical modelling of species communicaties (HMSC) is a flexiblee framework for joint species distribution modelling (JSDM).
-
-
-* Free software: GNU General Public License v3
-* Documentation: https://hmsc.readthedocs.io.
-
-
-Features
+Contents
 --------
 
-* TODO
-* Test change to check commit and push preferences.
+* **Code (Directory: hmsc/\*):** contains GPU-compatible implementation of HMSC model fitting algorithm.
+* **Demo (Directory: examples/basic_example/\*):** demonstrates the implementation. It serves as a comprehensive guide and example showcasing the functionalities and usage of Hmsc-HPC.
+* **Data (Directory: examples/big_spatial/\*):** contains the data and scripts used for performance comparisons presented in the manuscript.
 
-Credits
--------
+Instructions for Reviewers
+--------------------------
 
-This package was created with Cookiecutter_ and the `audreyr/cookiecutter-pypackage`_ project template.
+#. Open the `examples/basic_example/example.Rmd` notebook.
+#. Follow the step-by-step instructions and code snippets to explore the functionalities and usage of the Hmsc-HPC implementation.
 
-.. _Cookiecutter: https://github.com/audreyr/cookiecutter
-.. _`audreyr/cookiecutter-pypackage`: https://github.com/audreyr/cookiecutter-pypackage
+Thank you for your time and consideration in reviewing our Hmsc-HPC implementation.

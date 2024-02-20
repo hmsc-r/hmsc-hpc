@@ -2,4 +2,4 @@
 # Module for Gibbs sampling
 #
 
-from hmsc.gibbs_sampler import GibbsParameter, GibbsSampler
+from hmsc.gibbs_sampler import GibbsSampler
