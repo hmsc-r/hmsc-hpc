@@ -1,6 +1,8 @@
 ---
 title: "Basic Hmsc-HPC usage example"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
 This notebook demonstrates the concept of using Hmsc-HPC extension for `Hmsc` package. Unlike the core `Hmsc`, the Hmsc-HPC extension is written in Python programming language and is executed with Python interpreter. Hence, before a user can use it, a proper Python installation is required.
