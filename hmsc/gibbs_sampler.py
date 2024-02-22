@@ -26,6 +26,7 @@ import sys
 from hmsc.updaters.updateEta import updateEta
 from hmsc.updaters.updateAlpha import updateAlpha
 from hmsc.updaters.updateBetaLambda import updateBetaLambda
+from hmsc.updaters.updateBetaEta import updateBetaEta
 from hmsc.updaters.updateBetaSel import updateBetaSel
 from hmsc.updaters.updateLambdaPriors import updateLambdaPriors
 from hmsc.updaters.updateNf import updateNf
@@ -95,8 +96,10 @@ class GibbsSampler(tf.Module):
         num_samples=1,
         sample_burnin=0,
         sample_thining=1,
+        hmc_leapfrog_steps=10,
+        hmc_thin=10,
         verbose=1,
-        truncated_normal_library="scipy",
+        truncated_normal_library="tf",
         flag_save_eta=True,
         print_retrace_flag=True,
         print_debug_flag= False,
@@ -139,8 +142,8 @@ class GibbsSampler(tf.Module):
         mcmcSamplesPsiRRR = tf.TensorArray(params["PsiRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         mcmcSamplesDeltaRRR = tf.TensorArray(params["DeltaRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         
-        thinHMC = 20
-        hmc_res= updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, 10, sample_burnin, init=True)
+        hmc_burnin = sample_burnin // hmc_thin if hmc_thin > 0 else 0
+        hmc_res= updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, hmc_leapfrog_steps, hmc_burnin, init=True)
         _,_,_,_,_,_, hmc_ss, hmc_las, hmc_es = hmc_res
         step_num = sample_burnin + num_samples * sample_thining
         tf.print("sampling")
@@ -176,14 +179,13 @@ class GibbsSampler(tf.Module):
             #     params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, poisson_preupdate_z=True,
             #                                                                  poisson_marginalize_z=True, truncated_normal_library=truncated_normal_library)
             
-            if n % thinHMC == 0:
-              hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, 10, sample_burnin, n, hmc_ss, hmc_las, hmc_es)
-              params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"] = hmc_res[:-3]
-              hmc_ss, hmc_las, hmc_es = hmc_res[-3:]
-              params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
-              params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
-            # else:
-              # hmc_res = params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"], hmc_kernel_results
+            if hmc_thin > 0:
+              if n % hmc_thin == 0:
+                hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, hmc_leapfrog_steps, hmc_burnin, n//hmc_thin, hmc_ss, hmc_las, hmc_es)
+                params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"] = hmc_res[:-3]
+                hmc_ss, hmc_las, hmc_es = hmc_res[-3:]
+                params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
+                params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
             
             params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams)
             if print_debug_flag:
@@ -194,6 +196,11 @@ class GibbsSampler(tf.Module):
             if print_debug_flag:
               tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
               tf.print("Lambda", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Lambda"]])
+              
+            params["Beta"], params["Eta"] = updateBetaEta(params, self.modelDims, self.modelData, self.priorHyperparams, self.rLHyperparams)
+            if print_debug_flag:
+              tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
+              tf.print("Eta", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Eta"]])
             
             if ncRRR > 0:
               params["wRRR"], params["Xeff"] = updatewRRR(params, self.modelDims, self.modelData, self.rLHyperparams)

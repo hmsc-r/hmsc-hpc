@@ -44,6 +44,8 @@ def run_gibbs_sampler(
     postList_file_path,
     chainIndList=None,
     rng_seed=0,
+    hmc_leapfrog_steps=10,
+    hmc_thin=10,
     truncated_normal_library="tf",
     flag_save_eta=True,
     flag_save_postList_to_rds=True,
@@ -81,6 +83,8 @@ def run_gibbs_sampler(
         sample_burnin=tf.constant(1),
         sample_thining=tf.constant(1),
         verbose=verbose,
+        hmc_leapfrog_steps=hmc_leapfrog_steps,
+        hmc_thin=hmc_thin,
         truncated_normal_library=truncated_normal_library,
         flag_save_eta=flag_save_eta,
         # rng_seed=(rng_seed+42)
@@ -105,6 +109,8 @@ def run_gibbs_sampler(
                 sample_burnin=tf.constant(sample_burnin),
                 sample_thining=tf.constant(sample_thining),
                 verbose=verbose,
+                hmc_leapfrog_steps=hmc_leapfrog_steps,
+                hmc_thin=hmc_thin,
                 truncated_normal_library=truncated_normal_library,
                 flag_save_eta=flag_save_eta,
                 # rng_seed=(rng_seed+chain)
@@ -193,6 +199,18 @@ if __name__ == "__main__":
         help="print out information meassages and progress status",
     )
     argParser.add_argument(
+        "--hmcleapfrog",
+        type=int,
+        default=10,
+        help="number of leapfrog integrations steps in HMC conditional updater",
+    )
+    argParser.add_argument(
+        "--hmcthin",
+        type=int,
+        default=0,
+        help="number of iterations between HMC conditional updater calls, zero will disable HMC",
+    )
+    argParser.add_argument(
         "--tnlib",
         type=str,
         default="tf",
@@ -233,6 +251,8 @@ if __name__ == "__main__":
         postList_file_path=postList_file_path,
         chainIndList=args.chains,
         rng_seed=args.rngseed,
+        hmc_leapfrog_steps=args.hmcleapfrog,
+        hmc_thin=args.hmcthin,
         truncated_normal_library=args.tnlib,
         flag_save_eta=bool(args.fse),
         flag_save_postList_to_rds=True,
