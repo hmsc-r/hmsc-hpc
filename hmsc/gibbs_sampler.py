@@ -1,25 +1,3 @@
-# MIT License
-
-# Copyright (c) 2022 Kit Gallagher
-
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in all
-# copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
 import numpy as np
 import tensorflow as tf
 import sys
@@ -38,38 +16,6 @@ from hmsc.updaters.updatewRRR import updatewRRR
 from hmsc.updaters.updatewRRRPriors import updatewRRRPriors
 from hmsc.updaters.updateHMC import updateHMC
 tfm = tf.math
-
-
-class GibbsParameter:
-    def __init__(self, value, conditional_posterior, posterior_params=None):
-        self.__value = value
-        self.conditional_posterior = conditional_posterior
-        self.posterior_params = posterior_params
-
-    def __str__(self) -> str:
-        pass
-
-    def __repr__(self) -> str:
-        return str(self.__value)
-
-    def get_value(self):
-        return self.__value
-
-    def set_value(self, value):
-        self.__value = value
-
-    value = property(get_value, set_value)
-
-    def sample(self, sample_params):
-        param_values = {}
-        for k, v in sample_params.items():
-            if isinstance(v, GibbsParameter):
-                param_values[k] = v.value
-            else:
-                param_values[k] = v
-        post_params = param_values
-        self.__value = self.conditional_posterior(post_params)
-        return self.__value
 
 
 class GibbsSampler(tf.Module):
@@ -104,6 +50,7 @@ class GibbsSampler(tf.Module):
         print_retrace_flag=True,
         print_debug_flag= False,
         rng_seed=None,
+        dtype=np.float64,
     ):
         if print_retrace_flag:
           print("retracing")
@@ -124,7 +71,7 @@ class GibbsSampler(tf.Module):
         #TODO potentially move next two lines to somewhere more approriate
         # params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * params["sigma"]**-2
         params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams,
-                                                poisson_preupdate_z=False,poisson_marginalize_z=False)
+                                                poisson_preupdate_z=False,poisson_marginalize_z=False, dtype=dtype)
 
         mcmcSamplesBeta = tf.TensorArray(params["Beta"].dtype, size=num_samples)
         mcmcSamplesBetaSel = [tf.TensorArray(tf.bool, size=num_samples) for i in range(ncsel)]
@@ -181,62 +128,63 @@ class GibbsSampler(tf.Module):
             
             if hmc_thin > 0:
               if n % hmc_thin == 0:
-                hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, hmc_leapfrog_steps, hmc_burnin, n//hmc_thin, hmc_ss, hmc_las, hmc_es)
+                hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, 
+                                    hmc_leapfrog_steps, hmc_burnin, n//hmc_thin, hmc_ss, hmc_las, hmc_es, dtype)
                 params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"] = hmc_res[:-3]
                 hmc_ss, hmc_las, hmc_es = hmc_res[-3:]
                 params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
                 params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
-            
-            params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams)
+
+            params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams, dtype=dtype)
             if print_debug_flag:
               tf.print("Z", tf.reduce_sum(tf.cast(tfm.is_nan(params["Z"]), tf.int32)))
               tf.print("iD", tf.reduce_sum(tf.cast(tfm.is_nan(params["iD"]), tf.int32)))
             
-            params["Beta"], params["Lambda"] = updateBetaLambda(params, self.modelData, self.priorHyperparams)
+            params["Beta"], params["Lambda"] = updateBetaLambda(params, self.modelData, self.priorHyperparams, dtype)
             if print_debug_flag:
               tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
               tf.print("Lambda", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Lambda"]])
               
-            params["Beta"], params["Eta"] = updateBetaEta(params, self.modelDims, self.modelData, self.priorHyperparams, self.rLHyperparams)
+            params["Beta"], params["Eta"] = updateBetaEta(params, self.modelDims, self.modelData, self.priorHyperparams, self.rLHyperparams, dtype)
             if print_debug_flag:
               tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
               tf.print("Eta", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Eta"]])
             
             if ncRRR > 0:
-              params["wRRR"], params["Xeff"] = updatewRRR(params, self.modelDims, self.modelData, self.rLHyperparams)
+              params["wRRR"], params["Xeff"] = updatewRRR(params, self.modelDims, self.modelData, self.rLHyperparams, dtype)
               if print_debug_flag:
                 tf.print("wRRR", tf.reduce_sum(tf.cast(tfm.is_nan(params["wRRR"]) | (tf.abs(params["wRRR"]) > 1e9), tf.int32)))
                 tf.print("Xeff", tf.reduce_sum(tf.cast(tfm.is_nan(params["Xeff"]) | (tf.abs(params["Xeff"]) > 1e9), tf.int32)))
-              params["PsiRRR"], params["DeltaRRR"] = updatewRRRPriors(params, self.modelDims, self.priorHyperparams)
+              params["PsiRRR"], params["DeltaRRR"] = updatewRRRPriors(params, self.modelDims, self.priorHyperparams, dtype)
             
             if ncsel > 0:
-              params["BetaSel"], params["Xeff"] = updateBetaSel(params, self.modelDims, self.modelData, self.rLHyperparams)
+              params["BetaSel"], params["Xeff"] = updateBetaSel(params, self.modelDims, self.modelData, self.rLHyperparams, dtype)
               if print_debug_flag:
                 # tf.print("BetaSel - not NA", [tf.reduce_sum(tf.cast(par, tf.int32)) for par in params["BetaSel"]])
                 tf.print("Xeff", tf.reduce_sum(tf.cast(tfm.is_nan(params["Xeff"]) | (tf.abs(params["Xeff"]) > 1e9), tf.int32)))
 
-            params["Gamma"], params["iV"] = updateGammaV(params, self.modelData, self.priorHyperparams)
+            params["Gamma"], params["iV"] = updateGammaV(params, self.modelData, self.priorHyperparams, dtype)
             if print_debug_flag:
               tf.print("Gamma", tf.reduce_sum(tf.cast(tfm.is_nan(params["Gamma"]) | (tf.abs(params["Gamma"]) > 1e9), tf.int32)))
               tf.print("iV", tf.reduce_sum(tf.cast(tfm.is_nan(params["iV"]) | (tf.abs(params["iV"]) > 1e9), tf.int32)))
             
-            params["rhoInd"] = updateRhoInd(params, self.modelData, self.priorHyperparams)
+            params["rhoInd"] = updateRhoInd(params, self.modelData, self.priorHyperparams, dtype)
             
-            params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
+            params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams, dtype)
             
-            params["Eta"] = updateEta(params, self.modelDims, self.modelData, self.rLHyperparams)
+            params["Eta"] = updateEta(params, self.modelDims, self.modelData, self.rLHyperparams, dtype)
             if print_debug_flag:
               tf.print("Eta", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Eta"]])
             
-            params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
+            params["AlphaInd"] = updateAlpha(params, self.rLHyperparams, dtype)
             
             # if z_marginalize_iter_flag == False:
-            params["sigma"] = updateSigma(params, self.modelDims, self.modelData, self.priorHyperparams)
+            params["sigma"] = updateSigma(params, self.modelDims, self.modelData, self.priorHyperparams, dtype)
             if print_debug_flag:
               tf.print("sigma", tf.reduce_sum(tf.cast(tfm.is_nan(params["sigma"]), tf.int32)))
 
             if n < sample_burnin:
-                params["Lambda"], params["Psi"], params["Delta"], params["Eta"], params["AlphaInd"] = updateNf(params, self.rLHyperparams, n)
+                params["Lambda"], params["Psi"], params["Delta"], params["Eta"], params["AlphaInd"] = updateNf(params, self.rLHyperparams, n, dtype)
             # tf.print(tf.shape(params["Lambda"][0])[0])
 
             samInd = tf.cast((n - sample_burnin + 1) / sample_thining - 1, tf.int32)

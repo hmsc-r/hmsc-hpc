@@ -8,7 +8,7 @@ tfla, tfr, tfs, tfm = tf.linalg, tf.random, tf.sparse, tf.math
 def load_model_data(hmscModel, importedInitParList, dtype=np.float64):
 
     Y = np.asarray(hmscModel.get("YScaled")).astype(dtype)
-    T = np.asarray(hmscModel.get("TrScaled"))
+    T = np.asarray(hmscModel.get("TrScaled")).astype(dtype)
     C_import = hmscModel.get("C")
     if isinstance(hmscModel.get("XScaled"), dict):
         X = np.stack([np.asarray(hmscModel.get("XScaled")[x]) for x in hmscModel.get("XScaled")], 0)
@@ -26,7 +26,7 @@ def load_model_data(hmscModel, importedInitParList, dtype=np.float64):
     if C_import is None or len(C_import) == 0:
         modelData["C"], modelData["eC"], modelData["VC"] = None, None, None
     else:
-        C = np.asarray(C_import)
+        C = np.asarray(C_import).astype(dtype)
         modelData["C"] = C
         modelData["eC"], modelData["VC"] = np.linalg.eigh(C)  # TODO replace once implemented in R as well
     modelData["rhoGroup"] = rhoGroup
@@ -39,7 +39,7 @@ def load_model_data(hmscModel, importedInitParList, dtype=np.float64):
     for i in range(ncsel):
         covGroup = np.array(hmscModel["XSelect"][i]["covGroup"]).astype(int) - 1
         spGroup = np.array(hmscModel["XSelect"][i]["spGroup"]).astype(int) - 1
-        q = np.array(hmscModel["XSelect"][i]["q"])
+        q = np.array(hmscModel["XSelect"][i]["q"]).astype(dtype)
         XSel[i]["covGroup"] = covGroup
         XSel[i]["spGroup"] = spGroup
         XSel[i]["q"] = q
@@ -111,21 +111,21 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
     for r in range(nr):
         rLName = list(hmscModel.get("rL").keys())[r]
         rLPar = {}
-        rLPar["nu"] = hmscModel.get("rL")[rLName]["nu"][0]
-        rLPar["a1"] = hmscModel.get("rL")[rLName]["a1"][0]
-        rLPar["b1"] = hmscModel.get("rL")[rLName]["b1"][0]
-        rLPar["a2"] = hmscModel.get("rL")[rLName]["a2"][0]
-        rLPar["b2"] = hmscModel.get("rL")[rLName]["b2"][0]
+        rLPar["nu"] = dtype(hmscModel.get("rL")[rLName]["nu"][0])
+        rLPar["a1"] = dtype(hmscModel.get("rL")[rLName]["a1"][0])
+        rLPar["b1"] = dtype(hmscModel.get("rL")[rLName]["b1"][0])
+        rLPar["a2"] = dtype(hmscModel.get("rL")[rLName]["a2"][0])
+        rLPar["b2"] = dtype(hmscModel.get("rL")[rLName]["b2"][0])
         rLPar["nfMin"] = int(hmscModel.get("rL")[rLName]["nfMin"][0])
         rLPar["nfMax"] = int(hmscModel.get("rL")[rLName]["nfMax"][0])
         rLPar["sDim"] = int(hmscModel.get("rL")[rLName]["sDim"][0])
         rLPar["xDim"] = int(hmscModel.get("rL")[rLName]["xDim"][0])
         if rLPar["sDim"] > 0:
             rLPar["spatialMethod"] = hmscModel.get("rL")[rLName]["spatialMethod"][0]
-            rLPar["alphapw"] = np.array(hmscModel.get("rL")[rLName]["alphapw"])
+            rLPar["alphapw"] = np.array(hmscModel.get("rL")[rLName]["alphapw"]).astype(dtype)
             gN = rLPar["alphapw"].shape[0]
             if rLPar["spatialMethod"] == "Full":
-                distMat = np.reshape(dataParList["rLPar"][r]["distMat"], [npVec[r], npVec[r]])
+                distMat = np.reshape(dataParList["rLPar"][r]["distMat"], [npVec[r], npVec[r]]).astype(dtype)
                 tmp = distMat / rLPar["alphapw"][:,0,None,None]
                 tmp[np.isnan(tmp)] = 0
                 rLPar["Wg"] = np.exp(-tmp)
@@ -136,15 +136,14 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
 
             elif rLPar["spatialMethod"] == "GPP":
                 nK = int(dataParList["rLPar"][r]["nKnots"][0])
-                d12 = np.reshape(dataParList["rLPar"][r]["distMat12"], [npVec[r], nK])
-                d22 = np.reshape(dataParList["rLPar"][r]["distMat22"], [nK, nK])
+                d12 = np.reshape(dataParList["rLPar"][r]["distMat12"], [npVec[r], nK]).astype(dtype)
+                d22 = np.reshape(dataParList["rLPar"][r]["distMat22"], [nK, nK]).astype(dtype)
                 W12 = d12 / rLPar["alphapw"][:,0,None,None]
                 W12[np.isnan(W12)] = 0
                 W12 = tf.exp(-W12)
                 W22 = d22 / rLPar["alphapw"][:,0,None,None]
                 W22[np.isnan(W22)] = 0
                 W22 = tf.exp(-W22)
-                
                 LW22 = tfla.cholesky(W22)
                 iW22 = tfla.cholesky_solve(LW22, tf.eye(nK, nK, [gN], dtype))
                 dD = 1 - tf.einsum("gik,gkh,gih->gi", W12, iW22, W12)
@@ -158,7 +157,7 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 rLPar["idDg"] = idD
                 rLPar["idDW12g"] = iDW12
                 rLPar["Fg"] = F
-                rLPar["iFg"] = tfla.cholesky_solve(tfla.cholesky(F), tf.eye(nK, nK, [gN], dtype))
+                rLPar["iFg"] = tfla.cholesky_solve(tf.cast(tfla.cholesky(F), dtype=dtype), tf.eye(nK, nK, [gN], dtype))
                 rLPar["detDg"] = detD
                 
             elif rLPar["spatialMethod"] == "NNGP":
@@ -178,13 +177,13 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                     valList = [[]] * npVec[r]
                     for i in range(1,npVec[r]):
                       if len(indList[i]) > 1:
-                        Kp = np.exp(-np.array(distList[i])/alpha)
+                        Kp = np.exp(-np.array(distList[i]).astype(dtype)/alpha)
                         valList[i] = np.linalg.solve(Kp[:-1,:-1], Kp[:-1,-1])
                         D[i] = Kp[-1,-1] - np.matmul(Kp[:-1,-1], valList[i])
                       else:
                         D[i] = 1
-                    iD05_csr = sparse.csr_array((D**-0.5, (np.arange(npVec[r]),np.arange(npVec[r]))), [npVec[r]]*2)
-                    A = sparse.csr_array((np.concatenate(valList), (indMat[:,0],indMat[:,1])), [npVec[r]]*2)
+                    iD05_csr = sparse.csr_array((D**-0.5, (np.arange(npVec[r]),np.arange(npVec[r]))), [npVec[r]]*2, dtype=dtype)
+                    A = sparse.csr_array((np.concatenate(valList), (indMat[:,0],indMat[:,1])), [npVec[r]]*2, dtype=dtype)
                     B = sparse.eye(npVec[r], dtype=dtype) - A
                     RiW = iD05_csr @ B
                     iWList_csr[ag] = RiW.T @ RiW
@@ -196,27 +195,27 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 rLPar["detWg"] = detW
         
         if rLPar["xDim"] > 0:
-            rLPar["xMat"] = np.array(hmscModel.get("rL")[rLName]["xMat"])
+            rLPar["xMat"] = np.array(hmscModel.get("rL")[rLName]["xMat"]) # TODO. unsure about dtype
         
         rLParams[r] = rLPar
 
     return rLParams
 
 
-def load_prior_hyperparams(hmscModel):
+def load_prior_hyperparams(hmscModel, dtype=np.float64):
 
-    mGamma = np.asarray(hmscModel.get("mGamma"))
-    UGamma = np.asarray(hmscModel.get("UGamma"))
-    f0 = np.squeeze(hmscModel.get("f0"))
-    V0 = np.squeeze(hmscModel.get("V0"))
-    rhopw = np.asarray(hmscModel.get("rhopw"))
-    aSigma = np.asarray(hmscModel.get("aSigma"))
-    bSigma = np.asarray(hmscModel.get("bSigma"))
-    nuRRR = np.squeeze(hmscModel.get("nuRRR"))
-    a1RRR = np.squeeze(hmscModel.get("a1RRR"))
-    b1RRR = np.squeeze(hmscModel.get("b1RRR"))
-    a2RRR = np.squeeze(hmscModel.get("a2RRR"))
-    b2RRR = np.squeeze(hmscModel.get("b2RRR"))
+    mGamma = np.asarray(hmscModel.get("mGamma")).astype(dtype)
+    UGamma = np.asarray(hmscModel.get("UGamma")).astype(dtype)
+    f0 = np.squeeze(hmscModel.get("f0")).astype(dtype)
+    V0 = np.squeeze(hmscModel.get("V0")).astype(dtype)
+    rhopw = np.asarray(hmscModel.get("rhopw")).astype(dtype)
+    aSigma = np.asarray(hmscModel.get("aSigma")).astype(dtype)
+    bSigma = np.asarray(hmscModel.get("bSigma")).astype(dtype)
+    nuRRR = np.squeeze(hmscModel.get("nuRRR")).astype(dtype)
+    a1RRR = np.squeeze(hmscModel.get("a1RRR")).astype(dtype)
+    b1RRR = np.squeeze(hmscModel.get("b1RRR")).astype(dtype)
+    a2RRR = np.squeeze(hmscModel.get("a2RRR")).astype(dtype)
+    b2RRR = np.squeeze(hmscModel.get("b2RRR")).astype(dtype)
 
     priorHyperParams = {}
     priorHyperParams["mGamma"] = mGamma
