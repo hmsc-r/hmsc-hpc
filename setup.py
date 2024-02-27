@@ -10,8 +10,8 @@ setup(
         'pandas',
         'pyreadr',
         'scipy',
-        'tensorflow',
-        'tensorflow-probability',
+        'tensorflow==2.15.0',
+        'tensorflow-probability==0.23.0',
         'ujson',
     ]
 )
