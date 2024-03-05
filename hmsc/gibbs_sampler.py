@@ -42,19 +42,17 @@ class GibbsSampler(tf.Module):
         num_samples=1,
         sample_burnin=0,
         sample_thining=1,
+        verbose=1,
         hmc_leapfrog_steps=10,
         hmc_thin=10,
-        verbose=1,
+        flag_update_beta_eta=True,
         truncated_normal_library="tf",
         flag_save_eta=True,
-        print_retrace_flag=True,
-        print_debug_flag= False,
+        print_debug_flag=False,
         rng_seed=None,
         dtype=np.float64,
     ):
-        if print_retrace_flag:
-          print("retracing")
-        
+        print("retracing")        
         if rng_seed != None:
           tf.print("random seed set to", rng_seed)
           tf.keras.utils.set_random_seed(rng_seed)
@@ -72,6 +70,9 @@ class GibbsSampler(tf.Module):
         # params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * params["sigma"]**-2
         params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams,
                                                 poisson_preupdate_z=False,poisson_marginalize_z=False, dtype=dtype)
+        if print_debug_flag:
+          tf.print("Z", tf.reduce_sum(tf.cast(tfm.is_nan(params["Z"]), tf.int32)))
+          tf.print("iD", tf.reduce_sum(tf.cast(tfm.is_nan(params["iD"]), tf.int32)))
 
         mcmcSamplesBeta = tf.TensorArray(params["Beta"].dtype, size=num_samples)
         mcmcSamplesBetaSel = [tf.TensorArray(tf.bool, size=num_samples) for i in range(ncsel)]
@@ -88,11 +89,18 @@ class GibbsSampler(tf.Module):
         mcmcSampleswRRR = tf.TensorArray(params["wRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         mcmcSamplesPsiRRR = tf.TensorArray(params["PsiRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         mcmcSamplesDeltaRRR = tf.TensorArray(params["DeltaRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
-        
-        hmc_burnin = sample_burnin // hmc_thin if hmc_thin > 0 else 0
-        hmc_res= updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, hmc_leapfrog_steps, hmc_burnin, init=True)
-        _,_,_,_,_,_, hmc_ss, hmc_las, hmc_es = hmc_res
         step_num = sample_burnin + num_samples * sample_thining
+        if hmc_thin > 0:
+          hmc_burnin = sample_burnin // hmc_thin
+          hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, hmc_leapfrog_steps, hmc_burnin, init=True, dtype=dtype)
+          hmc_ss, hmc_las, hmc_es = hmc_res[-3:]
+        else:
+          hmc_burnin = 0
+          hmc_ss, hmc_las, hmc_es = [tf.constant(0, dtype)] * 3
+
+        # print(self.modelData["distr"])          
+        # print(self.modelData["Y"][:,-8:])          
+        # print(params["Z"].numpy()[:,-8:])
         tf.print("sampling")
         for n in tf.range(step_num):
             tf.autograph.experimental.set_loop_options(
@@ -129,11 +137,11 @@ class GibbsSampler(tf.Module):
             if hmc_thin > 0:
               if n % hmc_thin == 0:
                 hmc_res = updateHMC(params, self.modelData, self.priorHyperparams, self.rLHyperparams, 
-                                    hmc_leapfrog_steps, hmc_burnin, n//hmc_thin, hmc_ss, hmc_las, hmc_es, dtype)
+                                    hmc_leapfrog_steps, hmc_burnin, n//hmc_thin, hmc_ss, hmc_las, hmc_es, dtype=dtype)
                 params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"] = hmc_res[:-3]
                 hmc_ss, hmc_las, hmc_es = hmc_res[-3:]
-                params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams)
-                params["AlphaInd"] = updateAlpha(params, self.rLHyperparams)
+                params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams, dtype=dtype)
+                params["AlphaInd"] = updateAlpha(params, self.rLHyperparams, dtype=dtype)
 
             params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams, dtype=dtype)
             if print_debug_flag:
@@ -144,11 +152,12 @@ class GibbsSampler(tf.Module):
             if print_debug_flag:
               tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
               tf.print("Lambda", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Lambda"]])
-              
-            params["Beta"], params["Eta"] = updateBetaEta(params, self.modelDims, self.modelData, self.priorHyperparams, self.rLHyperparams, dtype)
-            if print_debug_flag:
-              tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
-              tf.print("Eta", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Eta"]])
+             
+            if flag_update_beta_eta:
+              params["Beta"], params["Eta"] = updateBetaEta(params, self.modelDims, self.modelData, self.priorHyperparams, self.rLHyperparams, dtype)
+              if print_debug_flag:
+                tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
+                tf.print("Eta", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Eta"]])
             
             if ncRRR > 0:
               params["wRRR"], params["Xeff"] = updatewRRR(params, self.modelDims, self.modelData, self.rLHyperparams, dtype)

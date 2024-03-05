@@ -165,7 +165,6 @@ def calculate_z_probit(Y, Yo, L, sigma, *, truncated_normal, dtype):
 def calculate_z_poisson(Y, Yo, L, sigma, Z, *,
                         omega,
                         preupdate_z, marginalize_z, dtype):
-    # Lognormal Poisson with external PG sampler
     r = tf.constant(1000., dtype=dtype) #Neg-binomial approximation constant
 
     if preupdate_z:
@@ -180,7 +179,9 @@ def calculate_z_poisson(Y, Yo, L, sigma, Z, *,
         # sample Z. Required for conjuately updating sigma.
         Z = sample_z(Y, L, sigma, omega, r, dtype=dtype)
         iD = tf.cast(Yo, dtype) * sigma**-2.
-
+    
+    # masking missing data to avoid nan usage in other updaters
+    Z = tf.where(Yo, Z, tf.zeros_like(Z))
     return Z, iD, omega
 
 

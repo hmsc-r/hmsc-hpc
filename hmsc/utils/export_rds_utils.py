@@ -1,3 +1,4 @@
+import numpy as np
 import ujson as json
 import pandas as pd
 import pyreadr
@@ -29,11 +30,11 @@ def save_chains_postList_to_rds(postList, postList_file_path, nChains, elapsedTi
             sample_data["rhoInd"] = (params["rhoInd"]+1).numpy().tolist()
             sample_data["sigma"] = params["sigma"].numpy().tolist()
             
-            sample_data["Lambda"] = [par.numpy().tolist() for par in params["Lambda"]]
-            sample_data["Psi"] = [par.numpy().tolist() for par in params["Psi"]]
-            sample_data["Delta"] = [par.numpy().tolist() for par in params["Delta"]]
-            sample_data["Eta"] = [par.numpy().tolist() for par in params["Eta"]] if flag_save_eta else None
-            sample_data["Alpha"] = [(par+1).numpy().tolist() for par in params["AlphaInd"]]
+            sample_data["Lambda"] = dict(zip(np.arange(len(params["AlphaInd"])), [par.numpy().tolist() for par in params["Lambda"]]))
+            sample_data["Psi"] = dict(zip(np.arange(len(params["AlphaInd"])), [par.numpy().tolist() for par in params["Psi"]]))
+            sample_data["Delta"] = dict(zip(np.arange(len(params["AlphaInd"])), [par.numpy().tolist() for par in params["Delta"]]))
+            sample_data["Eta"] = dict(zip(np.arange(len(params["AlphaInd"])), [par.numpy().tolist() for par in params["Eta"]])) if flag_save_eta else None
+            sample_data["Alpha"] = dict(zip(np.arange(len(params["AlphaInd"])), [(par+1).numpy().tolist() for par in params["AlphaInd"]]))
             
             if params["wRRR"] is not None:
               sample_data["wRRR"] = params["wRRR"].numpy().tolist()

@@ -4,7 +4,7 @@ import tensorflow_probability as tfp
 from hmsc.utils.tf_named_func import tf_named_func
 tfm, tfla, tfd, tfb = tf.math, tf.linalg, tfp.distributions, tfp.bijectors
 
-@tf.function
+# @tf.function    # shall be commented for HMSC-HPC run
 def logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, Pi, priorHyperparams, rLHyperparams, dtype=np.float64):
   Mu = tf.matmul(Gamma, Tr, transpose_b=True)
   BM = Beta - Mu
@@ -58,7 +58,7 @@ def logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, P
       detWg = rLPar["detWg"]
       # iWg = rLPar["iWg"]
       # EtaTiWEta = tf.einsum("ah,gab,bh->hg", Eta, iWg, Eta)
-      LiWg = rLPar["iWg"]
+      LiWg = rLPar["LiWg"]
       EtaTiWEta = tf.transpose(tf.reduce_sum(tf.matmul(LiWg, Eta, transpose_a=True)**2, -2))
       logLike = tfm.log(alphapw[:,1]) - 0.5*detWg - 0.5*EtaTiWEta
       llEta = tfm.reduce_logsumexp(logLike, -1)
@@ -77,11 +77,12 @@ def logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, P
   # tf.print(logPriorV, logPriorGamma)
   # tf.print(logLikeY.shape, logLikeBeta.shape)
   log_prob =  tf.reduce_sum(logLikeY) + logProbFix + logProbRan
+  
   return log_prob
 
 
 @tf_named_func("hmc")
-@tf.function
+# @tf.function    # shall be commented for HMSC-HPC run
 def updateHMC(params, data, priorHyperparams, rLHyperparams, num_leapfrog_steps=10, sample_burnin=0,
               step=0, step_size=0.01, log_averaging_step=None, error_sum=None, init=False,
               updateBeta=True, updateGamma=False, updateiV=False,
@@ -99,8 +100,9 @@ def updateHMC(params, data, priorHyperparams, rLHyperparams, num_leapfrog_steps=
     distr = data["distr"]
     nr = len(EtaList)
     LiV = tfla.cholesky(params["iV"])
-    # log_prob = logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, Pi, priorHyperparams, rLHyperparams, dtype=tf.float64)
+    # log_prob = logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, Pi, priorHyperparams, rLHyperparams, dtype=dtype)
     # tf.print(log_prob)
+    # aaa
         
     def log_prob_flat(*argv):
       nonlocal Beta, Gamma, LiV, EtaList, LambdaList, DeltaList
@@ -156,11 +158,11 @@ def updateHMC(params, data, priorHyperparams, rLHyperparams, num_leapfrog_steps=
       tmp = tmp._replace(error_sum=error_sum)
       kernel_results = tmp
       inner = kernel_results.inner_results.inner_results
-      tf.print("step", kernel_results.step, "step size", inner.accepted_results.step_size)
-      tf.print(inner.accepted_results.target_log_prob)
+      # tf.print("step", kernel_results.step, "step size", inner.accepted_results.step_size)
+      # tf.print(inner.accepted_results.target_log_prob)
       next_state_flat, next_kernel_results = hmc_unconstrained_adaptive.one_step(current_state_flat, kernel_results)
-      tf.print(next_kernel_results.inner_results.inner_results.proposed_results.target_log_prob)
-      tf.print(next_kernel_results.inner_results.inner_results.is_accepted, next_kernel_results.new_step_size, tfm.exp(next_kernel_results.log_averaging_step))
+      # tf.print(next_kernel_results.inner_results.inner_results.proposed_results.target_log_prob)
+      # tf.print(next_kernel_results.inner_results.inner_results.is_accepted, next_kernel_results.new_step_size, tfm.exp(next_kernel_results.log_averaging_step))
       offset = 0
       if updateBeta:
         Beta = next_state_flat[offset]
@@ -181,6 +183,7 @@ def updateHMC(params, data, priorHyperparams, rLHyperparams, num_leapfrog_steps=
         DeltaList = next_state_flat[offset:offset+nr]
         offset += nr
     else:
+      # print(current_state_flat)
       next_kernel_results = hmc_unconstrained_adaptive.bootstrap_results(current_state_flat)
     
     new_step_size = next_kernel_results.new_step_size

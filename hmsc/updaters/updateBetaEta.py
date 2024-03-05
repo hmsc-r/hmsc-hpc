@@ -52,7 +52,14 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
     # else:
     # if rLPar["spatialMethod"] == "Full":
     
-    mu012 = tf.reshape(tf.einsum("ik,ij->jk", X, iD_S, name="mu01.2"), [ns*nc])
+    if len(X.shape.as_list()) == 2:
+      mu012 = tf.reshape(tf.einsum("ik,ij->jk", X, iD_S, name="mu01.2"), [ns*nc])
+      iD_X = tf.einsum("ij,ic->ijc", iD, X)
+      X_iD_X = tf.einsum("ic,ij,ik->ckj", X, iD, X)
+    else:
+      mu012 = tf.reshape(tf.einsum("jik,ij->jk", X, iD_S, name="mu01.2"), [ns*nc])
+      iD_X = tf.einsum("ij,jic->ijc", iD, X)
+      X_iD_X = tf.einsum("jic,ij,jik->ckj", X, iD, X)
     mu02 = tf.reshape(tfla.matrix_transpose(tf.scatter_nd(pi[:,None], tf.einsum("hj,ij->ih", Lambda, iD_S, name="mu02"), [nv,nf])), [nf*nv])    
     if C is None:
       mu01 = tf.reshape(tfla.matrix_transpose(tf.matmul(iV, GammaT, name="mu01.1")), [ns*nc]) + mu012
@@ -63,18 +70,19 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
       eiQ_block = tf.expand_dims(eiQ05, 0) * tf.expand_dims(eiQ05, 1)
       PB_stack = tf.einsum("ij,ckj,gj->icgk", VC, eiQ_block*iV[:,:,None], VC, name="PB_stack")
       iK = tf.reshape(PB_stack, [ns*nc]*2)
-      iS11 = iK + tf.reshape(tf.transpose(tfla.diag(tf.einsum("ic,ij,ik->ckj", X, iD, X)), [2,0,3,1]), [ns*nc]*2)
+      iS11 = iK + tf.reshape(tf.transpose(tfla.diag(X_iD_X), [2,0,3,1]), [ns*nc]*2)
       mu01 = tf.reshape(tf.matmul(iK, tf.reshape(tf.transpose(GammaT), [ns*nc,1]), name="mu01.1"), [ns*nc]) + mu012
       
-    iD_X = tf.einsum("ij,ic->ijc", iD, X)
     Pi_iD_X = tf.scatter_nd(pi[:,None], iD_X, shape=[nv,ns,nc])
     Lam_iD_Lam = tf.einsum("hj,ij,fj->ihf", Lambda, iD, Lambda, name="Lam_iD_Lam") # reorder pi multiplication from next line if slow?
     
     if rLPar["sDim"] == 0:
       if C is None:
-        iS11 = tf.reshape(tf.transpose(tfla.diag(iV[:,:,None] + tf.einsum("ic,ij,ik->ckj", X, iD, X)), [2,0,3,1]), [ns*nc]*2)
+        print("WARNING - updateBetaEta() may be computationally unjustified for models without phylogeny and non-spatial random level")
+        iS11 = tf.reshape(tf.transpose(tfla.diag(iV[:,:,None] + X_iD_X), [2,0,3,1]), [ns*nc]*2)
       
-      A = tf.eye(nf,dtype=dtype) + Lam_iD_Lam
+      Pi_Lam_iD_Lam = tf.scatter_nd(pi[:,None], Lam_iD_Lam, shape=[nv,nf,nf])
+      A = tf.eye(nf,dtype=dtype) + Pi_Lam_iD_Lam
       LA = tfla.cholesky(A)
       iA = tfla.cholesky_solve(LA, tf.eye(nf,dtype=dtype))
       Lambda_iA_Lambdat = tf.einsum("hj,phg,gl->pjl", Lambda, iA, Lambda, name="Lambda_iA_Lambdat")
@@ -98,48 +106,56 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
     
     else:
       iS22_2 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.scatter_nd(pi[:,None], Lam_iD_Lam, shape=[nv,nf,nf]), [1,2,0])), [0,2,1,3]), [nf*nv]*2)
-      if rLPar["sDim"] == 0:
-        iS22 = kron(tf.eye(nf,dtype=dtype), tf.eye(nv,dtype=dtype)) + iS22_2
-        raise Exception('This branch shall never happen')
-      elif rLPar["spatialMethod"] == "Full":
+      if rLPar["spatialMethod"] == "Full":
         iWg = rLPar["iWg"]
         iWs = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(iWg, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nv]*2)
         iS22 = iWs + iS22_2
       
-      if C is None: # block-inverse calculation
-        B = iV + tf.einsum("ic,ij,ik->jck", X, iD, X)
-        LB = tfla.cholesky(B)
-        iB = tfla.cholesky_solve(LB, tf.eye(nc,dtype=dtype))
-        tmp1 = tf.einsum("pjc,jck,vjk->jpv", Pi_iD_X, iB, Pi_iD_X)
-        W_2 = tf.reshape(tf.einsum("hj,jpv,gj->hpgv", Lambda, tmp1, Lambda), [nf*nv]*2)
-        W = iS22 - W_2
-        LW = tfla.cholesky(W)
-        
-        iB_mu01 = tf.squeeze(tfla.cholesky_solve(LB, tf.reshape(mu01,[ns,nc,1])), -1)
-        Pt_iD_X_iB_mu01 = tf.scatter_nd(pi[:,None], iD * tf.matmul(X, iB_mu01, transpose_b=True), [nv,ns])
-        LambdaPt_iD_X_iB_mu01 = tf.reshape(tf.matmul(Lambda, Pt_iD_X_iB_mu01, transpose_b=True), [nf*nv])
-        mu1 = mu02 - LambdaPt_iD_X_iB_mu01
-        iLW_mu1 = tfla.triangular_solve(LW, mu1[:,None])
-        q2 = tf.squeeze(tfla.triangular_solve(LW, iLW_mu1 + randFlag*tfr.normal([nf*nv,1],dtype=dtype), adjoint=True), -1)
-        X_iD_LambdatP_q2 = tf.matmul(iD * tf.gather(tf.matmul(tf.reshape(q2,[nf,nv]), Lambda, transpose_a=True), pi), X, transpose_a=True)
-        iB_X_iD_LambdatP_q2 = tf.reshape(tfla.cholesky_solve(LB, X_iD_LambdatP_q2[:,:,None]), [ns*nc])
-        q11 = tf.reshape(tfla.triangular_solve(LB, tfla.triangular_solve(LB, tf.reshape(mu01,[ns,nc,1])) + randFlag*tfr.normal([ns,nc,1],dtype=dtype), adjoint=True), [ns*nc])
-        q1 = q11 - iB_X_iD_LambdatP_q2
-        Beta = tf.transpose(tf.reshape(q1, [ns,nc]))
-        Eta = tf.transpose(tf.reshape(q2, [nf,nv]))
-        
-      else: # explicit calculation - also marginalize Gamma?
-        iS21 = tf.reshape(tf.einsum("hj,pjc->hpjc", Lambda, Pi_iD_X), [nf*nv,ns*nc])
-        iS1 = tf.concat([iS11, tfla.matrix_transpose(iS21)], -1)
-        iS2 = tf.concat([iS21, iS22], -1)
-        iS = tf.concat([iS1, iS2], -2)
-        LiS = tfla.cholesky(iS)
-        
-        mu0 = tf.concat([mu01,mu02], 0)
-        mu1 = tfla.triangular_solve(LiS, mu0[:,None], name="mu1")
-        v = tf.squeeze(tfla.triangular_solve(LiS, mu1 + randFlag*tfr.normal([ns*nc+nf*nv,1],dtype=dtype), adjoint=True, name="v"), -1)
-        Beta = tf.transpose(tf.reshape(v[:ns*nc], [ns,nc]))
-        Eta = tf.transpose(tf.reshape(v[ns*nc:], [nf,nv]))
+        if C is None: # block-inverse calculation
+          if len(X.shape.as_list()) == 2:
+            B = iV + tf.einsum("ic,ij,ik->jck", X, iD, X)
+          else:
+            B = iV + tf.einsum("jic,ij,jik->jck", X, iD, X)
+          LB = tfla.cholesky(B)
+          iB = tfla.cholesky_solve(LB, tf.eye(nc,dtype=dtype))
+          tmp1 = tf.einsum("pjc,jck,vjk->jpv", Pi_iD_X, iB, Pi_iD_X)
+          W_2 = tf.reshape(tf.einsum("hj,jpv,gj->hpgv", Lambda, tmp1, Lambda), [nf*nv]*2)
+          W = iS22 - W_2
+          LW = tfla.cholesky(W)
+          
+          iB_mu01 = tf.squeeze(tfla.cholesky_solve(LB, tf.reshape(mu01,[ns,nc,1])), -1)
+          if len(X.shape.as_list()) == 2:
+            X_iB_mu01 = tf.matmul(X, iB_mu01, transpose_b=True)
+          else:
+            X_iB_mu01 = tf.einsum("jik,jk->ij", X, iB_mu01)
+          Pt_iD_X_iB_mu01 = tf.scatter_nd(pi[:,None], iD * X_iB_mu01, [nv,ns])
+          LambdaPt_iD_X_iB_mu01 = tf.reshape(tf.matmul(Lambda, Pt_iD_X_iB_mu01, transpose_b=True), [nf*nv])
+          mu1 = mu02 - LambdaPt_iD_X_iB_mu01
+          iLW_mu1 = tfla.triangular_solve(LW, mu1[:,None])
+          q2 = tf.squeeze(tfla.triangular_solve(LW, iLW_mu1 + randFlag*tfr.normal([nf*nv,1],dtype=dtype), adjoint=True), -1)
+          iD_LambdatP_q2 = iD * tf.gather(tf.matmul(tf.reshape(q2,[nf,nv]), Lambda, transpose_a=True), pi)
+          if len(X.shape.as_list()) == 2:
+            X_iD_LambdatP_q2 = tf.matmul(iD_LambdatP_q2, X, transpose_a=True)
+          else:
+            X_iD_LambdatP_q2 = tf.einsum("ij,jik->jk", iD_LambdatP_q2, X)
+          iB_X_iD_LambdatP_q2 = tf.reshape(tfla.cholesky_solve(LB, X_iD_LambdatP_q2[:,:,None]), [ns*nc])
+          q11 = tf.reshape(tfla.triangular_solve(LB, tfla.triangular_solve(LB, tf.reshape(mu01,[ns,nc,1])) + randFlag*tfr.normal([ns,nc,1],dtype=dtype), adjoint=True), [ns*nc])
+          q1 = q11 - iB_X_iD_LambdatP_q2
+          Beta = tf.transpose(tf.reshape(q1, [ns,nc]))
+          Eta = tf.transpose(tf.reshape(q2, [nf,nv]))
+          
+        else: # explicit calculation - also marginalize Gamma?
+          iS21 = tf.reshape(tf.einsum("hj,pjc->hpjc", Lambda, Pi_iD_X), [nf*nv,ns*nc])
+          iS1 = tf.concat([iS11, tfla.matrix_transpose(iS21)], -1)
+          iS2 = tf.concat([iS21, iS22], -1)
+          iS = tf.concat([iS1, iS2], -2)
+          LiS = tfla.cholesky(iS)
+          
+          mu0 = tf.concat([mu01,mu02], 0)
+          mu1 = tfla.triangular_solve(LiS, mu0[:,None], name="mu1")
+          v = tf.squeeze(tfla.triangular_solve(LiS, mu1 + randFlag*tfr.normal([ns*nc+nf*nv,1],dtype=dtype), adjoint=True, name="v"), -1)
+          Beta = tf.transpose(tf.reshape(v[:ns*nc], [ns,nc]))
+          Eta = tf.transpose(tf.reshape(v[ns*nc:], [nf,nv]))
     
       # tf.print(tf.reduce_max(tfm.abs(tf.concat([q1,q2], 0) - v)))
     

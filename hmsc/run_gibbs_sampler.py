@@ -46,6 +46,7 @@ def run_gibbs_sampler(
     rng_seed=0,
     hmc_leapfrog_steps=10,
     hmc_thin=10,
+    flag_update_beta_eta=True,
     truncated_normal_library="tf",
     flag_save_eta=True,
     flag_save_postList_to_rds=True,
@@ -86,6 +87,7 @@ def run_gibbs_sampler(
         verbose=verbose,
         hmc_leapfrog_steps=hmc_leapfrog_steps,
         hmc_thin=hmc_thin,
+        flag_update_beta_eta=flag_update_beta_eta,
         truncated_normal_library=truncated_normal_library,
         flag_save_eta=flag_save_eta,
         # rng_seed=(rng_seed+42),
@@ -113,6 +115,7 @@ def run_gibbs_sampler(
                 verbose=verbose,
                 hmc_leapfrog_steps=hmc_leapfrog_steps,
                 hmc_thin=hmc_thin,
+                flag_update_beta_eta=flag_update_beta_eta,
                 truncated_normal_library=truncated_normal_library,
                 flag_save_eta=flag_save_eta,
                 # rng_seed=(rng_seed+chain),
@@ -214,6 +217,12 @@ if __name__ == "__main__":
         help="number of iterations between HMC conditional updater calls, zero will disable HMC",
     )
     argParser.add_argument(
+        "--updbe",
+        type=int,
+        default=0,
+        help="whether to update Beta and Eta jointly (one random level at a time)",
+    )
+    argParser.add_argument(
         "--tnlib",
         type=str,
         default="tf",
@@ -265,6 +274,7 @@ if __name__ == "__main__":
         rng_seed=args.rngseed,
         hmc_leapfrog_steps=args.hmcleapfrog,
         hmc_thin=args.hmcthin,
+        flag_update_beta_eta=bool(args.updbe),
         truncated_normal_library=args.tnlib,
         flag_save_eta=bool(args.fse),
         flag_save_postList_to_rds=True,
