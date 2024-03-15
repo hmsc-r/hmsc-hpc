@@ -258,9 +258,9 @@ def init_params(importedInitParList, modelData, modelDims, rLHyperparams, dtype=
             else:
                 LambdaList[r] = tf.transpose(tf.reshape(tf.constant(Lambda, dtype=dtype), [rLPar["xDim"],modelDims["ns"],nf]), [2,1,0])
                 PsiList[r] = tf.transpose(tf.reshape(tf.constant(Psi, dtype=dtype), [rLPar["xDim"],modelDims["ns"],nf]), [2,1,0])
-            
-        
+
         BetaSel = [tf.constant(BetaSel, dtype=tf.bool) for BetaSel in importedInitPar["BetaSel"]]
+
         if modelDims["ncsel"] > 0:
           ns, nc = modelDims["ns"], modelDims["nc"]
           X, XSel = modelData["X"], modelData["XSel"]
@@ -278,7 +278,7 @@ def init_params(importedInitParList, modelData, modelDims, rLHyperparams, dtype=
 
         XRRR = modelData["XRRR"]
         PsiRRR = tf.constant(importedInitPar["PsiRRR"], dtype) if "PsiRRR" in importedInitPar else tf.zeros([0,0], dtype)
-        DeltaRRR = tf.squeeze(tf.constant(importedInitPar["DeltaRRR"], dtype), 1) if "DeltaRRR" in importedInitPar else tf.zeros([0,0], dtype)
+        DeltaRRR = tf.squeeze(tf.constant(importedInitPar["DeltaRRR"], dtype), 1) if "DeltaRRR" in importedInitPar else tf.zeros([0], dtype)
         wRRR = tf.constant(importedInitPar["wRRR"], dtype) if "wRRR" in importedInitPar else tf.zeros([0,0], dtype)
         XeffRRR = tf.einsum("ik,hk->ih", XRRR, wRRR)
         if Xeff.ndim == 2:
