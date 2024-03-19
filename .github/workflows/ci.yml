@@ -21,8 +21,8 @@ jobs:
       - name: Automatic requirements.txt for Python Project
         uses: ryan-rozario/pipreqs-action@master
         with:
-          PROJECT_PATH: project_folder   #default is the root of the repository
-          REQUIREMENT_PATH: project_folder/requirements.txt  #default is requirement.txt in the root of your repository 
+          PROJECT_PATH: hmsc-hpc   #default is the root of the repository
+          REQUIREMENT_PATH: hmsc-hpc/requirements.txt  #default is requirement.txt in the root of your repository 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
