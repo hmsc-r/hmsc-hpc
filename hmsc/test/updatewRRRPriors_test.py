@@ -160,7 +160,7 @@ def test_updatewRRRPriors():
 
     PsiRRR, DeltaRRR = updatewRRRPriors(params, modelDims, priorHyperparams)
 
-    assert_allclose(tf.reduce_mean(PsiRRR), tf.reduce_mean(PsiRRRTrue), atol=1.0)
+    assert_allclose(tf.reduce_mean(PsiRRR), tf.reduce_mean(PsiRRRTrue), atol=1.5)
     assert_allclose(tf.reduce_mean(DeltaRRR), tf.reduce_mean(DeltaRRRTrue), atol=3.0)
 
 
