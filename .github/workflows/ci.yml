@@ -18,12 +18,17 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Automatic requirements.txt for Python Project
+        uses: ryan-rozario/pipreqs-action@master
+        with:
+          PROJECT_PATH: project_folder   #default is the root of the repository
+          REQUIREMENT_PATH: project_folder/requirements.txt  #default is requirement.txt in the root of your repository 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v4
         with:
           python-version: ${{ matrix.python-version }}
           cache: 'pip'
-          cache-dependency-path: 'requirements_dev.txt'
+          cache-dependency-path: 'requirements.txt'
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
