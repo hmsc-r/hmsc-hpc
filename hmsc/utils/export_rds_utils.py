@@ -1,50 +1,42 @@
-import numpy as np
-import ujson as json
-import pandas as pd
-import pyreadr
-import os
+import rdata
+import tensorflow as tf
+import xarray as xr
+
+
+def convert_to_numpy(obj):
+    if isinstance(obj, xr.DataArray):
+        return obj.to_numpy()
+
+    if isinstance(obj, tf.Tensor):
+        return obj.numpy()
+
+    if isinstance(obj, dict):
+        new = {}
+        for key, value in obj.items():
+            new[key] = convert_to_numpy(value)
+        return new
+
+    if isinstance(obj, list):
+        new = []
+        for value in obj:
+            new.append(convert_to_numpy(value))
+        return new
+
+    return obj
 
 
 def load_model_from_rds(rds_file_path):
-
-    long_str = pyreadr.read_r(rds_file_path)
-    hmsc_obj = json.loads(long_str[None][None][0])
-    
-    return hmsc_obj, hmsc_obj.get("hM")
+    init_obj = rdata.read_rds(rds_file_path)
+    init_obj = convert_to_numpy(init_obj)
+    return init_obj, init_obj["hM"]
 
 
 def save_chains_postList_to_rds(postList, postList_file_path, nChains, elapsedTime=-1, flag_save_eta=True):
-
-    json_data = {chain: {} for chain in range(nChains)}
-    json_data["time"] = elapsedTime
-
-    for chain in range(nChains):
-        for i in range(len(postList[chain])):
-            sample_data = {}
-            params = postList[chain][i]
-
-            sample_data["Beta"] = params["Beta"].numpy().tolist()
-            sample_data["BetaSel"] = [par.numpy().tolist() for par in params["BetaSel"]]
-            sample_data["Gamma"] = params["Gamma"].numpy().tolist()
-            sample_data["iV"] = params["iV"].numpy().tolist()
-            sample_data["rhoInd"] = (params["rhoInd"]+1).numpy().tolist()
-            sample_data["sigma"] = params["sigma"].numpy().tolist()
-            
-            sample_data["Lambda"] = dict(zip(np.arange(len(params["AlphaInd"])), [par.numpy().tolist() for par in params["Lambda"]]))
-            sample_data["Psi"] = dict(zip(np.arange(len(params["AlphaInd"])), [par.numpy().tolist() for par in params["Psi"]]))
-            sample_data["Delta"] = dict(zip(np.arange(len(params["AlphaInd"])), [par.numpy().tolist() for par in params["Delta"]]))
-            sample_data["Eta"] = dict(zip(np.arange(len(params["AlphaInd"])), [par.numpy().tolist() for par in params["Eta"]])) if flag_save_eta else None
-            sample_data["Alpha"] = dict(zip(np.arange(len(params["AlphaInd"])), [(par+1).numpy().tolist() for par in params["AlphaInd"]]))
-            
-            if params["wRRR"] is not None:
-              sample_data["wRRR"] = params["wRRR"].numpy().tolist()
-              sample_data["PsiRRR"] = params["PsiRRR"].numpy().tolist()
-              sample_data["DeltaRRR"] = params["DeltaRRR"].numpy().tolist()
-            else:
-              sample_data["wRRR"] = sample_data["PsiRRR"] = sample_data["DeltaRRR"] = None
-
-            json_data[chain][i] = sample_data
-
-    json_str = json.dumps(json_data)
-    
-    pyreadr.write_rds(postList_file_path, pd.DataFrame([[json_str]]), compress="gzip")
+    data = {}
+    data["list"] = convert_to_numpy(postList)
+    if not flag_save_eta:
+        for i in range(len(data["list"])):
+            for j in range(len(data["list"][i])):
+                data["list"][i][j]["Eta"] = None
+    data["time"] = elapsedTime
+    rdata.write_rds(postList_file_path, data)
