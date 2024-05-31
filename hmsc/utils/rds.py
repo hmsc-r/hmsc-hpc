@@ -51,6 +51,9 @@ def save_chains_postList_to_rds(postList, postList_file_path, nChains, elapsedTi
             for k in range(len(item["AlphaInd"])):
                 item["AlphaInd"][k] += 1
 
+            # Compatibility with HMSC-R / duplicate AlphaInd to Alpha
+            item["Alpha"] = item["AlphaInd"]
+
             # Remove eta if requested
             if not flag_save_eta:
                 item["Eta"] = None
