@@ -1,3 +1,5 @@
+import warnings
+
 import rdata
 import tensorflow as tf
 import xarray as xr
@@ -26,7 +28,12 @@ def convert_to_numpy(obj):
 
 
 def load_model_from_rds(rds_file_path):
-    init_obj = rdata.read_rds(rds_file_path)
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore",
+            message=".*Missing constructor for R class.*",
+            category=UserWarning)
+        init_obj = rdata.read_rds(rds_file_path)
+
     init_obj = convert_to_numpy(init_obj)
     return init_obj, init_obj["hM"]
 
