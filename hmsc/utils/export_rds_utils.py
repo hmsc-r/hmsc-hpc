@@ -33,10 +33,21 @@ def load_model_from_rds(rds_file_path):
 
 def save_chains_postList_to_rds(postList, postList_file_path, nChains, elapsedTime=-1, flag_save_eta=True):
     data = {}
-    data["list"] = convert_to_numpy(postList)
-    if not flag_save_eta:
-        for i in range(len(data["list"])):
-            for j in range(len(data["list"][i])):
-                data["list"][i][j]["Eta"] = None
+    output_list = convert_to_numpy(postList)
+
+    for i in range(len(output_list)):
+        for j in range(len(output_list[i])):
+            item = output_list[i][j]
+
+            # Convert from zero- to one-based indices
+            item["rhoInd"] += 1
+            for k in range(len(item["AlphaInd"])):
+                item["AlphaInd"][k] += 1
+
+            # Remove eta if requested
+            if not flag_save_eta:
+                item["Eta"] = None
+
+    data["list"] = output_list
     data["time"] = elapsedTime
     rdata.write_rds(postList_file_path, data)
