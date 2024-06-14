@@ -1756,7 +1756,9 @@ display: none;
 for <code>Hmsc</code> package. Unlike the core <code>Hmsc</code>, the
 Hmsc-HPC extension is written in Python programming language and is
 executed with Python interpreter. Hence, before a user can use it, a
-proper Python installation is required.</p>
+proper Python installation is required. However, detailed knowledge of
+Python is not needed to use Hmsc-HPC, it's use is transparent once
+Python is installed.</p>
 <div id="preparing-python-environment" class="section level1">
 <h1>Preparing Python environment</h1>
 <p><strong>If you are familiar with using Python within R</strong>, then
@@ -1771,14 +1773,8 @@ then please follow the detailed instructions below.</p>
 <h2>Detailed instructions</h2>
 <div id="finding-python-installation" class="section level3">
 <h3>1. Finding Python installation</h3>
-<p>Depending on your hardware, operating system and user rights, the set
-of steps to acquire and configure a proper Python distribution may
-greatly vary. Thus, we would like to relay the installation process
-itself either to one of multitude guides available on the web, or to the
-IT support that manages your device. This section merely checks that a
-Python installation can be found.</p>
-<p>Please test the next chunk of code that tries to check version of
-Python available in you system:</p>
+<p>Please run the next chunk of code to check the version of Python
+available in you system:</p>
 <!-- rnb-text-end -->
 <!-- rnb-chunk-begin -->
 <!-- rnb-source-begin eyJkYXRhIjoiYGBgclxuc3lzdGVtX3B5dGhvbiA9IFwicHl0aG9uM1wiXG4jIHN5c3RlbV9weXRob24gPSBcIi9Vc2Vycy91c2VybmFtZS9vcHQvYW5hY29uZGEzL2VudnMvdGYvYmluL3B5dGhvbjNcIlxuc3lzdGVtMihzeXN0ZW1fcHl0aG9uLCBcIi0tdmVyc2lvblwiKVxuYGBgIn0= -->
@@ -1794,7 +1790,11 @@ system2(system_python, &quot;--version&quot;)</code></pre>
 <p>If the Python distribution in your system is configured well, then
 the code shall print the version of Python. If this is failing, then you
 are likely missing Python altogether, or its path is not configured
-correctly. In some cases you may have several distributions of Python
+correctly. If this is the case, please follow the instructions at
+<a href="https://wiki.python.org/moin/BeginnersGuide/Download">https://wiki.python.org/moin/BeginnersGuide/Download</a>
+for installing Python for the operating system (Linux, Mac, Windows) of
+your computer.</p>
+<p>In some cases you may have several distributions of Python
 available, and then you shall either explicitly specify the path to the
 desired Python distribution — as exemplified in the commented-out
 <code>system_python = ...</code> line above.</p>
@@ -2066,12 +2066,16 @@ system2(python, &quot;-c \&quot;import tensorflow as tf; print(tf.constant(1))\&
 any errors.</p>
 <div id="troubleshooting" class="section level3">
 <h3>Troubleshooting</h3>
-<p>If the above check and the detailed instructions do not work for you,
-please consult one of multitude guides available on the web. You can
-configure Python within R in multiple ways - for instance,
-<code>reticulate</code> package features several functions aimed to
-achieve that or you can prepare and activate the correct Python
-environment outside R.</p>
+<p>If the above check do not work for you, please follow
+<a href="#detailed-instructions">Detailed instructions</a>
+including installing a clean Python environment to start with.
+Alternatively, you can prepare and activate the Python environment
+outside R and execute the same Python commands there.</p>
+<p>Hmsc-HPC extension relies on Tensorflow for GPU acceleration, and
+the code will utilize CPUs if a GPU-enabled version of Tensorflow is
+not available. Enabling GPU acceleration in Tensorflow depends on your
+operating system as explained in
+<a href="https://www.tensorflow.org/install/pip">https://www.tensorflow.org/install/pip</a>.</p>
 </div>
 </div>
 </div>

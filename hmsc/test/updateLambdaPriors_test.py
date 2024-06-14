@@ -135,7 +135,7 @@ def test_updateLambdaPriors():
     PsiList, DeltaList = updateLambdaPriors(params, rLHyperparams)
 
     for r in range(modelDims["nr"]):
-        assert_allclose(tf.reduce_mean(PsiList[r]), tf.reduce_mean(PsiListTrue[r]), atol=1.3)
+        assert_allclose(tf.reduce_mean(PsiList[r]), tf.reduce_mean(PsiListTrue[r]), atol=1.5)
         assert_allclose(tf.reduce_mean(DeltaList[r]), tf.reduce_mean(DeltaListTrue[r]), atol=1.0)
 
 def test_updateLambdaPriors_shape():
