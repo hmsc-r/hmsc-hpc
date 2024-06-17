@@ -149,9 +149,10 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 dD = 1 - tf.einsum("gik,gkh,gih->gi", W12, iW22, W12)
                 idD = dD**-1
                 F = W22 + tf.einsum("gik,gi,gih->gkh", W12, idD, W12)
+                LF = tfla.cholesky(F)
                 iDW12 = tf.einsum("gi,gik->gik", idD, W12)
                 detD = tf.reduce_sum(tfm.log(dD), -1) - 2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1) + \
-                  2*tf.reduce_sum(tfm.log(tfla.diag_part(F)), -1)
+                  2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
                 
                 rLPar["nK"] = nK
                 rLPar["idDg"] = idD
