@@ -1,0 +1,16 @@
+Mostly created with information from here.
+https://www.tensorflow.org/guide/create_op
+
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/magma/lib
+TF_CFLAGS=( $(python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_compile_flags()))') )
+TF_LFLAGS=( $(python -c 'import tensorflow as tf; print(" ".join(tf.sysconfig.get_link_flags()))') )
+hipcc -std=c++14 -c -o magma_cholesky.cu.o magma_cholesky.cu.cc   ${TF_CFLAGS[@]} -D EIGEN_USE_HIP=1 -D TENSORFLOW_USE_ROCM=1 -fPIC -I/opt/magma/include -L/opt/magma/lib -I/opt
+gcc-10 -std=c++14 -shared -o magma_cholesky.so magma_cholesky.cc   magma_cholesky.cu.o ${TF_CFLAGS[@]} -fPIC  ${TF_LFLAGS[@]} -I/opt/magma/include -L/opt/magma/lib -lmagma -D TENSORFLOW_USE_ROCM=1
+
+Loading and using the custom operator is shown in the python script. It works fine until 5000 matrix size, but after that there are some custream issues that come up. Might not be the case for AMD. Still I would look into using the MAGMA functions for this. Perhaps there is still some performance to be gained. 
+
+I was also looking at this MAGMA example here for the data transfer and other options. https://github.com/CEED/MAGMA/blob/master/example/example_v2.c
+Also in the above link there is this line, which might be worth something.
+magma_int_t ldda = magma_roundup( n, 32 );  // round up to multiple of 32 for best GPU performance
+
+I was a bit confused by the dimensions of the matrix, lda and the n variable. MAGMA differentiates between setmatrix and setvector for example, which all have quite a few variables there.https://icl.utk.edu/projectsfiles/magma/doxygen/group__magma__setmatrix.html

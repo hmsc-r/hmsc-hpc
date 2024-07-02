@@ -25,6 +25,7 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
         iWg - ??
         sDim - ??
     """
+    magma_lib=tf.load_op_library('../custom_operators/magma_cholesky.so')
     Z = params["Z"]
     iD = params["iD"]
     Beta = params["Beta"]
@@ -115,7 +116,7 @@ def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64)
     #TODO a lot of unnecessary tanspositions - rework if considerably affects perfomance
     iWs = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(iWg, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*np,nf*np])
     iUEta = iWs + tf.reshape(tf.transpose(tfla.diag(tf.transpose(LamInvSigLam, [1,2,0])), [0,2,1,3]), [nf*np,nf*np])
-    LiUEta = tfla.cholesky(iUEta, name="LiUEta")
+    LiUEta = magma_lib.magma_cholesky(iUEta)
     mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf*np,1]), name="mu1")
     eta = tfla.triangular_solve(LiUEta, mu1 + tfr.normal([nf*np,1], dtype=dtype), adjoint=True, name="eta")
     Eta = tf.transpose(tf.reshape(eta, [nf,np]))
@@ -130,11 +131,11 @@ def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nK, nu, nf, 
     # idD1W12 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(idDW12g, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nu,nf*nK])
     
     Ast = LamInvSigLam + tfla.diag(tf.transpose(idDst))
-    LAst = tfla.cholesky(Ast, name="LAst")
+    LAst = magma_lib.magma_cholesky(Ast)
     iAst = tfla.cholesky_solve(LAst, tf.eye(nf, batch_shape=[nu], dtype=dtype), name="iAst")
     W21idD_iA_idDW12 = tf.reshape(tf.einsum("hia,ihg,gib->hagb", idDW12st, iAst, idDW12st, name="W21idD_iA_idDW12"), [nf*nK]*2)
     H = Fmat - W21idD_iA_idDW12
-    LH = tfla.cholesky(H, name="LH")
+    LH = magma_lib.magma_cholesky(H)
 
     # iA_mu0 = tf.squeeze(tfla.triangular_solve(LAst, tfla.triangular_solve(LAst, mu0[:,:,None]), adjoint=True), -1)
     iA_mu0 = tf.einsum("ihg,ih->ig", iAst, mu0, name="iA_mu0")
