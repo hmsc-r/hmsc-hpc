@@ -238,7 +238,7 @@ Therefore, once all Python calls have conducted, the following step is to import
 chainList = vector("list", nChains)
 for(cInd in 1:nChains){
 	chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
-	chainList[[cInd]] = from_json(readRDS(file = chain_file_path)[[1]])[[1]]
+	chainList[[cInd]] = readRDS(file = chain_file_path)[["list"]][[1]]
 }
 ```
 
