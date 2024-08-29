@@ -26,15 +26,14 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     Y = Z = tf.matmul(X,Beta) + sum([tf.matmul(tf.gather(EtaList[r], Pi[:,r]), LambdaList[r]) for r in range(nr)]) + tfr.normal([ny,ns], 0, sigma, dtype=dtype)
     iD = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype) * tf.ones_like(Z) * sigma**-2
  
-    match spatial_method:
-        case "Full":
-            pass
-        case "NNGP":
-            pass
-        case "GPP":
-            pass
-        case _:
-            pass
+    if spatial_method=="Full":
+      pass
+    elif spatial_method=="NNGP":
+      pass
+    elif spatial_method=="GPP":  
+      pass
+    else:
+      pass
     
     params = {}
     modelData = {}
