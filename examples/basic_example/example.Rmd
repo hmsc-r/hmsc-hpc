@@ -5,7 +5,7 @@ output:
     df_print: paged
 ---
 
-This notebook demonstrates the concept of using Hmsc-HPC extension for `Hmsc` package. Unlike the core `Hmsc`, the Hmsc-HPC extension is written in Python programming language and is executed with Python interpreter. Hence, before a user can use it, a proper Python installation is required.
+This notebook demonstrates the concept of using Hmsc-HPC extension for `Hmsc` package. Unlike the core `Hmsc`, the Hmsc-HPC extension is written in Python programming language and is executed with Python interpreter. Hence, before a user can use it, a proper Python installation is required. However, detailed knowledge of Python is not needed to use Hmsc-HPC, it's use is transparent once Python is installed.
 
 # Preparing Python environment
 
@@ -17,9 +17,7 @@ This notebook demonstrates the concept of using Hmsc-HPC extension for `Hmsc` pa
 
 ### 1. Finding Python installation
 
-Depending on your hardware, operating system and user rights, the set of steps to acquire and configure a proper Python distribution may greatly vary. Thus, we would like to relay the installation process itself either to one of multitude guides available on the web, or to the IT support that manages your device. This section merely checks that a Python installation can be found.
-
-Please test the next chunk of code that tries to check version of Python available in you system:
+Please run the next chunk of code to check the version of Python available in you system:
 
 ```{r}
 system_python = "python3"
@@ -27,12 +25,11 @@ system_python = "python3"
 system2(system_python, "--version")
 ```
 
-If the Python distribution in your system is configured well, then the code shall print the version of Python. If this is failing, then you are likely missing Python altogether, or its path is not configured correctly. In some cases you may have several distributions of Python available, and then you shall either explicitly specify the path to the desired Python distribution --- as exemplified in the commented-out `system_python = ...` line above.
+If the Python distribution in your system is configured well, then the code shall print the version of Python. If this is failing, then you are likely missing Python altogether, or its path is not configured correctly. If this is the case, please follow the instructions at https://wiki.python.org/moin/BeginnersGuide/Download for installing Python for the operating system (Linux, Mac, Windows) of your computer.
+
+In some cases you may have several distributions of Python available, and then you shall either explicitly specify the path to the desired Python distribution --- as exemplified in the commented-out `system_python = ...` line above.
 
 ### 2. Creating a new virtual environment
-
-Please note that this notebook is configured **NOT** to execute the codes that install any software or packages --- both in this and next sections during whole notebook execution. Please execute them manually one by one if needed.
-
 
 The next line creates an empty virtual environment where we will set up Hmsc-HPC:
 
@@ -83,7 +80,10 @@ Your Python setup is working correctly if the code does not produce any errors.
 
 ### Troubleshooting
 
-If the above check and the detailed instructions do not work for you, please consult one of multitude guides available on the web. You can configure Python within R in multiple ways - for instance, `reticulate` package features several functions aimed to achieve that or you can prepare and activate the correct Python environment outside R.
+If the above check do not work for you, please follow [Detailed instructions] including installing a clean Python environment to start with. Alternatively, you can prepare and activate the Python environment outside R and execute the same Python commands there.
+
+Hmsc-HPC extension relies on Tensorflow for GPU acceleration, and the code will utilize CPUs if a GPU-enabled version of Tensorflow is not available. Enabling GPU acceleration in Tensorflow depends on your operating system as explained in https://www.tensorflow.org/install/pip.
+
 
 # Setting up a toy Hmsc model
 
