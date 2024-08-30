@@ -3,3 +3,5 @@
 *.rds
 *.RData
 *.Rapp.history
+build/
+hmsc.egg-info/
