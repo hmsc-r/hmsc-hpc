@@ -1,9 +1,12 @@
 import tensorflow as tf
+import os
 
 # Load the custom operator library
-magma_lib = tf.load_op_library('./magma_cholesky.so')
+lib_path = os.path.join(os.path.dirname(__file__), 'magma_cholesky.so')
 
-def cholesky(input_tensor):
+#magma_lib = tf.load_op_library('./magma_cholesky.so')
+magma_lib = tf.load_op_library(lib_path)
+def M_cholesky(input_tensor):
     """
     Applies the custom Cholesky decomposition operator on the input tensor.
 

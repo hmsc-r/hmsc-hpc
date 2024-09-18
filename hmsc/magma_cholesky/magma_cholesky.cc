@@ -4,6 +4,7 @@
 #include "tensorflow/core/framework/op.h"
 #include "tensorflow/core/framework/shape_inference.h"
 #include "tensorflow/core/framework/op_kernel.h"
+#include <Python.h>
 
 using namespace tensorflow;
 
@@ -16,7 +17,7 @@ REGISTER_OP("MagmaCholesky")
     .Output("input_times_two: T")
     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* c) {
       c->set_output(0, c->input(0));
-      return Status::OK();
+      return Status();
     });
 
 // OpKernel definition.
@@ -28,13 +29,11 @@ class MagmaCholeskyOp : public OpKernel {
 
   void Compute(OpKernelContext* context) override {
     // Grab the input tensor
-    //
     const Tensor& input_tensor = context->input(0);
     int input_dims = input_tensor.dims();
 
     OP_REQUIRES(context, input_dims == 3 || input_dims == 2 ,
                 errors::InvalidArgument("Input tensor must be 2 or 3-dimensional"));
- //   OP_REQUIRES(context, input_tensor.NumElements() <= tensorflow::kint32max,errors::InvalidArgument("Too many elements in tensor"));
 
     int num_matrices = 1;
     if (input_dims==3){
@@ -44,7 +43,6 @@ class MagmaCholeskyOp : public OpKernel {
     Tensor* output_tensor = NULL;
     OP_REQUIRES_OK(context, context->allocate_output(0, input_tensor.shape(),
                                                      &output_tensor));
-//    context->set_output(0, input_tensor);
 
     MagmaCholeskyFunctor<Device, T>()(
         context->eigen_device<Device>(),
@@ -74,8 +72,22 @@ class MagmaCholeskyOp : public OpKernel {
 // REGISTER_GPU(float);
 REGISTER_GPU(double);
 
-// REGISTER_KERNEL_BUILDER(Name("MagmaCholesky").Device(DEVICE_GPU).TypeConstraint<double>("T"),MagmaCholeskyOp<GPUDevice, double>);
-
-
 #endif
+// Python initialization function
+extern "C" PyMODINIT_FUNC PyInit_magma_cholesky(void) {
+    static PyModuleDef module_def = {
+        PyModuleDef_HEAD_INIT,
+        "magma_cholesky",
+        nullptr,
+        -1,
+        nullptr,
+    };
+
+    PyObject* module = PyModule_Create(&module_def);
+    if (module == nullptr) {
+        return nullptr;
+    }
+
+    return module;
+}
 

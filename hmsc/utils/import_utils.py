@@ -130,6 +130,8 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 tmp[np.isnan(tmp)] = 0
                 rLPar["Wg"] = np.exp(-tmp)
                 LWg = tfla.cholesky(rLPar["Wg"])
+                print("ARRAY DIMS", tf.size(LWg), "    ", tf.shape(LWg))
+                print("SECOND ARRAY DIMS", tf.size(tf.eye(npVec[r], npVec[r], [gN], dtype)), "    ", tf.shape(tf.eye(npVec[r], npVec[r], [gN], dtype)))
                 rLPar["iWg"] = tfla.cholesky_solve(LWg, tf.eye(npVec[r], npVec[r], [gN], dtype))
                 rLPar["LiWg"] = tfla.cholesky(rLPar["iWg"])
                 rLPar["detWg"] = 2*tf.reduce_sum(tfm.log(tfla.diag_part(LWg)), -1)
