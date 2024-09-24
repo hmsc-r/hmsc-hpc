@@ -110,15 +110,24 @@ def calculate_GPP(d12, d22, alpha, nK, gN, dtype):
     W22[np.isnan(W22)] = 0
     W22 = tf.exp(-W22)
     LW22 = tfla.cholesky(W22)
-    iW22 = tfla.cholesky_solve(LW22, tf.eye(nK, nK, [gN], dtype))
-    dD = 1 - tf.einsum("gik,gkh,gih->gi", W12, iW22, W12)
+    detD = -2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1)
+    iW22 = tfla.cholesky_solve(LW22, tf.eye(nK, batch_shape=[gN], dtype=dtype))
+    del LW22
+    W12iW22 = tf.matmul(W12, iW22)
+    del iW22
+    dD = 1 - tf.einsum("gih,gih->gi", W12iW22, W12)
+    del W12iW22
+    detD += tf.reduce_sum(tfm.log(dD), -1)
     idD = dD**-1
-    F = W22 + tf.einsum("gik,gi,gih->gkh", W12, idD, W12)
-    LF = tfla.cholesky(F)
+    del dD
     iDW12 = tf.einsum("gi,gik->gik", idD, W12)
-    detD = tf.reduce_sum(tfm.log(dD), -1) - 2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1) + \
-      2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
-    iF = tfla.cholesky_solve(tf.cast(tfla.cholesky(F), dtype=dtype), tf.eye(nK, nK, [gN], dtype))
+    F = W22 + tf.einsum("gik,gih->gkh", iDW12, W12)
+    del W12
+    del W22
+    LF = tfla.cholesky(F)
+    detD += 2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
+    iF = tfla.cholesky_solve(LF, tf.eye(nK, batch_shape=[gN], dtype=dtype))
+    del LF
     return idD, iDW12, F, iF, detD
 
 
