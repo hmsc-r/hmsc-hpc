@@ -102,6 +102,26 @@ def load_model_hyperparams(hmscModel, dataParList, dtype=np.float64):
     return dataParams
 
 
+def calculate_GPP(d12, d22, alpha, nK, gN, dtype):
+    W12 = d12 / alpha[:, None, None]
+    W12[np.isnan(W12)] = 0
+    W12 = tf.exp(-W12)
+    W22 = d22 / alpha[:, None, None]
+    W22[np.isnan(W22)] = 0
+    W22 = tf.exp(-W22)
+    LW22 = tfla.cholesky(W22)
+    iW22 = tfla.cholesky_solve(LW22, tf.eye(nK, nK, [gN], dtype))
+    dD = 1 - tf.einsum("gik,gkh,gih->gi", W12, iW22, W12)
+    idD = dD**-1
+    F = W22 + tf.einsum("gik,gi,gih->gkh", W12, idD, W12)
+    LF = tfla.cholesky(F)
+    iDW12 = tf.einsum("gi,gik->gik", idD, W12)
+    detD = tf.reduce_sum(tfm.log(dD), -1) - 2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1) + \
+      2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
+    iF = tfla.cholesky_solve(tf.cast(tfla.cholesky(F), dtype=dtype), tf.eye(nK, nK, [gN], dtype))
+    return idD, iDW12, F, iF, detD
+
+
 def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
 
     nr = int(np.squeeze(hmscModel.get("nr")))
@@ -138,27 +158,15 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 nK = int(dataParList["rLPar"][r]["nKnots"][0])
                 d12 = np.reshape(dataParList["rLPar"][r]["distMat12"], [npVec[r], nK]).astype(dtype)
                 d22 = np.reshape(dataParList["rLPar"][r]["distMat22"], [nK, nK]).astype(dtype)
-                W12 = d12 / rLPar["alphapw"][:,0,None,None]
-                W12[np.isnan(W12)] = 0
-                W12 = tf.exp(-W12)
-                W22 = d22 / rLPar["alphapw"][:,0,None,None]
-                W22[np.isnan(W22)] = 0
-                W22 = tf.exp(-W22)
-                LW22 = tfla.cholesky(W22)
-                iW22 = tfla.cholesky_solve(LW22, tf.eye(nK, nK, [gN], dtype))
-                dD = 1 - tf.einsum("gik,gkh,gih->gi", W12, iW22, W12)
-                idD = dD**-1
-                F = W22 + tf.einsum("gik,gi,gih->gkh", W12, idD, W12)
-                LF = tfla.cholesky(F)
-                iDW12 = tf.einsum("gi,gik->gik", idD, W12)
-                detD = tf.reduce_sum(tfm.log(dD), -1) - 2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1) + \
-                  2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
-                
+                alpha = rLPar["alphapw"][:, 0]
+
+                idD, iDW12, F, iF, detD = calculate_GPP(d12, d22, alpha, nK, gN)
+
                 rLPar["nK"] = nK
                 rLPar["idDg"] = idD
                 rLPar["idDW12g"] = iDW12
                 rLPar["Fg"] = F
-                rLPar["iFg"] = tfla.cholesky_solve(tf.cast(tfla.cholesky(F), dtype=dtype), tf.eye(nK, nK, [gN], dtype))
+                rLPar["iFg"] = iF
                 rLPar["detDg"] = detD
                 
             elif rLPar["spatialMethod"] == "NNGP":
