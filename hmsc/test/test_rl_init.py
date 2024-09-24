@@ -61,7 +61,7 @@ def test_calculate_GPP():
 
     d12, d22, alpha = input_values(rng)
 
-    values = calculate_GPP(d12, d22, alpha, d22.shape[1], alpha.shape[0], np.float64)
+    values = calculate_GPP(d12, d22, alpha)
     values = list(map(lambda a: a.numpy(), values))
     names = ['idD', 'iDW12', 'F', 'iF', 'detD']
     assert len(names) == len(values)

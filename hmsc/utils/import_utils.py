@@ -102,31 +102,44 @@ def load_model_hyperparams(hmscModel, dataParList, dtype=np.float64):
     return dataParams
 
 
-def calculate_GPP(d12, d22, alpha, nK, gN, dtype):
-    W12 = d12 / alpha[:, None, None]
-    W12[np.isnan(W12)] = 0
-    W12 = tf.exp(-W12)
-    W22 = d22 / alpha[:, None, None]
-    W22[np.isnan(W22)] = 0
-    W22 = tf.exp(-W22)
+def eye_like(W):
+    return tf.eye(*W.shape[-2:], batch_shape=W.shape[:-2], dtype=W.dtype)
+
+
+def calculate_W(dist, alpha):
+    assert dist.ndim == 2
+    assert alpha.ndim == 1
+    W = dist / alpha[:, None, None]
+    W[np.isnan(W)] = 0
+    W = tf.exp(-W)
+    return W
+
+
+def calculate_GPP(d12, d22, alpha):
+    W12 = calculate_W(d12, alpha)
+    W22 = calculate_W(d22, alpha)
+
     LW22 = tfla.cholesky(W22)
     detD = -2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1)
-    iW22 = tfla.cholesky_solve(LW22, tf.eye(nK, batch_shape=[gN], dtype=dtype))
+    iW22 = tfla.cholesky_solve(LW22, eye_like(LW22))
     del LW22
     W12iW22 = tf.matmul(W12, iW22)
     del iW22
+
     dD = 1 - tf.einsum("gih,gih->gi", W12iW22, W12)
     del W12iW22
     detD += tf.reduce_sum(tfm.log(dD), -1)
     idD = dD**-1
     del dD
+
     iDW12 = tf.einsum("gi,gik->gik", idD, W12)
     F = W22 + tf.einsum("gik,gih->gkh", iDW12, W12)
     del W12
     del W22
+
     LF = tfla.cholesky(F)
     detD += 2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
-    iF = tfla.cholesky_solve(LF, tf.eye(nK, batch_shape=[gN], dtype=dtype))
+    iF = tfla.cholesky_solve(LF, eye_like(LF))
     del LF
     return idD, iDW12, F, iF, detD
 
@@ -165,11 +178,13 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
 
             elif rLPar["spatialMethod"] == "GPP":
                 nK = int(dataParList["rLPar"][r]["nKnots"][0])
-                d12 = np.reshape(dataParList["rLPar"][r]["distMat12"], [npVec[r], nK]).astype(dtype)
-                d22 = np.reshape(dataParList["rLPar"][r]["distMat22"], [nK, nK]).astype(dtype)
-                alpha = rLPar["alphapw"][:, 0]
+                alpha = rLPar["alphapw"][:, 0].astype(dtype)
+                d12 = dataParList["rLPar"][r]["distMat12"].astype(dtype)
+                d22 = dataParList["rLPar"][r]["distMat22"].astype(dtype)
+                assert d12.shape == (npVec[r], nK)
+                assert d22.shape == (nK, nK)
 
-                idD, iDW12, F, iF, detD = calculate_GPP(d12, d22, alpha, nK, gN)
+                idD, iDW12, F, iF, detD = calculate_GPP(d12, d22, alpha)
 
                 rLPar["nK"] = nK
                 rLPar["idDg"] = idD
