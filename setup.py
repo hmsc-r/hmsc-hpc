@@ -11,7 +11,7 @@ setup(
         'pandas',
         'pyreadr',
         'scipy',
-        'tensorflow[and-cuda]',
+        'tensorflow',
         'tensorflow-probability[tf]',
         'ujson',
     ]
