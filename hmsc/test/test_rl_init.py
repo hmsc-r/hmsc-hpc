@@ -59,9 +59,9 @@ def test_calculate_GPP():
     tf.keras.utils.set_random_seed(SEED)
     tf.config.experimental.enable_op_determinism()
 
-    d12, d22, alpha = input_values(rng)
+    inputs = input_values(rng)
 
-    values = calculate_GPP(d12, d22, alpha)
+    values = calculate_GPP(*inputs)
     values = list(map(lambda a: a.numpy(), values))
     names = ['idD', 'iDW12', 'F', 'iF', 'detD']
     assert len(names) == len(values)
