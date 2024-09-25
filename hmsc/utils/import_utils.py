@@ -108,39 +108,54 @@ def eye_like(W):
 
 def calculate_W(dist, alpha):
     assert dist.ndim == 2
-    assert alpha.ndim == 1
-    W = dist / alpha[:, None, None]
-    W[np.isnan(W)] = 0
-    W = tf.exp(-W)
-    return W
+    assert tf.size(alpha) == 1
+    assert alpha != 0.0
+    return tf.exp(-dist / alpha)
 
 
 def calculate_GPP(d12, d22, alpha):
-    W12 = calculate_W(d12, alpha)
-    W22 = calculate_W(d22, alpha)
+    assert alpha.ndim == 1
+    idD_i = []
+    iDW12_i = []
+    F_i = []
+    iF_i = []
+    detD_i = []
+    for a in alpha:
+        W12 = calculate_W(d12, a)
+        W22 = calculate_W(d22, a)
 
-    LW22 = tfla.cholesky(W22)
-    detD = -2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1)
-    iW22 = tfla.cholesky_solve(LW22, eye_like(LW22))
-    del LW22
-    W12iW22 = tf.matmul(W12, iW22)
-    del iW22
+        LW22 = tfla.cholesky(W22)
+        detD = -2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1)
+        iW22 = tfla.cholesky_solve(LW22, eye_like(LW22))
+        del LW22
+        W12iW22 = tf.matmul(W12, iW22)
+        del iW22
 
-    dD = 1 - tf.einsum("gih,gih->gi", W12iW22, W12)
-    del W12iW22
-    detD += tf.reduce_sum(tfm.log(dD), -1)
-    idD = dD**-1
-    del dD
+        dD = 1 - tf.einsum("ih,ih->i", W12iW22, W12)
+        del W12iW22
+        detD += tf.reduce_sum(tfm.log(dD), -1)
+        idD = dD**-1
+        del dD
+        idD_i.append(idD)
 
-    iDW12 = tf.einsum("gi,gik->gik", idD, W12)
-    F = W22 + tf.einsum("gik,gih->gkh", iDW12, W12)
-    del W12
-    del W22
+        iDW12 = tf.einsum("i,ik->ik", idD, W12)
+        iDW12_i.append(iDW12)
+        F = W22 + tf.einsum("ik,ih->kh", iDW12, W12)
+        del W12
+        del W22
+        F_i.append(F)
 
-    LF = tfla.cholesky(F)
-    detD += 2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
-    iF = tfla.cholesky_solve(LF, eye_like(LF))
-    del LF
+        LF = tfla.cholesky(F)
+        detD += 2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
+        detD_i.append(detD)
+        iF = tfla.cholesky_solve(LF, eye_like(LF))
+        iF_i.append(iF)
+        del LF
+    idD = tf.stack(idD_i)
+    iDW12 = tf.stack(iDW12_i)
+    F = tf.stack(F_i)
+    iF = tf.stack(iF_i)
+    detD = tf.stack(detD_i)
     return idD, iDW12, F, iF, detD
 
 
@@ -178,9 +193,10 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
 
             elif rLPar["spatialMethod"] == "GPP":
                 nK = int(dataParList["rLPar"][r]["nKnots"][0])
-                alpha = rLPar["alphapw"][:, 0].astype(dtype)
-                d12 = dataParList["rLPar"][r]["distMat12"].astype(dtype)
-                d22 = dataParList["rLPar"][r]["distMat22"].astype(dtype)
+                alpha = tf.convert_to_tensor(rLPar["alphapw"][:, 0], dtype=dtype)
+                d12 = tf.convert_to_tensor(dataParList["rLPar"][r]["distMat12"], dtype=dtype)
+                d22 = tf.convert_to_tensor(dataParList["rLPar"][r]["distMat22"], dtype=dtype)
+
                 assert d12.shape == (npVec[r], nK)
                 assert d22.shape == (nK, nK)
 
