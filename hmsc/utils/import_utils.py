@@ -109,7 +109,10 @@ def eye_like(W):
 def calculate_W(dist, alpha):
     assert dist.ndim == 2
     assert tf.size(alpha) == 1
-    assert alpha != 0.0
+    if alpha == 0.0:
+        one = tf.constant(1, dtype=dist.dtype)
+        zero = tf.constant(0, dtype=dist.dtype)
+        return tf.where(tfm.logical_or(dist == 0, tfm.is_nan(dist)), one, zero)
     return tf.exp(-dist / alpha)
 
 
