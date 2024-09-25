@@ -4,6 +4,7 @@ import tensorflow as tf
 from pytest import approx
 
 from hmsc.utils.import_utils import calculate_GPP
+from hmsc.test import convert_to_tf
 
 
 SEED = 42
@@ -64,6 +65,7 @@ def test_calculate_GPP():
     tf.config.experimental.enable_op_determinism()
 
     inputs = input_values(rng)
+    inputs = map(convert_to_tf, inputs)
 
     values = calculate_GPP(*inputs)
     values = list(map(lambda a: a.numpy(), values))
