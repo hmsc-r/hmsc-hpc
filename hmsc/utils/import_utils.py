@@ -102,8 +102,8 @@ def load_model_hyperparams(hmscModel, dataParList, dtype=np.float64):
     return dataParams
 
 
-def eye_like(W):
-    return tf.eye(*W.shape[-2:], batch_shape=W.shape[:-2], dtype=W.dtype)
+def eye_like(tensor):
+    return tf.eye(*tensor.shape[-2:], batch_shape=tensor.shape[:-2], dtype=tensor.dtype)
 
 
 def calculate_W(dist, alpha):
