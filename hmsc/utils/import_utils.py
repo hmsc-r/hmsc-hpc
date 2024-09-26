@@ -116,21 +116,29 @@ def calculate_W(dist, alpha):
     return tf.exp(-dist / alpha)
 
 
-def calculate_GPP(d12, d22, alpha):
-    assert alpha.ndim == 1
-    idD_i = []
-    iDW12_i = []
-    F_i = []
-    iF_i = []
-    detD_i = []
-    for a in alpha:
-        W12 = calculate_W(d12, a)
-        W22 = calculate_W(d22, a)
+def set_slice(variable, i, tensor):
+    variable.scatter_update(tf.IndexedSlices(tensor[tf.newaxis], tf.constant([i], dtype=tf.int64)))
 
+
+def calculate_GPP(d12, d22, alpha):
+    assert d12.ndim == 2
+    assert d22.ndim == 2
+    assert alpha.ndim == 1
+    assert d12.dtype == d22.dtype
+    dtype = d12.dtype
+    idD_g   = tf.Variable(tf.zeros(shape=[alpha.shape[0], d12.shape[0]], dtype=dtype))
+    iDW12_g = tf.Variable(tf.zeros(shape=[alpha.shape[0], *d12.shape], dtype=dtype))
+    F_g     = tf.Variable(tf.zeros(shape=[alpha.shape[0], *d22.shape], dtype=dtype))
+    iF_g    = tf.Variable(tf.zeros(shape=[alpha.shape[0], *d22.shape], dtype=dtype))
+    detD_g  = tf.Variable(tf.zeros(shape=[alpha.shape[0]], dtype=dtype))
+    for i, a in enumerate(alpha):
+        W22 = calculate_W(d22, a)
         LW22 = tfla.cholesky(W22)
         detD = -2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1)
         iW22 = tfla.cholesky_solve(LW22, eye_like(LW22))
         del LW22
+
+        W12 = calculate_W(d12, a)
         W12iW22 = tf.matmul(W12, iW22)
         del iW22
 
@@ -139,27 +147,33 @@ def calculate_GPP(d12, d22, alpha):
         detD += tf.reduce_sum(tfm.log(dD), -1)
         idD = dD**-1
         del dD
-        idD_i.append(idD)
+        set_slice(idD_g, i, idD)
 
         iDW12 = tf.einsum("i,ik->ik", idD, W12)
-        iDW12_i.append(iDW12)
+        set_slice(iDW12_g, i, iDW12)
+
         F = W22 + tf.einsum("ik,ih->kh", iDW12, W12)
         del W12
         del W22
-        F_i.append(F)
+        set_slice(F_g, i, F)
 
         LF = tfla.cholesky(F)
         detD += 2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
-        detD_i.append(detD)
+        set_slice(detD_g, i, detD)
+        del detD
+
         iF = tfla.cholesky_solve(LF, eye_like(LF))
-        iF_i.append(iF)
         del LF
-    idD = tf.stack(idD_i)
-    iDW12 = tf.stack(iDW12_i)
-    F = tf.stack(F_i)
-    iF = tf.stack(iF_i)
-    detD = tf.stack(detD_i)
-    return idD, iDW12, F, iF, detD
+        set_slice(iF_g, i, iF)
+        del iF
+
+    iDW12_g = iDW12_g.read_value_no_copy()
+    idD_g = idD_g.read_value_no_copy()
+    F_g = F_g.read_value_no_copy()
+    iF_g = iF_g.read_value_no_copy()
+    detD_g = detD_g.read_value_no_copy()
+
+    return idD_g, iDW12_g, F_g, iF_g, detD_g
 
 
 def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
