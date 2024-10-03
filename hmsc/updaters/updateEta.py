@@ -3,6 +3,7 @@ import tensorflow as tf
 from scipy.sparse.linalg import splu, spsolve_triangular
 from scipy.sparse import csc_matrix, csr_matrix, coo_matrix, block_diag
 from hmsc.utils.tf_named_func import tf_named_func
+from hmsc.utils.import_utils import calculate_idDW12, set_slice
 tfla, tfm, tfr, tfs = tf.linalg, tf.math, tf.random, tf.sparse
 
 @tf_named_func("eta")
@@ -75,7 +76,8 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
                 if rLPar["spatialMethod"] == "Full":
                     EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], npVec[r], nf, dtype)
                 elif rLPar["spatialMethod"] == "GPP":
-                    EtaListNew[r] = modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, rLPar["Fg"], rLPar["idDg"], rLPar["idDW12g"], rLPar["nK"], npVec[r], nf, dtype)
+                    #EtaListNew[r] = modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, rLPar["Fg"], rLPar["idDg"], rLPar["idDW12g"], rLPar["nK"], npVec[r], nf, dtype)
+                    EtaListNew[r] = modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, rLPar["Fg"], rLPar["idDg"], rLPar, rLPar["nK"], npVec[r], nf, dtype)
                 elif rLPar["spatialMethod"] == "NNGP":                
                     modelSpatialNNGP_local = lambda LamInvSigLam, mu0, Alpha, nf: modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, rLPar["iWList_csr"], npVec[r], nf, dtype)
                     # EtaListNew[r] = modelSpatialNNGP_local(LamInvSigLam, mu0, AlphaInd, nf)
@@ -122,10 +124,33 @@ def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64)
     return Eta
 
 
-def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nK, nu, nf, dtype=tf.float64):
+#def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nK, nu, nf, dtype=tf.float64):
+def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, rLPar, nK, nu, nf, dtype=tf.float64):
     idDst = tf.gather(idDg, AlphaInd)
     Fst = tf.gather(Fg, AlphaInd)
-    idDW12st = tf.gather(idDW12g, AlphaInd)
+
+    if "idDW12g" in rLPar:
+        idDW12g = rLPar["idDW12g"]
+        idDW12st = tf.gather(idDW12g, AlphaInd)
+    else:  # lowmem
+        var = rLPar["var2"]
+        m = tf.shape(AlphaInd)[0]
+        var.assign(tf.zeros(shape=[m, *rLPar["d12"].shape], dtype=dtype))
+
+        cond = lambda j: tf.less(j, m)
+        def body(j):
+            i = AlphaInd[j]
+            idDW12 = calculate_idDW12(rLPar["d12"], rLPar["alpha"][i], idDg[i])
+            set_slice(var, j, idDW12)
+            return [j + 1, ]
+
+        j = tf.constant(0)
+        tf.while_loop(cond, body, [j])
+
+        idDW12st = var.read_value_no_copy()
+
+    tf.print('idDW12st', tf.shape(idDW12st), tfm.reduce_min(idDW12st, axis=[1, 2]), tfm.reduce_max(idDW12st, axis=[1, 2]))
+
     Fmat = tf.reshape(tf.transpose(tfla.diag(tf.transpose(Fst, [1,2,0])), [2,0,3,1]), [nf*nK,nf*nK])
     # idD1W12 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(idDW12g, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nu,nf*nK])
     

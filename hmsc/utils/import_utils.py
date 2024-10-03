@@ -116,18 +116,25 @@ def calculate_W(dist, alpha):
     return tf.exp(-dist / alpha)
 
 
+def calculate_idDW12(d12, alpha, idD):
+    W12 = calculate_W(d12, alpha)
+    idDW12 = tf.einsum("i,ik->ik", idD, W12)
+    return idDW12
+
+
 def set_slice(variable, i, tensor):
-    variable.scatter_update(tf.IndexedSlices(tensor[tf.newaxis], tf.constant([i], dtype=tf.int64)))
+    variable.scatter_update(tf.IndexedSlices(tensor[tf.newaxis], tf.cast(i, dtype=tf.int64)[tf.newaxis]))
 
 
-def calculate_GPP(d12, d22, alpha):
+def calculate_GPP(d12, d22, alpha, *, lowmem=False):
     assert d12.ndim == 2
     assert d22.ndim == 2
     assert alpha.ndim == 1
     assert d12.dtype == d22.dtype
     dtype = d12.dtype
     idD_g   = tf.Variable(tf.zeros(shape=[alpha.shape[0], d12.shape[0]], dtype=dtype))
-    iDW12_g = tf.Variable(tf.zeros(shape=[alpha.shape[0], *d12.shape], dtype=dtype))
+    if not lowmem:
+        iDW12_g = tf.Variable(tf.zeros(shape=[alpha.shape[0], *d12.shape], dtype=dtype))
     F_g     = tf.Variable(tf.zeros(shape=[alpha.shape[0], *d22.shape], dtype=dtype))
     iF_g    = tf.Variable(tf.zeros(shape=[alpha.shape[0], *d22.shape], dtype=dtype))
     detD_g  = tf.Variable(tf.zeros(shape=[alpha.shape[0]], dtype=dtype))
@@ -150,7 +157,8 @@ def calculate_GPP(d12, d22, alpha):
         set_slice(idD_g, i, idD)
 
         iDW12 = tf.einsum("i,ik->ik", idD, W12)
-        set_slice(iDW12_g, i, iDW12)
+        if not lowmem:
+            set_slice(iDW12_g, i, iDW12)
 
         F = W22 + tf.einsum("ik,ih->kh", iDW12, W12)
         del W12
@@ -167,7 +175,10 @@ def calculate_GPP(d12, d22, alpha):
         set_slice(iF_g, i, iF)
         del iF
 
-    iDW12_g = iDW12_g.read_value_no_copy()
+    if lowmem:
+        iDW12_g = None
+    else:
+        iDW12_g = iDW12_g.read_value_no_copy()
     idD_g = idD_g.read_value_no_copy()
     F_g = F_g.read_value_no_copy()
     iF_g = iF_g.read_value_no_copy()
@@ -176,7 +187,7 @@ def calculate_GPP(d12, d22, alpha):
     return idD_g, iDW12_g, F_g, iF_g, detD_g
 
 
-def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
+def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64, lowmem=False):
 
     nr = int(np.squeeze(hmscModel.get("nr")))
     npVec = hmscModel.get("np")
@@ -210,18 +221,31 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
 
             elif rLPar["spatialMethod"] == "GPP":
                 nK = int(dataParList["rLPar"][r]["nKnots"][0])
-                alpha = tf.convert_to_tensor(rLPar["alphapw"][:, 0], dtype=dtype)
-                d12 = tf.convert_to_tensor(dataParList["rLPar"][r]["distMat12"], dtype=dtype)
-                d22 = tf.convert_to_tensor(dataParList["rLPar"][r]["distMat22"], dtype=dtype)
-
+                alpha = rLPar["alphapw"][:, 0]
+                d12 = dataParList["rLPar"][r]["distMat12"]
+                d22 = dataParList["rLPar"][r]["distMat22"]
                 assert d12.shape == (npVec[r], nK)
                 assert d22.shape == (nK, nK)
+                assert not np.any(np.isnan(alpha))
+                assert not np.any(np.isnan(d12))
+                assert not np.any(np.isnan(d22))
+                assert not np.any(d12 == 0.0)
+                assert np.all(np.diag(d22) == 0.0)
+                assert np.count_nonzero(d22 == 0.0) == nK
 
-                idD, iDW12, F, iF, detD = calculate_GPP(d12, d22, alpha)
+                alpha = tf.convert_to_tensor(alpha, dtype=dtype)
+                d12 = tf.convert_to_tensor(d12, dtype=dtype)
+                d22 = tf.convert_to_tensor(d22, dtype=dtype)
+
+                idD, iDW12, F, iF, detD = calculate_GPP(d12, d22, alpha, lowmem=lowmem)
 
                 rLPar["nK"] = nK
                 rLPar["idDg"] = idD
-                rLPar["idDW12g"] = iDW12
+                if lowmem:
+                    rLPar["d12"] = d12
+                    rLPar["alpha"] = alpha
+                else:
+                    rLPar["idDW12g"] = iDW12
                 rLPar["Fg"] = F
                 rLPar["iFg"] = iF
                 rLPar["detDg"] = detD

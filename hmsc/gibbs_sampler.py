@@ -15,6 +15,7 @@ from hmsc.updaters.updateZ import updateZ
 from hmsc.updaters.updatewRRR import updatewRRR
 from hmsc.updaters.updatewRRRPriors import updatewRRRPriors
 from hmsc.updaters.updateHMC import updateHMC
+from hmsc.debug import print_memory_consumption
 tfm = tf.math
 
 
@@ -52,7 +53,7 @@ class GibbsSampler(tf.Module):
         rng_seed=None,
         dtype=np.float64,
     ):
-        print("retracing")        
+        print("retracing", flush=True)
         if rng_seed != None:
           tf.print("random seed set to", rng_seed)
           tf.keras.utils.set_random_seed(rng_seed)
@@ -112,7 +113,7 @@ class GibbsSampler(tf.Module):
                     (params["AlphaInd"], [tf.TensorShape(None)] * nr),
                 ]
             )
-            
+
             # tf.print("inside tf.function:", tf.random.normal([1]))
             
             # z_marginalize_iter_cond = lambda it: ((it % 2) == 1) & (it >= 0)
