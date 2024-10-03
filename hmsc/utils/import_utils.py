@@ -107,8 +107,6 @@ def eye_like(tensor):
 
 
 def calculate_W(dist, alpha):
-    assert dist.ndim == 2
-    assert tf.size(alpha) == 1
     if alpha == 0.0:
         one = tf.constant(1, dtype=dist.dtype)
         zero = tf.constant(0, dtype=dist.dtype)
