@@ -76,8 +76,12 @@ def run_gibbs_sampler(
 
     if lowmem:
         for rLPar in rLHyperparams:
-            rLPar["var"] = tf.Variable(tf.zeros(shape=[rLPar["alpha"].shape[0], rLPar["d12"].shape[1], 1], dtype=dtype), shape=tf.TensorShape([rLPar["alpha"].shape[0], rLPar["d12"].shape[1], None]), dtype=dtype)
-            rLPar["var2"] = tf.Variable(tf.zeros(shape=[1, *rLPar["d12"].shape], dtype=dtype), shape=tf.TensorShape([None, *rLPar["d12"].shape]), dtype=dtype)
+            shape1 = (rLPar["alpha"].shape[0], rLPar["d12"].shape[1])
+            rLPar["W21idD_Eta_var"] = tf.Variable(tf.zeros(shape=[*shape1, 1], dtype=dtype),
+                                                  shape=tf.TensorShape([*shape1, None]), dtype=dtype)
+            shape2 = rLPar["d12"].shape
+            rLPar["idDW12st_var"] = tf.Variable(tf.zeros(shape=[1, *shape2], dtype=dtype),
+                                                shape=tf.TensorShape([None, *shape2]), dtype=dtype)
 
     gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
     

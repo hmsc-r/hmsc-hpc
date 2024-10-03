@@ -81,7 +81,7 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
                     if "idDW12g" in rLPar:
                         idDW12st = tf.gather(rLPar["idDW12g"], AlphaInd)
                     else:  # lowmem
-                        var = rLPar["var2"]
+                        var = rLPar["idDW12st_var"]
                         m = tf.shape(AlphaInd)[0]
                         var.assign(tf.zeros(shape=[m, *rLPar["d12"].shape], dtype=dtype))
 

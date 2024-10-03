@@ -51,8 +51,8 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
                     # W21idD_Eta = tf.einsum("gia,ih->gah", idDW12g, Eta, name="W21idD_Eta")
                     W21idD_Eta = tf.matmul(idDW12g, Eta, transpose_a=True, name="W21idD_Eta")
                 else: # lowmem
-                    var = rLPar["var"]
-                    var.assign(tf.zeros([rLPar["alpha"].shape[0], rLPar["d12"].shape[1], tf.shape(Eta)[1]], dtype=dtype))
+                    var = rLPar["W21idD_Eta_var"]
+                    var.assign(tf.zeros(shape=[*var.shape[:-1], tf.shape(Eta)[1]], dtype=dtype))
                     cond = lambda i: tf.less(i, rLPar["alpha"].shape[0])
                     def body(i):
                         idDW12 = calculate_idDW12(rLPar["d12"], rLPar["alpha"][i], idDg[i])
