@@ -17,10 +17,12 @@ from hmsc.utils.import_utils import (
     load_model_hyperparams,
     init_params,
 )
+from hmsc.debug import print_memory_consumption
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 
-def load_params(file_path, dtype=np.float64):
+
+def load_params(file_path, dtype=np.float64, lowmem=False):
     hmscImport, hmscModel = load_model_from_rds(file_path)
     modelDims = load_model_dims(hmscModel)
     modelData = load_model_data(hmscModel, hmscImport.get("initParList"), dtype)
@@ -28,7 +30,7 @@ def load_params(file_path, dtype=np.float64):
     # currently not used at all
     # modelHyperparams = load_model_hyperparams(hmscModel, hmscImport.get("dataParList"))
     modelHyperparams = None
-    rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"), dtype)
+    rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"), dtype, lowmem=lowmem)
     initParList = init_params(hmscImport.get("initParList"), modelData, modelDims, rLHyperparams, dtype)
     nChains = int(hmscImport.get("nChains")[0])
   
@@ -51,8 +53,15 @@ def run_gibbs_sampler(
     flag_save_eta=True,
     flag_save_postList_to_rds=True,
     flag_profile=False,
+    lowmem=False,
+    eager=False,
     dtype=np.float64,
 ):
+    if eager:
+        tf.config.run_functions_eagerly(True)
+
+    print_memory_consumption("START")
+
     (
         modelDims,
         modelData,
@@ -61,7 +70,19 @@ def run_gibbs_sampler(
         rLHyperparams,
         initParList,
         nChainsTotal,
-    ) = load_params(init_obj_file_path, dtype)
+    ) = load_params(init_obj_file_path, dtype, lowmem=lowmem)
+
+    print_memory_consumption("LOADED")
+
+    if lowmem:
+        for rLPar in rLHyperparams:
+            shape1 = (rLPar["alpha"].shape[0], rLPar["d12"].shape[1])
+            rLPar["W21idD_Eta_var"] = tf.Variable(tf.zeros(shape=[*shape1, 1], dtype=dtype),
+                                                  shape=tf.TensorShape([*shape1, None]), dtype=dtype)
+            shape2 = rLPar["d12"].shape
+            rLPar["idDW12st_var"] = tf.Variable(tf.zeros(shape=[1, *shape2], dtype=dtype),
+                                                shape=tf.TensorShape([None, *shape2]), dtype=dtype)
+
     gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
     
     if chainIndList is None:
@@ -73,7 +94,7 @@ def run_gibbs_sampler(
         print("Adjusted chainIndList", chainIndListNew)
         chainIndList = chainIndListNew
 
-    print("Initializing TF graph")
+    print("Initializing TF graph", flush=True)
     # print("outside seed %d" % (rng_seed+42))
     # tf.keras.utils.set_random_seed(rng_seed+42)
     # tf.config.experimental.enable_op_determinism()
@@ -94,7 +115,9 @@ def run_gibbs_sampler(
         dtype=dtype,
     )
     elapsedTime = time.time() - startTime
-    print("TF graph initialized in %.1f sec" % elapsedTime)
+    print("TF graph initialized in %.1f sec" % elapsedTime, flush=True)
+
+    print_memory_consumption("INIT")
      
     print("Running TF Gibbs sampler for %d chains with indices" % len(chainIndList), chainIndList)
     with tf.profiler.experimental.Profile('logdir') if flag_profile else nullcontext():
@@ -102,7 +125,7 @@ def run_gibbs_sampler(
         postList = [None] * len(chainIndList)
         
         for chainInd, chain in enumerate(chainIndList):
-            print("\n", "Computing chain %d" % chain)
+            print("\n", "Computing chain %d" % chain, flush=True)
             # print("outside seed %d" % (rng_seed + chain))
             # tf.keras.utils.set_random_seed(rng_seed + chain)
             # tf.print("outside tf.function:", tf.random.normal([1]))
@@ -142,10 +165,12 @@ def run_gibbs_sampler(
                 postList[chainInd][n] = parSnapshot
             
             elapsedTime = time.time() - startTime
-            print("\n", "%d chains completed in %.1f sec" % (chainInd+1, elapsedTime))
+            print("\n", "%d chains completed in %.1f sec" % (chainInd+1, elapsedTime), flush=True)
     
         elapsedTime = time.time() - startTime
-        print("\n", "Whole Gibbs sampler elapsed %.1f" % elapsedTime)
+        print("\n", "Whole Gibbs sampler elapsed %.1f" % elapsedTime, flush=True)
+
+    print_memory_consumption("END")
     
     if flag_save_postList_to_rds:
         save_chains_postList_to_rds(postList, postList_file_path, len(chainIndList), elapsedTime, flag_save_eta)
@@ -254,6 +279,16 @@ if __name__ == "__main__":
         choices=[32, 64],
         help="which precision mode is used for sampling: fp32 or fp64",
     )
+    argParser.add_argument(
+        "--lowmem",
+        action='store_true',
+        help="reduce memory consumption at the cost of slower execution",
+    )
+    argParser.add_argument(
+        "--eager",
+        action='store_true',
+        help="do eager execution",
+    )
 
     args = argParser.parse_args()
     print("args=%s" % args)
@@ -279,7 +314,9 @@ if __name__ == "__main__":
         flag_save_eta=bool(args.fse),
         flag_save_postList_to_rds=True,
         flag_profile=bool(args.profile),
+        lowmem=args.lowmem,
+        eager=args.eager,
         dtype=dtype,
     )
+    print("done", flush=True)
 
-print("done")
