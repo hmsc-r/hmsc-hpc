@@ -1,10 +1,10 @@
 import tensorflow as tf
 import os
 
-# Load the custom operator library
-lib_path = os.path.join(os.path.dirname(__file__), 'magma_cholesky.so')
+lib_path = os.environ.get('HMSC_TFOP_LIB')
+if lib_path is None:
+    raise RuntimeError("HMSC_TFOP_LIB environment variable is not set.")
 
-#magma_lib = tf.load_op_library('./magma_cholesky.so')
 magma_lib = tf.load_op_library(lib_path)
 def M_cholesky(input_tensor):
     """
