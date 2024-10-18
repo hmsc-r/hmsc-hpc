@@ -91,7 +91,7 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         A2 = tf.einsum("jik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
       A = A1 + A2
 
-      LiU = M_cholesky(iU)
+      LiU = tfla.cholesky(iU, name="LiU") # M_cholesky(iU)
       M = tfla.cholesky_solve(LiU, A, name="M")
       BetaLambda = tf.transpose(tf.squeeze(M + tfla.triangular_solve(LiU, tfr.normal([ns,na,1], dtype=dtype, name="BetaLambda.2"), adjoint=True), -1))
       BetaLambda = BetaLambda
