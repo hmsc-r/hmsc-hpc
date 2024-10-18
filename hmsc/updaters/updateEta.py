@@ -131,7 +131,7 @@ def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nK, nu, nf, 
     # idD1W12 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(idDW12g, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nu,nf*nK])
     
     Ast = LamInvSigLam + tfla.diag(tf.transpose(idDst))
-    LAst = M_cholesky(Ast)
+    LAst = tfla.cholesky(Ast, name="LAst") # M_cholesky(Ast)
     iAst = tfla.cholesky_solve(LAst, tf.eye(nf, batch_shape=[nu], dtype=dtype), name="iAst")
     W21idD_iA_idDW12 = tf.reshape(tf.einsum("hia,ihg,gib->hagb", idDW12st, iAst, idDW12st, name="W21idD_iA_idDW12"), [nf*nK]*2)
     H = Fmat - W21idD_iA_idDW12
