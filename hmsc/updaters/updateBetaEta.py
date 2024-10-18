@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from hmsc.ops import cholesky
 from hmsc.utils.tfla_utils import kron
 from hmsc.utils.tf_named_func import tf_named_func
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
@@ -83,12 +84,12 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
       
       Pi_Lam_iD_Lam = tf.scatter_nd(pi[:,None], Lam_iD_Lam, shape=[nv,nf,nf])
       A = tf.eye(nf,dtype=dtype) + Pi_Lam_iD_Lam
-      LA = tfla.cholesky(A)
+      LA = cholesky(A)
       iA = tfla.cholesky_solve(LA, tf.eye(nf,dtype=dtype))
       Lambda_iA_Lambdat = tf.einsum("hj,phg,gl->pjl", Lambda, iA, Lambda, name="Lambda_iA_Lambdat")
       U_2 = tf.reshape(tf.einsum("pjc,pjl,plk->jclk", Pi_iD_X, Lambda_iA_Lambdat, Pi_iD_X, name="U_2"), [ns*nc]*2)
       U = iS11 - U_2
-      LU = tfla.cholesky(U)
+      LU = cholesky(U)
       
       iLA_mu02 = tfla.triangular_solve(LA, tf.transpose(tf.reshape(mu02,[nf,nv,1]),[1,0,2]))
       iA_mu02 = tf.transpose(tf.squeeze(tfla.triangular_solve(LA, iLA_mu02, adjoint=True), -1))
@@ -116,12 +117,12 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
             B = iV + tf.einsum("ic,ij,ik->jck", X, iD, X)
           else:
             B = iV + tf.einsum("jic,ij,jik->jck", X, iD, X)
-          LB = tfla.cholesky(B)
+          LB = cholesky(B)
           iB = tfla.cholesky_solve(LB, tf.eye(nc,dtype=dtype))
           tmp1 = tf.einsum("pjc,jck,vjk->jpv", Pi_iD_X, iB, Pi_iD_X)
           W_2 = tf.reshape(tf.einsum("hj,jpv,gj->hpgv", Lambda, tmp1, Lambda), [nf*nv]*2)
           W = iS22 - W_2
-          LW = tfla.cholesky(W)
+          LW = cholesky(W)
           
           iB_mu01 = tf.squeeze(tfla.cholesky_solve(LB, tf.reshape(mu01,[ns,nc,1])), -1)
           if len(X.shape.as_list()) == 2:
@@ -149,7 +150,7 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
           iS1 = tf.concat([iS11, tfla.matrix_transpose(iS21)], -1)
           iS2 = tf.concat([iS21, iS22], -1)
           iS = tf.concat([iS1, iS2], -2)
-          LiS = tfla.cholesky(iS)
+          LiS = cholesky(iS)
           
           mu0 = tf.concat([mu01,mu02], 0)
           mu1 = tfla.triangular_solve(LiS, mu0[:,None], name="mu1")

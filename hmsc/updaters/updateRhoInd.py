@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from hmsc.ops import cholesky
 from hmsc.utils.tf_named_func import tf_named_func
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 tfd = tfp.distributions
@@ -33,7 +34,7 @@ def updateRhoInd(params, data, priorHyperparams, dtype=np.float64):
     Mu = tf.matmul(Gamma, T, transpose_b=True)
     E = Beta - Mu
     E_VC = tf.matmul(E, VC)
-    LiV = tfla.cholesky(iV)
+    LiV = cholesky(iV)
     logDetV = -2 * tf.reduce_sum(tfm.log(tfla.diag_part(LiV)))
     
     for k in range(rhoN):

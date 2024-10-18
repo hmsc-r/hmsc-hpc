@@ -1,5 +1,6 @@
 import numpy as np
 import tensorflow as tf
+from hmsc.ops import cholesky
 from hmsc.utils.tf_named_func import tf_named_func
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 
@@ -43,7 +44,7 @@ def updatewRRR(params, modelDims, modelData, rLHyperparams, dtype=tf.float64):
     BetaRRR_iD_BetaRRRT = tf.einsum("hj,ij,gj->ihg", BetaRRR, iD, BetaRRR)
     QtiDQ = tf.reshape(tf.einsum("ic,ihg,ik->chkg", XRRR, BetaRRR_iD_BetaRRRT, XRRR), [ncORRR*ncRRR]*2)
     iU = tfla.diag(tf.reshape(tf.einsum("hk,h->kh", PsiRRR, tfm.cumprod(DeltaRRR)), [ncORRR*ncRRR])) + QtiDQ
-    LiU = tfla.cholesky(iU)
+    LiU = cholesky(iU)
     mu0 = tf.reshape(tf.einsum("hj,ij,ik->kh", BetaRRR, iD*S, XRRR), [ncORRR*ncRRR,1])
     mu = tfla.cholesky_solve(LiU, mu0)
     w = mu + tfla.triangular_solve(LiU, tfr.normal([ncORRR*ncRRR,1], dtype=dtype), adjoint=True)

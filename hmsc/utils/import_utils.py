@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from scipy import sparse
+from hmsc.ops import cholesky
 
 tfla, tfr, tfs, tfm = tf.linalg, tf.random, tf.sparse, tf.math
 
@@ -129,11 +130,11 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 tmp = distMat / rLPar["alphapw"][:,0,None,None]
                 tmp[np.isnan(tmp)] = 0
                 rLPar["Wg"] = np.exp(-tmp)
-                LWg = tfla.cholesky(rLPar["Wg"])
+                LWg = cholesky(rLPar["Wg"])
                 print("ARRAY DIMS", tf.size(LWg), "    ", tf.shape(LWg))
                 print("SECOND ARRAY DIMS", tf.size(tf.eye(npVec[r], npVec[r], [gN], dtype)), "    ", tf.shape(tf.eye(npVec[r], npVec[r], [gN], dtype)))
                 rLPar["iWg"] = tfla.cholesky_solve(LWg, tf.eye(npVec[r], npVec[r], [gN], dtype))
-                rLPar["LiWg"] = tfla.cholesky(rLPar["iWg"])
+                rLPar["LiWg"] = cholesky(rLPar["iWg"])
                 rLPar["detWg"] = 2*tf.reduce_sum(tfm.log(tfla.diag_part(LWg)), -1)
 
             elif rLPar["spatialMethod"] == "GPP":
@@ -146,12 +147,12 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 W22 = d22 / rLPar["alphapw"][:,0,None,None]
                 W22[np.isnan(W22)] = 0
                 W22 = tf.exp(-W22)
-                LW22 = tfla.cholesky(W22)
+                LW22 = cholesky(W22)
                 iW22 = tfla.cholesky_solve(LW22, tf.eye(nK, nK, [gN], dtype))
                 dD = 1 - tf.einsum("gik,gkh,gih->gi", W12, iW22, W12)
                 idD = dD**-1
                 F = W22 + tf.einsum("gik,gi,gih->gkh", W12, idD, W12)
-                LF = tfla.cholesky(F)
+                LF = cholesky(F)
                 iDW12 = tf.einsum("gi,gik->gik", idD, W12)
                 detD = tf.reduce_sum(tfm.log(dD), -1) - 2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1) + \
                   2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
@@ -160,7 +161,7 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 rLPar["idDg"] = idD
                 rLPar["idDW12g"] = iDW12
                 rLPar["Fg"] = F
-                rLPar["iFg"] = tfla.cholesky_solve(tf.cast(tfla.cholesky(F), dtype=dtype), tf.eye(nK, nK, [gN], dtype))
+                rLPar["iFg"] = tfla.cholesky_solve(tf.cast(cholesky(F), dtype=dtype), tf.eye(nK, nK, [gN], dtype))
                 rLPar["detDg"] = detD
                 
             elif rLPar["spatialMethod"] == "NNGP":

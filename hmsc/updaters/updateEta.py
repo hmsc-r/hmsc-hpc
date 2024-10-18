@@ -2,8 +2,8 @@ import numpy as np
 import tensorflow as tf
 from scipy.sparse.linalg import splu, spsolve_triangular
 from scipy.sparse import csc_matrix, csr_matrix, coo_matrix, block_diag
+from hmsc.ops import cholesky
 from hmsc.utils.tf_named_func import tf_named_func
-from hmsc.magma_cholesky.magmafunc import M_cholesky
 tfla, tfm, tfr, tfs = tf.linalg, tf.math, tf.random, tf.sparse
 
 @tf_named_func("eta")
@@ -94,7 +94,7 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
 def modelNonSpatialCommon(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     # tf.print("using common Eta sampler option")
     iV = tf.eye(nf, dtype=dtype) + LamInvSigLam
-    LiV = tfla.cholesky(iV, name="LiV")
+    LiV = cholesky(iV, name="LiV")
     mu1 = tfla.triangular_solve(LiV, tfla.matrix_transpose(mu0), name="mu1")
     Eta = tfla.matrix_transpose(tfla.triangular_solve(LiV, mu1 + tfr.normal([nf,np], dtype=dtype), adjoint=True))
     return Eta
@@ -102,10 +102,10 @@ def modelNonSpatialCommon(LamInvSigLam, mu0, np, nf, dtype=np.float64):
 
 def modelNonSpatial(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     iV = tf.eye(nf, dtype=dtype) + LamInvSigLam
-    LiV = tfla.cholesky(iV, name="LiV")
+    LiV = cholesky(iV, name="LiV")
     # LamInvSigLam_u, LamInvSigLam_id = tf.raw_ops.UniqueV2(x=LamInvSigLam, axis=[0])
     # iV_u = tf.eye(nf, dtype=dtype) + LamInvSigLam_u
-    # LiV_u = tfla.cholesky(iV_u)
+    # LiV_u = cholesky(iV_u)
     # LiV = tf.gather(LiV_u, LamInvSigLam_id)
     mu1 = tfla.triangular_solve(LiV, tf.expand_dims(mu0, -1), name="mu1")
     Eta = tf.squeeze(tfla.triangular_solve(LiV, mu1 + tfr.normal([np,nf,1], dtype=dtype), adjoint=True, name="Eta"), -1)
@@ -116,7 +116,7 @@ def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64)
     #TODO a lot of unnecessary tanspositions - rework if considerably affects perfomance
     iWs = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(iWg, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*np,nf*np])
     iUEta = iWs + tf.reshape(tf.transpose(tfla.diag(tf.transpose(LamInvSigLam, [1,2,0])), [0,2,1,3]), [nf*np,nf*np])
-    LiUEta = M_cholesky(iUEta)
+    LiUEta = cholesky(iUEta, name="LiUEta")
     mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf*np,1]), name="mu1")
     eta = tfla.triangular_solve(LiUEta, mu1 + tfr.normal([nf*np,1], dtype=dtype), adjoint=True, name="eta")
     Eta = tf.transpose(tf.reshape(eta, [nf,np]))
@@ -131,11 +131,11 @@ def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nK, nu, nf, 
     # idD1W12 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(idDW12g, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nu,nf*nK])
     
     Ast = LamInvSigLam + tfla.diag(tf.transpose(idDst))
-    LAst = tfla.cholesky(Ast, name="LAst") # M_cholesky(Ast)
+    LAst = cholesky(Ast, name="LAst")
     iAst = tfla.cholesky_solve(LAst, tf.eye(nf, batch_shape=[nu], dtype=dtype), name="iAst")
     W21idD_iA_idDW12 = tf.reshape(tf.einsum("hia,ihg,gib->hagb", idDW12st, iAst, idDW12st, name="W21idD_iA_idDW12"), [nf*nK]*2)
     H = Fmat - W21idD_iA_idDW12
-    LH = M_cholesky(H)
+    LH = cholesky(H)
 
     # iA_mu0 = tf.squeeze(tfla.triangular_solve(LAst, tfla.triangular_solve(LAst, mu0[:,:,None]), adjoint=True), -1)
     iA_mu0 = tf.einsum("ihg,ih->ig", iAst, mu0, name="iA_mu0")

@@ -1,6 +1,7 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
+from hmsc.ops import cholesky
 from hmsc.utils.tf_named_func import tf_named_func
 tfm, tfla, tfd, tfb = tf.math, tf.linalg, tfp.distributions, tfp.bijectors
 
@@ -30,11 +31,11 @@ def logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, P
   
   V0 = priorHyperparams["V0"]
   f0 = priorHyperparams["f0"]
-  LiV0 = tfla.cholesky(tfla.inv(V0))
+  LiV0 = cholesky(tfla.inv(V0))
   logPriorV = tfd.WishartTriL(f0, LiV0).log_prob(tf.matmul(LiV,LiV,transpose_b=True))
   mGamma = priorHyperparams["mGamma"]
   iUGamma = priorHyperparams["iUGamma"]
-  logPriorGamma = tfd.MultivariateNormalTriL(mGamma, tfla.cholesky(iUGamma)).log_prob(tf.reshape(tfla.matrix_transpose(Gamma), [-1]))
+  logPriorGamma = tfd.MultivariateNormalTriL(mGamma, cholesky(iUGamma)).log_prob(tf.reshape(tfla.matrix_transpose(Gamma), [-1]))
   logProbFix = tf.reduce_sum(logLikeBeta) + logPriorV + logPriorGamma
   
   logLikeEtaList = []
@@ -99,7 +100,7 @@ def updateHMC(params, data, priorHyperparams, rLHyperparams, num_leapfrog_steps=
     DeltaList = params["Delta"]
     distr = data["distr"]
     nr = len(EtaList)
-    LiV = tfla.cholesky(params["iV"])
+    LiV = cholesky(params["iV"])
     # log_prob = logProb(Beta, Gamma, LiV, sigma, EtaList, LambdaList, DeltaList, Y, X, Tr, Pi, priorHyperparams, rLHyperparams, dtype=dtype)
     # tf.print(log_prob)
     # aaa

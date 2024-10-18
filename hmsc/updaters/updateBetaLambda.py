@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from hmsc.utils.tf_named_func import tf_named_func
-from hmsc.magma_cholesky.magmafunc import M_cholesky
+from hmsc.ops import cholesky
 import os
 tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
 @tf_named_func("betaLambda")
@@ -91,7 +91,7 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         A2 = tf.einsum("jik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
       A = A1 + A2
 
-      LiU = tfla.cholesky(iU, name="LiU") # M_cholesky(iU)
+      LiU = cholesky(iU, name="LiU")
       M = tfla.cholesky_solve(LiU, A, name="M")
       BetaLambda = tf.transpose(tf.squeeze(M + tfla.triangular_solve(LiU, tfr.normal([ns,na,1], dtype=dtype, name="BetaLambda.2"), adjoint=True), -1))
       BetaLambda = BetaLambda
@@ -117,7 +117,7 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         m0 = tf.matmul(iK, tf.reshape(Mu, [na*ns,1])) + tf.reshape(tf.einsum("jik,ij->kj", XE, iD*Z, name="m0.2"), [na*ns,1])
       
       iU = iK + tf.reshape(tf.transpose(tfla.diag(XE_iD_XET), [0,2,1,3]), [na*ns]*2)
-      LiU = M_cholesky(iU)        
+      LiU = cholesky(iU)
       m = tfla.cholesky_solve(LiU, m0)
       BetaLambda = tf.reshape(m + tfla.triangular_solve(LiU, tfr.normal(shape=[na*ns,1], dtype=dtype), adjoint=True), [na,ns])
     
