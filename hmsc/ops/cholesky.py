@@ -3,18 +3,34 @@ import os
 
 lib_path = os.environ.get('HMSC_TFOP_LIB')
 if lib_path is None:
-    raise RuntimeError("HMSC_TFOP_LIB environment variable is not set.")
+    print("WARNING: HMSC_TFOP_LIB environment variable is not set.", flush=True)
+    CUSTOM_TFOP_LIB = None
+else:
+    CUSTOM_TFOP_LIB = tf.load_op_library(lib_path)
+    MAGMA_SWITCHSIZE = int(os.environ.get('HMSC_MAGMA_SWITCHSIZE', 1000))
+    print(f"Using custom TensorFlow operators from {lib_path} with MAGMA_SWITCHSIZE={MAGMA_SWITCHSIZE}", flush=True)
 
-magma_lib = tf.load_op_library(lib_path)
-def M_cholesky(input_tensor):
-    """
-    Applies the custom Cholesky decomposition operator on the input tensor.
+
+def cholesky(tensor, *, name=None):
+    """Computes the Cholesky decomposition of one or more square matrices.
+
+    Uses the custom operator for large enough matrices.
 
     Args:
-        input_tensor (tf.Tensor): The input matrix or array of matrices to decompose. With larger matrices arrays are slower.
+        tensor: Input tensor. Shape [..., M, M].
+        name: The name for the operation.
 
     Returns:
-        tf.Tensor: The Cholesky decomposition of the input tensor.
+        The Cholesky decomposition of the input tensor.
     """
-    return magma_lib.magma_cholesky(input_tensor)
+    print(f'cholesky shape: {tensor.shape} name: {name}', flush=True)
+    if CUSTOM_TFOP_LIB is None:
+        return tf.linalg.cholesky(tensor, name=name)
+
+    M = tensor.shape[-1]  # static shape
+    if M is None:
+        M = tf.shape(tensor)[-1]  # dynamic shape
+    if M > MAGMA_SWITCHSIZE:
+        return CUSTOM_TFOP_LIB.magma_cholesky(tensor, name=name)
+    return tf.linalg.cholesky(tensor, name=name)
 
