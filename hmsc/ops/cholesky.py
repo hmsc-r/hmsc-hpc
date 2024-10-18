@@ -7,8 +7,10 @@ if lib_path is None:
     CUSTOM_TFOP_LIB = None
 else:
     CUSTOM_TFOP_LIB = tf.load_op_library(lib_path)
-    MAGMA_SWITCHSIZE = int(os.environ.get('HMSC_MAGMA_SWITCHSIZE', 1000))
-    print(f"Using custom TensorFlow operators from {lib_path} with MAGMA_SWITCHSIZE={MAGMA_SWITCHSIZE}", flush=True)
+    CHOLESKY_MAGMA_SWITCHSIZE = int(os.environ.get("HMSC_CHOLESKY_MAGMA_SWITCHSIZE", 1000))
+    print(f"Using custom TensorFlow operators from {lib_path} with "
+          f"CHOLESKY_MAGMA_SWITCHSIZE={CHOLESKY_MAGMA_SWITCHSIZE}",
+          flush=True)
 
 
 def cholesky(tensor, *, name=None):
@@ -30,7 +32,7 @@ def cholesky(tensor, *, name=None):
     M = tensor.shape[-1]  # static shape
     if M is None:
         M = tf.shape(tensor)[-1]  # dynamic shape
-    if M > MAGMA_SWITCHSIZE:
+    if M > CHOLESKY_MAGMA_SWITCHSIZE:
         return CUSTOM_TFOP_LIB.magma_cholesky(tensor, name=name)
     return tf.linalg.cholesky(tensor, name=name)
 
