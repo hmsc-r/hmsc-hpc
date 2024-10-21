@@ -25,7 +25,6 @@ def cholesky(tensor, *, name=None):
     Returns:
         The Cholesky decomposition of the input tensor.
     """
-    print(f'cholesky shape: {tensor.shape} name: {name}', flush=True)
     if CUSTOM_TFOP_LIB is None:
         return tf.linalg.cholesky(tensor, name=name)
 
