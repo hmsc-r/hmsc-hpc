@@ -11,7 +11,7 @@ TF_LFLAGS := $(shell python -c 'import tensorflow as tf; print(" ".join(tf.sysco
 PYTHON_INCLUDES := $(shell python3-config --includes)
 
 # Directory for magma_cholesky files
-SRC_DIR = hmsc/magma_cholesky
+SRC_DIR = .
 
 # Kernel file and library output in src/magma_cholesky
 KERNEL_SRC = $(SRC_DIR)/magma_cholesky.cu.cc
