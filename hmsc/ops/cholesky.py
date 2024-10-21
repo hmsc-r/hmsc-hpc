@@ -3,7 +3,7 @@ import os
 
 lib_path = os.environ.get('HMSC_TFOP_LIB')
 if lib_path is None:
-    print("WARNING: HMSC_TFOP_LIB environment variable is not set.", flush=True)
+    print("Using default TensorFlow operators (HMSC_TFOP_LIB is not set).", flush=True)
     CUSTOM_TFOP_LIB = None
 else:
     CUSTOM_TFOP_LIB = tf.load_op_library(lib_path)
