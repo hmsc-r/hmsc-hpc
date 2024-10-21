@@ -1,1 +1,1 @@
-from .cholesky import cholesky
+from ._cholesky import cholesky
