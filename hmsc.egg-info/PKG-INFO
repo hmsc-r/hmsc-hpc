@@ -1,12 +1,12 @@
 Metadata-Version: 2.1
 Name: hmsc
-Version: 0.1.0
+Version: 0.2.0
 Author: [removed for review]
 License: GPLv3+
 Requires-Dist: numpy
 Requires-Dist: pandas
 Requires-Dist: pyreadr
 Requires-Dist: scipy
-Requires-Dist: tensorflow==2.15.0
-Requires-Dist: tensorflow-probability==0.23.0
+Requires-Dist: tensorflow[and-cuda]
+Requires-Dist: tensorflow-probability[tf]
 Requires-Dist: ujson

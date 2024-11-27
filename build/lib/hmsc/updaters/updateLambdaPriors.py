@@ -53,6 +53,7 @@ def updateLambdaPriors(params, rLHyperparams, dtype=np.float64):
                 bd = bDelta[h, :] + 0.5 * tf.reduce_sum(Tau[h:, :] * rowSumM[h:, None], 0) / Delta[h, :]
                 Delta = tf.tensor_scatter_nd_update(Delta, [[h]], tfr.gamma([1], ad, bd, dtype=dtype))
             DeltaNew[r] = Delta
+            PsiNew[r] = tf.ensure_shape(PsiNew[r], [None, ns])         
         else:
             PsiNew[r] = tf.zeros([0, ns], dtype)
             DeltaNew[r] = tf.zeros([0, 1], dtype)
