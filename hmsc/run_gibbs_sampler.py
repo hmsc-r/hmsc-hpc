@@ -14,25 +14,20 @@ from hmsc.utils.import_utils import (
     load_model_data,
     load_prior_hyperparams,
     load_random_level_hyperparams,
-    load_model_hyperparams,
     init_params,
 )
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 
-def load_params(file_path, dtype=np.float64):
+def load_params(file_path, flag_fast_phylo_batched=True, dtype=np.float64):
     hmscImport, hmscModel = load_model_from_rds(file_path)
     modelDims = load_model_dims(hmscModel)
-    modelData = load_model_data(hmscModel, hmscImport.get("initParList"), dtype)
+    modelData = load_model_data(hmscModel, hmscImport.get("initParList"), flag_fast_phylo_batched, dtype)
     priorHyperparams = load_prior_hyperparams(hmscModel, dtype)
-    # currently not used at all
-    # modelHyperparams = load_model_hyperparams(hmscModel, hmscImport.get("dataParList"))
-    modelHyperparams = None
     rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"), dtype)
     initParList = init_params(hmscImport.get("initParList"), modelData, modelDims, rLHyperparams, dtype)
     nChains = int(hmscImport.get("nChains")[0])
-  
-    return modelDims, modelData, priorHyperparams, modelHyperparams, rLHyperparams, initParList, nChains
+    return modelDims, modelData, priorHyperparams, rLHyperparams, initParList, nChains
 
 
 def run_gibbs_sampler(
@@ -46,6 +41,7 @@ def run_gibbs_sampler(
     rng_seed=0,
     hmc_leapfrog_steps=10,
     hmc_thin=10,
+    flag_fast_phylo_batched=True,
     flag_update_beta_eta=True,
     truncated_normal_library="tf",
     flag_save_eta=True,
@@ -57,11 +53,10 @@ def run_gibbs_sampler(
         modelDims,
         modelData,
         priorHyperparams,
-        modelHyperparams, #this precomputed one (e.g. Qg) is currently not used and is computed at runtime
         rLHyperparams,
         initParList,
         nChainsTotal,
-    ) = load_params(init_obj_file_path, dtype)
+    ) = load_params(init_obj_file_path, flag_fast_phylo_batched, dtype)
     gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
     
     if chainIndList is None:
@@ -87,6 +82,7 @@ def run_gibbs_sampler(
         verbose=verbose,
         hmc_leapfrog_steps=hmc_leapfrog_steps,
         hmc_thin=hmc_thin,
+        flag_fast_phylo_batched=flag_fast_phylo_batched,
         flag_update_beta_eta=flag_update_beta_eta,
         truncated_normal_library=truncated_normal_library,
         flag_save_eta=flag_save_eta,
@@ -115,6 +111,7 @@ def run_gibbs_sampler(
                 verbose=verbose,
                 hmc_leapfrog_steps=hmc_leapfrog_steps,
                 hmc_thin=hmc_thin,
+                flag_fast_phylo_batched=flag_fast_phylo_batched,
                 flag_update_beta_eta=flag_update_beta_eta,
                 truncated_normal_library=truncated_normal_library,
                 flag_save_eta=flag_save_eta,
@@ -217,6 +214,12 @@ if __name__ == "__main__":
         help="number of iterations between HMC conditional updater calls, zero will disable HMC",
     )
     argParser.add_argument(
+        "--fpb",
+        type=int,
+        default=1,
+        help="whether to use batched implementation for fast phylogeny utils)",
+    )
+    argParser.add_argument(
         "--updbe",
         type=int,
         default=0,
@@ -260,7 +263,6 @@ if __name__ == "__main__":
     print("working directory", os.getcwd())
     init_obj_file_path = args.input
     postList_file_path = args.output
-
     dtype = np.float32 if args.fp == 32 else np.float64
 
     run_gibbs_sampler(
@@ -274,6 +276,7 @@ if __name__ == "__main__":
         rng_seed=args.rngseed,
         hmc_leapfrog_steps=args.hmcleapfrog,
         hmc_thin=args.hmcthin,
+        flag_fast_phylo_batched=bool(args.fpb),
         flag_update_beta_eta=bool(args.updbe),
         truncated_normal_library=args.tnlib,
         flag_save_eta=bool(args.fse),

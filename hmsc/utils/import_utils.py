@@ -1,114 +1,112 @@
 import numpy as np
 import tensorflow as tf
 from scipy import sparse
-
+from hmsc.utils.fast_phylo_utils import recFunDepth, recFunBalanceDepth
 tfla, tfr, tfs, tfm = tf.linalg, tf.random, tf.sparse, tf.math
 
 
-def load_model_data(hmscModel, importedInitParList, dtype=np.float64):
+def load_model_data(hmscModel, importedInitParList, flag_fast_phylo_batched=True, dtype=np.float64):
+  Y = np.asarray(hmscModel.get("YScaled")).astype(dtype)
+  Loff = hmscModel.get("Loff")
+  Loff = None if Loff is None else np.asarray(Loff).astype(dtype)
+  if isinstance(hmscModel.get("XScaled"), dict):
+    X = np.stack([np.asarray(hmscModel.get("XScaled")[x]) for x in hmscModel.get("XScaled")], 0)
+  else:
+    X = np.asarray(hmscModel.get("XScaled"))
+  T = np.asarray(hmscModel.get("TrScaled")).astype(dtype)
+  Pi = np.asarray(hmscModel.get("Pi")).astype(int) - 1
+  distr = np.asarray(hmscModel.get("distr")).astype(int)
+  modelData = dict(zip(["Y","Loff","X","T","distr","Pi"], [Y,Loff,X,T,distr,Pi]))
+  
+  phyloFlag = bool(hmscModel.get("phyloFlag")[0])
+  phyloFast = bool(hmscModel.get("phyloFast")[0])
+  if phyloFast:
+    phyloTreeRoot = int(hmscModel.get("phyloTreeRoot")[0]) - 1
+    phyloTreeImport = hmscModel.get("phyloTreeList")
+    phyloTreeList = [None] * len(phyloTreeImport)
+    for i, node in enumerate(phyloTreeImport):
+      phyloTreeList[i] = dict()
+      phyloTreeList[i]["n"] = int(node["n"][0])
+      if phyloTreeList[i]["n"] == 0:
+        phyloTreeList[i]["child"] = np.zeros([0], int)
+        phyloTreeList[i]["edgeLen"] = np.zeros([0], int)
+      else:
+        phyloTreeList[i]["child"] = np.asarray(node["child"]) - 1
+        phyloTreeList[i]["edgeLen"] = np.asarray(node["edgeLen"])
+      phyloTreeList[i]["parent"] = int(node["parent"][0] - 1)
+      phyloTreeList[i]["parentEdgeLen"] = node["parentEdgeLen"][0]
+    
+    phyloTreeDepth = recFunDepth(phyloTreeRoot, phyloTreeList)
+    if flag_fast_phylo_batched == True:
+      origTreeLen = len(phyloTreeList)
+      recFunBalanceDepth(phyloTreeRoot, phyloTreeList)
+      balancedTreeLen = len(phyloTreeList)
+      print("Original tree had %d nodes, balanced tree has %d nodes" % (origTreeLen, balancedTreeLen))
+  else:
+    phyloTreeRoot = phyloTreeList = phyloTreeDepth = None
 
-    Y = np.asarray(hmscModel.get("YScaled")).astype(dtype)
-    Loff = hmscModel.get("Loff")
-    T = np.asarray(hmscModel.get("TrScaled")).astype(dtype)
-    C_import = hmscModel.get("C")
-    if isinstance(hmscModel.get("XScaled"), dict):
-        X = np.stack([np.asarray(hmscModel.get("XScaled")[x]) for x in hmscModel.get("XScaled")], 0)
-    else:
-        X = np.asarray(hmscModel.get("XScaled"))
-    rhoGroup = np.asarray([0] * X.shape[-1])  # TODO replace once implemented in R as well
-    # rhoGroup = np.asarray(hmscModel.get("rhoGroup")).astype(int) - 1
-    Pi = np.asarray(hmscModel.get("Pi")).astype(int) - 1
-    distr = np.asarray(hmscModel.get("distr")).astype(int)
+  covRhoGroup = np.asarray(hmscModel.get("covRhoGroup")).astype(int) - 1
+  modelData.update(dict(zip(["phyloFlag","phyloFast","phyloTreeList","phyloTreeRoot","phyloTreeDepth","covRhoGroup"], 
+                            [phyloFlag,phyloFast,phyloTreeList,phyloTreeRoot,phyloTreeDepth,covRhoGroup])))
+  C_import = hmscModel.get("C")
+  if C_import is None or len(C_import) == 0:
+    modelData.update(dict(zip(["C","eC","VC"], [None, None, None])))
+  else:
+    C = np.asarray(C_import).astype(dtype)
+    modelData.update(dict(zip(["C","eC","VC"], (C,) + np.linalg.eigh(C))))
+    
+  ny = int(hmscModel.get("ny")[0])
+  ncsel = int(hmscModel.get("ncsel")[0])
+  XSel = [None] * ncsel
+  for i in range(ncsel):
+    covGroup = np.array(hmscModel["XSelect"][i]["covGroup"]).astype(int) - 1
+    spGroup = np.array(hmscModel["XSelect"][i]["spGroup"]).astype(int) - 1
+    q = np.array(hmscModel["XSelect"][i]["q"]).astype(dtype)
+    XSel[i] = dict(zip(["covGroup","spGroup","q"], [covGroup,spGroup,q]))
+  modelData["XSel"] = XSel
 
-    modelData = {}
-    modelData["Y"] = Y
-    modelData["Loff"] = None if Loff is None else np.asarray(Loff).astype(dtype)
-    modelData["X"] = X
-    modelData["T"] = T
-    if C_import is None or len(C_import) == 0:
-        modelData["C"], modelData["eC"], modelData["VC"] = None, None, None
-    else:
-        C = np.asarray(C_import).astype(dtype)
-        modelData["C"] = C
-        modelData["eC"], modelData["VC"] = np.linalg.eigh(C)  # TODO replace once implemented in R as well
-    modelData["rhoGroup"] = rhoGroup
-    modelData["Pi"] = Pi
-    modelData["distr"] = distr
-
-    ny = int(hmscModel.get("ny")[0])
-    ncsel = int(hmscModel.get("ncsel")[0])
-    XSel = [{} for i in range(ncsel)]
-    for i in range(ncsel):
-        covGroup = np.array(hmscModel["XSelect"][i]["covGroup"]).astype(int) - 1
-        spGroup = np.array(hmscModel["XSelect"][i]["spGroup"]).astype(int) - 1
-        q = np.array(hmscModel["XSelect"][i]["q"]).astype(dtype)
-        XSel[i]["covGroup"] = covGroup
-        XSel[i]["spGroup"] = spGroup
-        XSel[i]["q"] = q
-    modelData["XSel"] = XSel
-
-    # ncRRR = int(hmscModel.get("ncRRR")[0])
-    if ("XRRRScaled" in hmscModel) and bool(hmscModel["XRRRScaled"]):
-      XRRR = np.asarray(hmscModel["XRRRScaled"]).astype(dtype)
-    else:
-      XRRR = np.zeros([ny,0], dtype)
-    modelData["XRRR"] = XRRR
-
-    return modelData
+  # ncRRR = int(hmscModel.get("ncRRR")[0])
+  if ("XRRRScaled" in hmscModel) and bool(hmscModel["XRRRScaled"]):
+    XRRR = np.asarray(hmscModel["XRRRScaled"]).astype(dtype)
+  else:
+    XRRR = np.zeros([ny,0], dtype)
+  modelData["XRRR"] = XRRR
+  return modelData
 
 
 def load_model_dims(hmscModel):
+  ny = int(hmscModel.get("ny")[0])
+  ns = int(hmscModel.get("ns")[0])
+  nc = int(hmscModel.get("nc")[0])
+  nt = int(hmscModel.get("nt")[0])
+  nr = int(hmscModel.get("nr")[0])
+  npVec = np.array(hmscModel.get("np"), int)
+  ncsel = int(hmscModel.get("ncsel")[0])
+  ncRRR = int(hmscModel.get("ncRRR")[0])
+  ncNRRR = int(hmscModel.get("ncNRRR")[0])
+  ncORRR = int(hmscModel.get("ncORRR")[0])
+  nuRRR = int(hmscModel.get("nuRRR")[0])
+  rhoLen = int(hmscModel.get("rhoLen")[0])
 
-    ny = int(hmscModel.get("ny")[0])
-    ns = int(hmscModel.get("ns")[0])
-    nc = int(hmscModel.get("nc")[0])
-    nt = int(hmscModel.get("nt")[0])
-    nr = int(hmscModel.get("nr")[0])
-    npVec = np.array(hmscModel.get("np"), int)
-    ncsel = int(hmscModel.get("ncsel")[0])
-    ncRRR = int(hmscModel.get("ncRRR")[0])
-    ncNRRR = int(hmscModel.get("ncNRRR")[0])
-    ncORRR = int(hmscModel.get("ncORRR")[0])
-    nuRRR = int(hmscModel.get("nuRRR")[0])
-
-    modelDims = {}
-    modelDims["ny"] = ny
-    modelDims["ns"] = ns
-    modelDims["nc"] = nc
-    modelDims["nt"] = nt
-    modelDims["nr"] = nr
-    modelDims["np"] = npVec
-    modelDims["ncsel"] = ncsel
-    modelDims["ncRRR"] = ncRRR
-    modelDims["ncNRRR"] = ncNRRR
-    modelDims["ncORRR"] = ncORRR
-    modelDims["nuRRR"] = nuRRR
-
-    return modelDims
-
-
-def load_model_hyperparams(hmscModel, dataParList, dtype=np.float64):
-
-    ns = int(np.squeeze(hmscModel.get("ns")))
-
-    dataParams = {}
-    if len(dataParList["Qg"]) == (ns * ns):  # TODO. need to review this condition
-        dataParams["Qg"] = np.reshape(dataParList["Qg"], (ns, ns))
-        dataParams["iQg"] = np.reshape(dataParList["iQg"], (ns, ns))
-        dataParams["RQg"] = np.reshape(dataParList["RQg"], (ns, ns))
-    else:
-        dataParams["Qg"] = np.reshape(dataParList["Qg"], (101, ns, ns))
-        dataParams["iQg"] = np.reshape(dataParList["iQg"], (101, ns, ns))
-        dataParams["RQg"] = np.reshape(dataParList["RQg"], (101, ns, ns))
-
-    return dataParams
+  modelDims = {}
+  modelDims["ny"] = ny
+  modelDims["ns"] = ns
+  modelDims["nc"] = nc
+  modelDims["nt"] = nt
+  modelDims["nr"] = nr
+  modelDims["np"] = npVec
+  modelDims["ncsel"] = ncsel
+  modelDims["ncRRR"] = ncRRR
+  modelDims["ncNRRR"] = ncNRRR
+  modelDims["ncORRR"] = ncORRR
+  modelDims["nuRRR"] = nuRRR
+  modelDims["rhoLen"] = rhoLen
+  return modelDims
 
 
 def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
-
     nr = int(np.squeeze(hmscModel.get("nr")))
     npVec = hmscModel.get("np")
-
     rLParams = [None] * nr
     for r in range(nr):
         rLName = list(hmscModel.get("rL").keys())[r]
@@ -206,7 +204,6 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
 
 
 def load_prior_hyperparams(hmscModel, dtype=np.float64):
-
     mGamma = np.asarray(hmscModel.get("mGamma")).astype(dtype)
     UGamma = np.asarray(hmscModel.get("UGamma")).astype(dtype)
     f0 = np.squeeze(hmscModel.get("f0")).astype(dtype)
@@ -246,7 +243,7 @@ def init_params(importedInitParList, modelData, modelDims, rLHyperparams, dtype=
         Beta = tf.constant(importedInitPar["Beta"], dtype=dtype)
         Gamma = tf.constant(importedInitPar["Gamma"], dtype=dtype)
         iV = tfla.inv(tf.constant(importedInitPar["V"], dtype=dtype))
-        rhoInd = (tf.cast(tf.constant(importedInitPar["rho"]), tf.int32) - 1)  # TODO replace once implemented in R as well
+        rhoInd = (tf.cast(tf.constant(importedInitPar["rhoInd"]), tf.int32) - 1)
         sigma = tf.constant(importedInitPar["sigma"], dtype=dtype)
         EtaList = [tf.constant(Eta, dtype=dtype) for Eta in importedInitPar["Eta"]]
         AlphaIndList = [tf.cast(tf.constant(AlphaInd), tf.int32) - 1 for AlphaInd in importedInitPar["Alpha"]]

@@ -18,9 +18,8 @@ from hmsc.updaters.updateHMC import updateHMC
 tfm = tf.math
 
 
-class GibbsSampler(tf.Module):
+class GibbsSampler():
     def __init__(self, modelDims, modelData, priorHyperparams, rLHyperparams):
-
         self.modelDims = modelDims
         self.modelData = modelData
         self.priorHyperparams = priorHyperparams
@@ -45,6 +44,7 @@ class GibbsSampler(tf.Module):
         verbose=1,
         hmc_leapfrog_steps=10,
         hmc_thin=10,
+        flag_fast_phylo_batched=True,
         flag_update_beta_eta=True,
         truncated_normal_library="tf",
         flag_save_eta=True,
@@ -98,9 +98,6 @@ class GibbsSampler(tf.Module):
           hmc_burnin = 0
           hmc_ss, hmc_las, hmc_es = [tf.constant(0, dtype)] * 3
 
-        # print(self.modelData["distr"])          
-        # print(self.modelData["Y"][:,-8:])          
-        # print(params["Z"].numpy()[:,-8:])
         tf.print("sampling")
         for n in tf.range(step_num):
             tf.autograph.experimental.set_loop_options(
@@ -149,7 +146,7 @@ class GibbsSampler(tf.Module):
               tf.print("Z", tf.reduce_sum(tf.cast(tfm.is_nan(params["Z"]), tf.int32)))
               tf.print("iD", tf.reduce_sum(tf.cast(tfm.is_nan(params["iD"]), tf.int32)))
             
-            params["Beta"], params["Lambda"] = updateBetaLambda(params, self.modelData, self.priorHyperparams, dtype)
+            params["Beta"], params["Lambda"] = updateBetaLambda(params, self.modelData, self.priorHyperparams, flag_fast_phylo_batched, tf.constant(1,dtype), dtype)
             if print_debug_flag:
               tf.print("Beta", tf.reduce_sum(tf.cast(tfm.is_nan(params["Beta"]) | (tf.abs(params["Beta"]) > 1e9), tf.int32)))
               tf.print("Lambda", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Lambda"]])
@@ -173,12 +170,12 @@ class GibbsSampler(tf.Module):
                 # tf.print("BetaSel - not NA", [tf.reduce_sum(tf.cast(par, tf.int32)) for par in params["BetaSel"]])
                 tf.print("Xeff", tf.reduce_sum(tf.cast(tfm.is_nan(params["Xeff"]) | (tf.abs(params["Xeff"]) > 1e9), tf.int32)))
 
-            params["Gamma"], params["iV"] = updateGammaV(params, self.modelData, self.priorHyperparams, dtype)
+            params["Gamma"], params["iV"] = updateGammaV(params, self.modelData, self.priorHyperparams, flag_fast_phylo_batched, dtype)
             if print_debug_flag:
               tf.print("Gamma", tf.reduce_sum(tf.cast(tfm.is_nan(params["Gamma"]) | (tf.abs(params["Gamma"]) > 1e9), tf.int32)))
               tf.print("iV", tf.reduce_sum(tf.cast(tfm.is_nan(params["iV"]) | (tf.abs(params["iV"]) > 1e9), tf.int32)))
             
-            params["rhoInd"] = updateRhoInd(params, self.modelData, self.priorHyperparams, dtype)
+            params["rhoInd"] = updateRhoInd(params, self.modelData, self.priorHyperparams, flag_fast_phylo_batched, dtype)
             
             params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams, dtype)
             

@@ -36,8 +36,8 @@ hmsc/updaters/updateZ.py
 hmsc/updaters/updatewRRR.py
 hmsc/updaters/updatewRRRPriors.py
 hmsc/utils/__init__.py
-hmsc/utils/export_json_utils.py
 hmsc/utils/export_rds_utils.py
+hmsc/utils/fast_phylo_utils.py
 hmsc/utils/import_utils.py
 hmsc/utils/tf_named_func.py
 hmsc/utils/tfla_utils.py
