@@ -1,7 +1,0 @@
-numpy
-pandas
-pyreadr
-scipy
-tensorflow
-tensorflow-probability[tf]
-ujson
