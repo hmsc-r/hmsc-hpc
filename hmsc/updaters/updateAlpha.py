@@ -26,9 +26,8 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
     AlphaList = [None] * nr
 
     for r, (Eta, rLPar) in enumerate(zip(EtaList, rLHyperparams)):
-        sDim = rLPar["sDim"]
         nf = tf.cast(tf.shape(Eta)[1], tf.int32)
-        if sDim > 0:
+        if rLPar["sDim"] > 0:
             spatialMethod = rLPar["spatialMethod"]
             alphapw = rLPar["alphapw"]
 

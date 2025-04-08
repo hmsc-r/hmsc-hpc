@@ -118,7 +118,7 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
         rLPar["b2"] = dtype(hmscModel.get("rL")[rLName]["b2"][0])
         rLPar["nfMin"] = int(hmscModel.get("rL")[rLName]["nfMin"][0])
         rLPar["nfMax"] = int(hmscModel.get("rL")[rLName]["nfMax"][0])
-        rLPar["sDim"] = int(hmscModel.get("rL")[rLName]["sDim"][0])
+        rLPar["sDim"] = np.Inf if hmscModel.get("rL")[rLName]["sDim"][0] == "Inf" else int(hmscModel.get("rL")[rLName]["sDim"][0])
         rLPar["xDim"] = int(hmscModel.get("rL")[rLName]["xDim"][0])
         if rLPar["sDim"] > 0:
             rLPar["spatialMethod"] = hmscModel.get("rL")[rLName]["spatialMethod"][0]
