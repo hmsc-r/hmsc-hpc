@@ -4,7 +4,7 @@ Hmsc-HPC
 
 This repository contains the TensorFlow implementation of Hierarchical Modelling of Species Communities (HMSC), serving as an extension to the existing R package, Hmsc-R. It provides a flexible framework for Joint Species Distribution Modelling (JSDM), enabling robust analysis and modeling of species communities.
 
-The Hmsc-HPC paper is published in [PLOS Computational Biology](https://doi.org/10.1371/journal.pcbi.1011914).
+The Hmsc-HPC paper is published in `PLOS Computational Biology <https://doi.org/10.1371/journal.pcbi.1011914>`_
 
 Contents
 --------
