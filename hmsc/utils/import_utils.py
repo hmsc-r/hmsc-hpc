@@ -31,7 +31,7 @@ def load_model_data(hmscModel, importedInitParList, flag_fast_phylo_batched=True
         phyloTreeList[i]["child"] = np.zeros([0], int)
         phyloTreeList[i]["edgeLen"] = np.zeros([0], int)
       else:
-        phyloTreeList[i]["child"] = np.asarray(node["child"]) - 1
+        phyloTreeList[i]["child"] = np.asarray(node["child"], dtype=int) - 1
         phyloTreeList[i]["edgeLen"] = np.asarray(node["edgeLen"])
       phyloTreeList[i]["parent"] = int(node["parent"][0] - 1)
       phyloTreeList[i]["parentEdgeLen"] = node["parentEdgeLen"][0]
