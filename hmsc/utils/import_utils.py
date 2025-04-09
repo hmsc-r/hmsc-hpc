@@ -126,7 +126,8 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
             gN = rLPar["alphapw"].shape[0]
             if rLPar["spatialMethod"] == "Full":
                 distMat = np.reshape(dataParList["rLPar"][r]["distMat"], [npVec[r], npVec[r]]).astype(dtype)
-                tmp = distMat / rLPar["alphapw"][:,0,None,None]
+                with np.errstate(divide='ignore',invalid='ignore'):
+                  tmp = distMat / rLPar["alphapw"][:,0,None,None]
                 tmp[np.isnan(tmp)] = 0
                 rLPar["Wg"] = np.exp(-tmp)
                 LWg = tfla.cholesky(rLPar["Wg"])
@@ -138,10 +139,12 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 nK = int(dataParList["rLPar"][r]["nKnots"][0])
                 d12 = np.reshape(dataParList["rLPar"][r]["distMat12"], [npVec[r], nK]).astype(dtype)
                 d22 = np.reshape(dataParList["rLPar"][r]["distMat22"], [nK, nK]).astype(dtype)
-                W12 = d12 / rLPar["alphapw"][:,0,None,None]
+                with np.errstate(divide='ignore',invalid='ignore'):
+                  W12 = d12 / rLPar["alphapw"][:,0,None,None]
                 W12[np.isnan(W12)] = 0
                 W12 = tf.exp(-W12)
-                W22 = d22 / rLPar["alphapw"][:,0,None,None]
+                with np.errstate(divide='ignore',invalid='ignore'):
+                  W22 = d22 / rLPar["alphapw"][:,0,None,None]
                 W22[np.isnan(W22)] = 0
                 W22 = tf.exp(-W22)
                 LW22 = tfla.cholesky(W22)
