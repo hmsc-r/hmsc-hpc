@@ -70,6 +70,7 @@ def updateZ(params, data, rLHyperparams, *,
     X = params["Xeff"]
 
     Y = data["Y"]
+    Yo = data["Yo"]
     Pi = data["Pi"]
     distr = data["distr"]
 
@@ -90,7 +91,6 @@ def updateZ(params, data, rLHyperparams, *,
     if ZPrev is None:
         ZPrev = L
 
-    Yo = tfm.logical_not(tfm.is_nan(Y))
     indColNormal = np.where(distr[:,0] == 1)[0]
     indColProbit = np.where(distr[:,0] == 2)[0]
     indColPoisson = np.where(distr[:,0] == 3)[0]

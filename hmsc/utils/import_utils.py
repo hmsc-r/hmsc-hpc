@@ -21,6 +21,7 @@ def load_model_data(hmscModel, importedInitParList, dtype=np.float64):
 
     modelData = {}
     modelData["Y"] = Y
+    modelData["Yo"] = np.logical_not(np.isnan(Y))
     modelData["X"] = X
     modelData["T"] = T
     if C_import is None or len(C_import) == 0:
@@ -86,7 +87,7 @@ def load_model_dims(hmscModel):
 
 
 def load_model_hyperparams(hmscModel, dataParList, dtype=np.float64):
-
+    print(hmscModel)
     ns = int(np.squeeze(hmscModel.get("ns")))
 
     dataParams = {}

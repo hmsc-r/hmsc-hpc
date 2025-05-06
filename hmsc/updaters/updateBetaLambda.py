@@ -35,7 +35,9 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
     PsiList = params["Psi"]
     DeltaList = params["Delta"]
     X = params["Xeff"]
-    
+
+    Yo = data["Yo"]
+    distr = data["distr"]
     T = data["T"]
     C, eC, VC = data["C"], data["eC"], data["VC"]
     rhoGroup = data["rhoGroup"]
@@ -76,19 +78,23 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
         iK = tfla.LinearOperatorBlockDiag([iK11_op, iK22_op]).to_dense()
       else:
         iK = iV
-        
-      # for computing A only iK11 part is required
-      iD05_XE = tf.multiply(tfla.matrix_transpose(iD)[:,:,None]**0.5, XE, name="iD05_XE")
-      iU = iK + tf.matmul(iD05_XE, iD05_XE, transpose_a=True, name="iU.2")
+
+      if np.all(Yo == True) and np.sum(distr[:,0] == 2) == ns: #special case with all iD[i,j]==1
+        iDZ = Z
+        iU = iK + tf.matmul(XE, XE, transpose_a=True, name="iU.2")
+      else:
+        iDZ = iD * Z
+        if tf.reduce_all(iD == iD[0,:]):
+          iU = iK + iD[0,:,None,None] * tf.matmul(XE, XE, transpose_a=True, name="iU.2")
+        else:
+          iD05_XE = tf.multiply(tfla.matrix_transpose(iD)[:,:,None]**0.5, XE, name="iD05_XE")
+          iU = iK + tf.matmul(iD05_XE, iD05_XE, transpose_a=True, name="iU.2")
+          
       A1 = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1")
       if len(XE.shape.as_list()) == 2:
-        # iU = iK + tf.einsum("ic,ij,ik->jck", XE, iD, XE, name="iU.2")
-        # A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("ik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
-        A2 = tf.einsum("ik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
+        A2 = tf.matmul(iDZ, XE, transpose_a=True, name="A.2")[:,:,None]
       else:
-        # iU = iK + tf.einsum("jic,ij,jik->jck", XE, iD, XE, name="iU.2")
-        # A = tf.matmul(iK, tfla.matrix_transpose(Mu)[:,:,None], name="A.1") + tf.einsum("jik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
-        A2 = tf.einsum("jik,ij->jk", XE, iD*Z, name="A.2")[:,:,None]
+        A2 = tf.einsum("jik,ij->jk", XE, iDZ, name="A.2")[:,:,None]
       A = A1 + A2
 
       LiU = tfla.cholesky(iU, name="LiU")
@@ -125,7 +131,7 @@ def updateBetaLambda(params, data, priorHyperparams, dtype=np.float64):
       BetaLambdaList = tf.split(BetaLambda, tf.concat([tf.constant([nc], tf.int32), nfVec], -1), axis=-2)
       BetaNew, LambdaListNew = tf.ensure_shape(BetaLambdaList[0], [nc,ns]), BetaLambdaList[1:]
     else:
-      BetaNew, LambdaListNew = BetaLambda, []
+      BetaNew, LambdaListNew = tf.ensure_shape(BetaLambda, [nc,ns]), []
 
     # tf.print(BetaNew)
     return BetaNew, LambdaListNew
