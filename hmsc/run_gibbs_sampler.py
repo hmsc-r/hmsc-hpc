@@ -269,7 +269,7 @@ if __name__ == "__main__":
     postList_file_path = args.output
     if args.eager:
       tf.config.run_functions_eagerly(args.eager)
-      print("executing Hmsc-HPC eagerly, switch to graph execution for optimal perfomace", flush=True) 
+      print("executing Hmsc-HPC eagerly, switch to graph execution for optimal performance", flush=True) 
 
     dtype = np.float32 if args.fp == 32 else np.float64
 
