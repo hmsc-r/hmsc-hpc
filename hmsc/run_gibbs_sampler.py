@@ -263,13 +263,13 @@ if __name__ == "__main__":
     )
 
     args = argParser.parse_args()
-    print("args=%s" % args)
-    print("working directory", os.getcwd())
+    print("args=%s" % args, flush=True)
+    print("working directory", os.getcwd(), flush=True)
     init_obj_file_path = args.input
     postList_file_path = args.output
     if args.eager:
       tf.config.run_functions_eagerly(args.eager)
-      print("executing Hmsc-HPC eagerly, switch to graph execution for optimal perfomace") 
+      print("executing Hmsc-HPC eagerly, switch to graph execution for optimal perfomace", flush=True) 
 
     dtype = np.float32 if args.fp == 32 else np.float64
 
