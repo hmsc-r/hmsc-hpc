@@ -254,12 +254,22 @@ if __name__ == "__main__":
         choices=[32, 64],
         help="which precision mode is used for sampling: fp32 or fp64",
     )
+    argParser.add_argument(
+        "--eager",
+        type=int,
+        default=0,
+        choices=[0, 1],
+        help="whether to run in eager execution mode"
+    )
 
     args = argParser.parse_args()
     print("args=%s" % args)
     print("working directory", os.getcwd())
     init_obj_file_path = args.input
     postList_file_path = args.output
+    if args.eager:
+      tf.config.run_functions_eagerly(args.eager)
+      print("executing Hmsc-HPC eagerly, switch to graph execution for optimal perfomace") 
 
     dtype = np.float32 if args.fp == 32 else np.float64
 
