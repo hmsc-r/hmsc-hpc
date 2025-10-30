@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from hmsc.utils.tf_named_func import tf_named_func
-from hmsc.utils.fast_phylo_utils import phyloFastSample, phyloFastSampleBatched
+from hmsc.utils.phylo_fast_utils import phyloFastSample, phyloFastSampleBatched
 tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
 
 @tf_named_func("betaLambda")
@@ -127,7 +127,7 @@ def updateBetaLambda(params, data, priorHyperparams, flag_fast_phylo_batched, sd
         V_e = tfla.LinearOperatorBlockDiag([tfla.LinearOperatorFullMatrix(tfla.inv(iV)), lin_op2]).to_dense()
         rhoVec_e = tf.concat([rhoVec, tf.zeros([nfSum],dtype)], 0)
         rho2Mat_e = tf.concat([tf.tile((1-rhoVec)[:,None], [1,ns]), LambdaPriorPrec**-1], 0)
-        BetaLambda = pfSample(phyloTreeList, phyloTreeRoot, V_e, iV_e, rhoVec_e, rho2Mat_e, XE_iD_XET, M0, sdMult, dtype)
+        BetaLambda = pfSample(phyloTreeList, phyloTreeRoot, V_e, iV_e, rhoVec_e, rho2Mat_e, XE_iD_XET, M0, sdMult=sdMult, dtype=dtype)
         
     if nr > 0:
       BetaLambdaList = tf.split(BetaLambda, tf.concat([tf.constant([nc], tf.int32), nfVec], -1), axis=-2)

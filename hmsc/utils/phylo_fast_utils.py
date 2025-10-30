@@ -1,6 +1,8 @@
 import numpy as np
 import tensorflow as tf
+import tensorflow_probability as tfp
 tfla, tfm, tfr, tfs = tf.linalg, tf.math, tf.random, tf.sparse
+tfd, tfb = tfp.distributions, tfp.bijectors
 
 # class PhyloTreeNode():
 #   def __init__(self):
@@ -8,6 +10,28 @@ tfla, tfm, tfr, tfs = tf.linalg, tf.math, tf.random, tf.sparse
 #     self.child = None
 #     self.edgeLen = None
 #     self.parentEdgeLen = None
+
+
+def treeListFromRPhylo(tree_obj):
+  try:
+    import rpy2.robjects as ro #noqa
+    from rpy2.robjects.packages import importr #noqa
+  except ImportError:
+    raise RuntimeError("Both a proper R distribution with ape package and rpy2 Python package are required")
+  tree = dict(tree_obj.items())
+  ns = len(tree['tip.label'])
+  tree_edge = np.array(tree["edge"]) - 1
+  tree_edge_len = np.array(tree["edge.length"])
+  tree_list = [{"n": 0, "child": [], "edgeLen": [], "parent": None, "parentEdgeLen": 0} for i in range(ns + tree["Nnode"][0])]
+  tree_root = np.setdiff1d(np.arange(len(tree_list)), tree_edge[:,1])[0]
+  for i in range(tree_edge.shape[0]):
+    parent_node, child_node = tree_edge[i]
+    tree_list[parent_node]["n"] += 1
+    tree_list[parent_node]["child"] += [child_node]
+    tree_list[parent_node]["edgeLen"] += [tree_edge_len[i]]
+    tree_list[child_node]["parent"] = parent_node
+    tree_list[child_node]["parentEdgeLen"] = tree_edge_len[i]
+  return tree_list, tree_root
 
 
 def recFunDepth(node, treeList):
@@ -90,16 +114,16 @@ def getIndMatListFromTree(treeList, root=None, depth=None):
   return indMatList, parentEdgeLenList
   
 
-def phyloFastBilinearDetBatched(treeList, X, Y, root, iV, rho, dtype=tf.float64):
-  print("phyloFast phyloFastBilinearDetBatched")
+def phyloFastBilinearDetBatched(treeList, X, Y, root, iV, rho, dtype=tf.float64, printFlag=True):
+  if printFlag: print("phyloFast phyloFastBilinearDetBatched")
   batchShape = list(rho.shape[:-1])
   if len(batchShape) > 1:
     raise ValueError("Batch shape in phyloFastBilinearDetBatched() can be no more than one")
-  rho05 = tfm.sqrt(rho)
+  d105 = tfm.sqrt(rho)
   LiV = tfla.cholesky(iV)
   V = tfla.cholesky_solve(LiV, tf.eye(iV.shape[-1],dtype=dtype))
   logDetV = -2 * tf.reduce_sum(tfm.log(tfla.diag_part(LiV)))
-  V1 = rho05[...,:,None] * V * rho05[...,None,:]
+  V1 = d105[...,:,None] * V * d105[...,None,:]
   V2 = tf.sqrt(1-rho)[...,:,None] * V * tf.sqrt(1-rho)[...,None,:]
   depth = treeList[root]["depth"]
   indMatList, parentEdgeLenList = getIndMatListFromTree(treeList, depth=depth)
@@ -108,11 +132,11 @@ def phyloFastBilinearDetBatched(treeList, X, Y, root, iV, rho, dtype=tf.float64)
   d = 0
   parentEdgeLen = tf.reshape(tf.cast(parentEdgeLenList[d],dtype), [-1] + [1]*len(batchShape) + [1, 1])
   S = parentEdgeLen * V1 + V2
-  iSX = tfla.solve(S, X)
-  iSY = tfla.solve(S, Y)
+  LS = tfla.cholesky(S)
+  iSX = tfla.cholesky_solve(LS, X)
+  iSY = tfla.cholesky_solve(LS, Y)
   XiSYList[d] = tf.matmul(X, iSY, transpose_a=True)
   OneiSXList[d], OneiSYList[d] = iSX, iSY
-  LS = tfla.cholesky(S)
   OneiSOneList[d] = tfla.cholesky_solve(LS, tf.eye(S.shape[-1],batch_shape=S.shape[:-2],dtype=dtype))
   logDetList[d] = 2 * tf.reduce_sum(tfm.log(tfla.diag_part(LS)), -1)
   for d in range(depth):
@@ -123,12 +147,12 @@ def phyloFastBilinearDetBatched(treeList, X, Y, root, iV, rho, dtype=tf.float64)
     logDetSum = tf.scatter_nd(scatterInd, logDetList[d], [nextLevelNodeN]+batchShape)
       
     parentEdgeLen = tf.reshape(tf.cast(parentEdgeLenList[d+1],dtype), [-1] + [1]*len(batchShape) + [1,1])
-    W = iV + parentEdgeLen * (rho05[...,:,None] * OneiSOneSum * rho05[...,None,:])
+    W = iV + parentEdgeLen * (d105[...,:,None] * OneiSOneSum * d105[...,None,:])
     LW = tfla.cholesky(W)
     logDetList[d+1] = logDetSum + logDetV + 2*tf.reduce_sum(tfm.log(tfla.diag_part(LW)), -1)
-    iLW_Drho05_OneiSXSum = tfla.triangular_solve(LW, rho05[...,:,None] * OneiSXSum)
-    iLW_Drho05_OneiSYSum = tfla.triangular_solve(LW, rho05[...,:,None] * OneiSYSum)
-    iLW_Drho05_OneiSOneSum = tfla.triangular_solve(LW, rho05[...,:,None] * OneiSOneSum)
+    iLW_Drho05_OneiSXSum = tfla.triangular_solve(LW, d105[...,:,None] * OneiSXSum)
+    iLW_Drho05_OneiSYSum = tfla.triangular_solve(LW, d105[...,:,None] * OneiSYSum)
+    iLW_Drho05_OneiSOneSum = tfla.triangular_solve(LW, d105[...,:,None] * OneiSOneSum)
     
     XiSYList[d+1] = XiSYSum - parentEdgeLen * tf.matmul(iLW_Drho05_OneiSXSum, iLW_Drho05_OneiSYSum, transpose_a=True)
     OneiSXList[d+1] = OneiSXSum - parentEdgeLen * tf.matmul(iLW_Drho05_OneiSOneSum, iLW_Drho05_OneiSXSum, transpose_a=True)
@@ -145,12 +169,13 @@ def withTranspose_phyloFastBilinearDetBatched(treeList, X, Y, root, iV, rho, dty
   batchShape = list(rho.shape[:-1])
   if len(batchShape) > 1:
     raise ValueError("Batch shape in phyloFastBilinearDetBatched() can be no more than one")
-  rho05 = tfm.sqrt(rho)
   LiV = tfla.cholesky(iV)
   V = tfla.cholesky_solve(LiV, tf.eye(iV.shape[-1],dtype=dtype))
   logDetV = -2 * tf.reduce_sum(tfm.log(tfla.diag_part(LiV)))
-  V1 = rho05[...,:,None] * V * rho05[...,None,:]
-  V2 = tf.sqrt(1-rho)[...,:,None] * V * tf.sqrt(1-rho)[...,None,:]
+  d105 = tfm.sqrt(rho)
+  d205 = tfm.sqrt(1 - rho)
+  V1 = d105[...,:,None] * V * d105[...,None,:]
+  V2 = d205[...,:,None] * V * d205[...,None,:]
   depth = treeList[root]["depth"]
   indMatList, parentEdgeLenList = getIndMatListFromTree(treeList, depth=depth)
     
@@ -186,12 +211,12 @@ def withTranspose_phyloFastBilinearDetBatched(treeList, X, Y, root, iV, rho, dty
       logDetSum = tf.transpose(tf.scatter_nd(indMatList[d][:,-1,None], tf.transpose(logDetList[d]), [nextLevelNodeN]+batchShape))
       
     parentEdgeLen = parentEdgeLenList[d+1]
-    W = iV[...,None,:,:] + parentEdgeLen[:,None,None] * (rho05[...,None,:,None] * OneiSOneSum * rho05[...,None,None,:])
+    W = iV[...,None,:,:] + parentEdgeLen[:,None,None] * (d105[...,None,:,None] * OneiSOneSum * d105[...,None,None,:])
     LW = tfla.cholesky(W)
     logDetList[d+1] = logDetSum + logDetV + 2*tf.reduce_sum(tfm.log(tfla.diag_part(LW)), -1)
-    iLW_Drho05_OneiSXSum = tfla.triangular_solve(LW, rho05[...,None,:,None] * OneiSXSum)
-    iLW_Drho05_OneiSYSum = tfla.triangular_solve(LW, rho05[...,None,:,None] * OneiSYSum)
-    iLW_Drho05_OneiSOneSum = tfla.triangular_solve(LW, rho05[...,None,:,None] * OneiSOneSum)
+    iLW_Drho05_OneiSXSum = tfla.triangular_solve(LW, d105[...,None,:,None] * OneiSXSum)
+    iLW_Drho05_OneiSYSum = tfla.triangular_solve(LW, d105[...,None,:,None] * OneiSYSum)
+    iLW_Drho05_OneiSOneSum = tfla.triangular_solve(LW, d105[...,None,:,None] * OneiSOneSum)
     
     XiSYList[d+1] = XiSYSum - parentEdgeLen[:,None,None] * tf.matmul(iLW_Drho05_OneiSXSum, iLW_Drho05_OneiSYSum, transpose_a=True)
     OneiSXList[d+1] = OneiSXSum - parentEdgeLen[:,None,None] * tf.matmul(iLW_Drho05_OneiSOneSum, iLW_Drho05_OneiSXSum, transpose_a=True)
@@ -335,9 +360,10 @@ def phyloFastSample(treeList, root, V, iV, rho, rho2Mat, XTiDX, XTiDS, sdMult=1,
   return(Beta)
 
 
-def phyloFastSampleBatched(treeList, root, V, iV, rho, rho2Mat, XTiDX, XTiDS, sdMult=1, dtype=tf.float64):
-  EPS = tf.cast(0*1e-6, dtype)
+def phyloFastSampleBatched(treeList, root, V, iV, rho, rho2Mat, XTiDX, XTiDS, EPS=0, sdMult=1, dtype=tf.float64):
   print("phyloFast phyloFastSampleBatched")
+  EPS = tf.cast(EPS, dtype)
+  sdMult = tf.cast(sdMult, dtype)
   ns = XTiDS.shape[1]
   nc = tf.shape(V)[0]
   depth = treeList[root]["depth"]
@@ -348,6 +374,7 @@ def phyloFastSampleBatched(treeList, root, V, iV, rho, rho2Mat, XTiDX, XTiDS, sd
   # recFunSampleUp(...)  
   iSigmaList, nuList = [[None]*(depth+1) for i in range(2)]
   iSigmaBase = iS = tf.transpose(XTiDX, [2,0,1])
+  # print(iS)
   nuBase = nu = tf.transpose(XTiDS)[:,:,None]
   rho205 = tf.transpose(rho205Mat)
   D2_iS = rho205[:,:,None] * iS
@@ -397,3 +424,83 @@ def phyloFastSampleBatched(treeList, root, V, iV, rho, rho2Mat, XTiDX, XTiDS, sd
   betaTemp = tfla.triangular_solve(LiSigma, tfla.triangular_solve(LiSigma, nu), adjoint=True) + sdMult*BetaRanPart
   Beta = tf.transpose(tf.squeeze(betaTemp, -1))
   return(Beta)
+
+
+def phyloFastGetPariV(treeList, root, Beta, iV, rho, EPS=0, sdMult=1, dtype=tf.float64):
+  EPS, sdMult = tf.cast(EPS, dtype), tf.cast(sdMult, dtype)
+  ns = Beta.shape[1]
+  nc = tf.shape(iV)[0]
+  V = tfla.cholesky_solve(tfla.cholesky(iV), tf.eye(iV.shape[-1],dtype=dtype))
+  d105 = tfm.sqrt(rho)
+  d205 = tfm.sqrt(1 - rho)
+  depth = treeList[root]["depth"]
+  indMatList, parentEdgeLenList = getIndMatListFromTree(treeList, depth=depth)
+  iV = tfla.cholesky_solve(tfla.cholesky(V), tf.eye(nc, dtype=dtype))
+  V1 = d105[:,None] * V * d105
+  V2 = d205[:,None] * V * d205
+  VLast = parentEdgeLenList[0][:,None,None] * V1 + V2
+  LVLast = tfla.cholesky(VLast)
+  iVLast = tfla.cholesky_solve(LVLast, tf.eye(nc, batch_shape=[ns], dtype=dtype))
+  # going up the tree from leaves to root
+  QList, nuList = [[None]*(depth) for i in range(2)]
+  QSumList, nuSumList = [[None]*(depth-1) for i in range(2)]
+  QList[0] = d105[:,None] * iVLast * d105
+  BetaT = tf.transpose(Beta)
+  nuList[0] = d105 * tf.squeeze(tf.matmul(iVLast, BetaT[:,:,None]), -1)
+  for d in range(depth-1):
+    nextLevelNodeN = indMatList[d+1].shape[0] if d < depth-1 else 1
+    scatterInd = indMatList[d][:,-1,None]
+    nu, Q = nuList[d], QList[d]
+    parentEdgeLen = parentEdgeLenList[d+1]
+    nuSum = tf.scatter_nd(scatterInd, nu, [nextLevelNodeN,nc])
+    QSum = tf.scatter_nd(scatterInd, Q, [nextLevelNodeN,nc,nc])
+    QSumList[d], nuSumList[d] = QSum, nuSum
+    W = QSum + (parentEdgeLen**-1)[:,None,None] * iV
+    LW = tfla.cholesky(W)
+    iLW_iV = tfla.triangular_solve(LW, tf.tile(iV[None,:,:], [nextLevelNodeN,1,1]))
+    QList[d+1] = (parentEdgeLen**-1)[:,None,None] * iV - (parentEdgeLen**-2)[:,None,None] * tf.matmul(iLW_iV, iLW_iV, transpose_a=True)
+    nuList[d+1] = (parentEdgeLen**-1)[:,None] * tf.squeeze(tf.matmul(iV, tfla.cholesky_solve(LW, nuSum[:,:,None])), -1)
+  
+  # going down the tree from root to leaves
+  uList = [None]*(depth)
+  uList[depth-1] = tf.zeros([1,nc], dtype)
+  for d in range(depth-1,0,-1):
+    levelNodeN = indMatList[d].shape[0]
+    parentEdgeLen = parentEdgeLenList[d]
+    uParent = tf.gather(uList[d], indMatList[d][:,-1], axis=0)
+    nu, Q = nuSumList[d-1], QSumList[d-1]
+    W = (parentEdgeLen**-1)[:,None,None] * iV + Q
+    LW = tfla.cholesky(W)
+    w = nu + (parentEdgeLen**-1)[:,None] * tf.squeeze(tf.matmul(iV, uParent[:,:,None]), -1)
+    mu = tf.squeeze(tfla.cholesky_solve(LW, w[:,:,None]), -1)
+    uRanPart = tf.squeeze(tfla.triangular_solve(LW, tfr.normal([levelNodeN,nc,1], dtype=dtype), adjoint=True))
+    uList[d-1] = mu + sdMult * uRanPart
+    
+  parentEdgeLen = parentEdgeLenList[0]
+  uParent = tf.gather(uList[0], indMatList[0][:,-1], axis=0)
+  B = parentEdgeLen[:,None,None] * V * d105
+  iLVLast_BT = tfla.triangular_solve(LVLast, tfla.matrix_transpose(B))
+  W = parentEdgeLen[:,None,None] * V - tf.matmul(iLVLast_BT, iLVLast_BT, transpose_a=True)
+  W += tfla.diag(tf.cast(rho==1, dtype))
+  LW = tfla.cholesky(W)
+  mu = uParent + tf.squeeze(tf.matmul(B, tfla.cholesky_solve(LVLast, (BetaT - d105 * uParent)[:,:,None])), -1)
+  u = mu + sdMult * tf.cast(rho<1, dtype) * tf.squeeze(tf.matmul(LW, tfr.normal([ns,nc,1], dtype=dtype)), -1)
+  # tf.print(mu)
+  # plt.imshow(mu, vmin=-2, vmax=2, cmap="coolwarm")
+  # plt.colorbar()
+  # plt.show()
+  
+  b2 = BetaT - d105 * u
+  W = tfla.diag(tf.cast(rho==1, dtype)) + V2
+  LW = tfla.cholesky(W)
+  D2V = d205[:,None] * V
+  m2 = tfla.matrix_transpose(tf.matmul(D2V, tfla.cholesky_solve(LW, tfla.matrix_transpose(b2)), transpose_a=True))
+  iLW_D2V = tfla.triangular_solve(LW, D2V)
+  S2 = tfla.diag(tf.cast(rho<1, dtype)) + V - tf.matmul(iLW_D2V, iLW_D2V, transpose_a=True) # may also multiply to eliminate with rho==1 eliminating imprecise off-diagonal
+  v = m2 + tf.cast(rho==1, dtype) * tf.squeeze(tf.matmul(tfla.cholesky(S2), tfr.normal([ns,nc,1], dtype=dtype)), -1)
+  
+  ut_iC_u, _ = phyloFastBilinearDetBatched(treeList, u[:,None,:], u[:,None,:], root, tf.ones([1,1],dtype), tf.ones([1],dtype), dtype=dtype, printFlag=False)
+  A = ut_iC_u + tf.matmul(v, v, transpose_a=True)
+  fa = 2 * ns
+  return fa, A 
+

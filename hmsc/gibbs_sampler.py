@@ -170,7 +170,7 @@ class GibbsSampler():
                 # tf.print("BetaSel - not NA", [tf.reduce_sum(tf.cast(par, tf.int32)) for par in params["BetaSel"]])
                 tf.print("Xeff", tf.reduce_sum(tf.cast(tfm.is_nan(params["Xeff"]) | (tf.abs(params["Xeff"]) > 1e9), tf.int32)))
 
-            params["Gamma"], params["iV"] = updateGammaV(params, self.modelData, self.priorHyperparams, flag_fast_phylo_batched, dtype)
+            params["Gamma"], params["iV"] = updateGammaV(params, self.modelData, self.priorHyperparams, flagFastPhyloBatched=flag_fast_phylo_batched, dtype=dtype)
             if print_debug_flag:
               tf.print("Gamma", tf.reduce_sum(tf.cast(tfm.is_nan(params["Gamma"]) | (tf.abs(params["Gamma"]) > 1e9), tf.int32)))
               tf.print("iV", tf.reduce_sum(tf.cast(tfm.is_nan(params["iV"]) | (tf.abs(params["iV"]) > 1e9), tf.int32)))

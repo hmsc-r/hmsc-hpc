@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from scipy import sparse
-from hmsc.utils.fast_phylo_utils import recFunDepth, recFunBalanceDepth
+from hmsc.utils.phylo_fast_utils import recFunDepth, recFunBalanceDepth
 tfla, tfr, tfs, tfm = tf.linalg, tf.random, tf.sparse, tf.math
 
 
