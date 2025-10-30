@@ -1,4 +1,5 @@
 import os
+import sys
 from contextlib import nullcontext
 import time
 import argparse
@@ -148,8 +149,7 @@ def run_gibbs_sampler(
         save_chains_postList_to_rds(postList, postList_file_path, len(chainIndList), elapsedTime, flag_save_eta)
 
 
-if __name__ == "__main__":
-
+def main(arg_list=None):
     argParser = argparse.ArgumentParser()
     argParser.add_argument(
         "-s",
@@ -258,7 +258,7 @@ if __name__ == "__main__":
         help="which precision mode is used for sampling: fp32 or fp64",
     )
 
-    args = argParser.parse_args()
+    args = argParser.parse_args(arg_list)
     print("args=%s" % args)
     print("working directory", os.getcwd())
     init_obj_file_path = args.input
@@ -285,4 +285,9 @@ if __name__ == "__main__":
         dtype=dtype,
     )
 
-print("done")
+    print("done")
+
+
+if __name__ == "__main__":
+    main()
+    
