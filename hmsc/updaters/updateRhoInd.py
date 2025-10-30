@@ -88,7 +88,7 @@ def updateRhoInd(params, data, priorHyperparams, flag_fast_phylo_batched=True, d
           qf = tf.squeeze(tf.matmul(iLQe, iLQe, transpose_a=True), [-2,-1])
           qf_1, logDet_1 = qf, logDet
         else:
-          print("vector rho, phyloFast updateRhoInd") #TODO remove after debug
+          print(f"vector rho, phyloFast updateRhoInd, iter {k}") #TODO remove after debug
           E_arr = tf.transpose(E)[:,None,:,None]
           tmp1, logDet = pfBilinearDet(phyloTreeList, E_arr, E_arr, phyloTreeRoot, iV, rhoVec, dtype)
           qf = tf.squeeze(tmp1, [-1,-2])
