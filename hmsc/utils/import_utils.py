@@ -5,7 +5,7 @@ from hmsc.utils.phylo_fast_utils import recFunDepth, recFunBalanceDepth
 tfla, tfr, tfs, tfm = tf.linalg, tf.random, tf.sparse, tf.math
 
 
-def load_model_data(hmscModel, importedInitParList, flag_fast_phylo_batched=True, dtype=np.float64):
+def load_model_data(hmscModel, importedInitParList, phyloFastBatched=True, dtype=np.float64):
   Y = np.asarray(hmscModel.get("YScaled")).astype(dtype)
   Loff = hmscModel.get("Loff")
   Loff = None if Loff is None else np.asarray(Loff).astype(dtype)
@@ -37,7 +37,7 @@ def load_model_data(hmscModel, importedInitParList, flag_fast_phylo_batched=True
       phyloTreeList[i]["parentEdgeLen"] = node["parentEdgeLen"][0]
     
     phyloTreeDepth = recFunDepth(phyloTreeRoot, phyloTreeList)
-    if flag_fast_phylo_batched == True:
+    if phyloFastBatched == True:
       origTreeLen = len(phyloTreeList)
       recFunBalanceDepth(phyloTreeRoot, phyloTreeList)
       balancedTreeLen = len(phyloTreeList)

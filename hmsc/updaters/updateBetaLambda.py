@@ -5,7 +5,7 @@ from hmsc.utils.phylo_fast_utils import phyloFastSample, phyloFastSampleBatched
 tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
 
 @tf_named_func("betaLambda")
-def updateBetaLambda(params, data, priorHyperparams, flag_fast_phylo_batched, sdMult=1, dtype=np.float64):
+def updateBetaLambda(params, data, priorHyperparams, phyloFastBatched=True, sdMult=1, dtype=np.float64):
     """Update conditional updater(s):
     Beta - species niches, and
     Lambda - species loadings.
@@ -49,7 +49,7 @@ def updateBetaLambda(params, data, priorHyperparams, flag_fast_phylo_batched, sd
     nfVec = tf.stack([tf.shape(Eta)[-1] for Eta in EtaList])
     nfSum = tf.cast(tf.reduce_sum(nfVec), tf.int32)
     na = nc + nfSum
-    pfSample = phyloFastSampleBatched if flag_fast_phylo_batched else phyloFastSample
+    pfSample = phyloFastSampleBatched if phyloFastBatched else phyloFastSample
 
     S = Z if Loff is None else Z - Loff
     PiEtaList = [None] * nr

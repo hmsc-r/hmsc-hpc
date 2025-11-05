@@ -8,7 +8,13 @@ tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 tfd = tfp.distributions
 
 @tf_named_func("rho")
-def updateRhoInd(params, data, priorHyperparams, flag_fast_phylo_batched=True, dtype=np.float64):
+def updateRhoInd(params,
+                 data,
+                 priorHyperparams,
+                 it=None,
+                 rhoIndUpdateN=1,
+                 flag_fast_phylo_batched=True,
+                 dtype=np.float64):
   """Update rho paramters:
   
   Parameters
@@ -30,6 +36,14 @@ def updateRhoInd(params, data, priorHyperparams, flag_fast_phylo_batched=True, d
   gN = rhopw.shape[0]
   rhoN = rhoInd.shape[0]
   pfBilinearDet = phyloFastBilinearDetBatched if flag_fast_phylo_batched else phyloFastBilinearDet
+  if it == None and (rhoIndUpdateN != 0 or rhoIndUpdateN != rhoN):
+    raise ValueError(f"Incompatible rhoIndUpdateN={rhoIndUpdateN} for it=None.")
+  if rhoIndUpdateN == 0:
+    rhoIndUpdateN = rhoN
+  if it == None:
+    rhoIndUpdate = tf.range(rhoIndUpdateN)
+  else:
+    rhoIndUpdate = tfm.mod((it * rhoIndUpdateN) + tf.range(rhoIndUpdateN), rhoN)
   
   if phyloFlag == True:
     Mu = tf.matmul(Gamma, T, transpose_b=True)
@@ -68,7 +82,8 @@ def updateRhoInd(params, data, priorHyperparams, flag_fast_phylo_batched=True, d
       rhoInd = tf.squeeze(tfr.categorical(logLike[None,:], 1, dtype=tf.int32), -1)
       # tf.print(rhoInd)
     else:
-      for k in range(rhoN):
+      # tf.print("rhoIndUpdate:", rhoIndUpdate)
+      for k in rhoIndUpdate:
         # tmp1 = tf.scatter_nd(tf.stack([tf.range(gN), k*tf.ones([gN],tf.int32)], -1), tf.range(gN), [gN,rhoN])
         # rhoIndSt = tmp1 + tf.tensor_scatter_nd_update(rhoInd, [[k]], [0])
         # creates a matrix of variations of rhoInd in k-th position

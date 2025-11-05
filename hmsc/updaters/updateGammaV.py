@@ -8,7 +8,13 @@ tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 tfd, tfb = tfp.distributions, tfp.bijectors
 
 @tf_named_func("gammaV")
-def updateGammaV(params, data, priorHyperparams, updateGamma=True, updateiV=True, flagFastPhyloBatched=True, dtype=np.float64):
+def updateGammaV(params,
+                 data,
+                 priorHyperparams,
+                 updateGamma=True,
+                 updateiV=True,
+                 phyloFastBatched=True,
+                 dtype=np.float64):
     """Update prior(s) for whole model:
     Gamma - influence of traits on species niches, and
     V - trait-unexplained residual covariance of species niches.
@@ -43,7 +49,7 @@ def updateGammaV(params, data, priorHyperparams, updateGamma=True, updateiV=True
     nc, ns = Beta.shape
     nt = Gamma.shape[-1]
     rhoN = rhoInd.shape[0]
-    pfBilinearDet = phyloFastBilinearDetBatched if flagFastPhyloBatched else phyloFastBilinearDet
+    pfBilinearDet = phyloFastBilinearDetBatched if phyloFastBatched else phyloFastBilinearDet
     
     Mu = tf.matmul(Gamma, T, transpose_b=True)
     E = Beta - Mu

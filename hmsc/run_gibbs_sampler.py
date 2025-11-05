@@ -20,10 +20,10 @@ from hmsc.utils.import_utils import (
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
 
-def load_params(file_path, flag_fast_phylo_batched=True, dtype=np.float64):
+def load_params(file_path, phylo_fast_batched=True, dtype=np.float64):
     hmscImport, hmscModel = load_model_from_rds(file_path)
     modelDims = load_model_dims(hmscModel)
-    modelData = load_model_data(hmscModel, hmscImport.get("initParList"), flag_fast_phylo_batched, dtype)
+    modelData = load_model_data(hmscModel, hmscImport.get("initParList"), phylo_fast_batched, dtype)
     priorHyperparams = load_prior_hyperparams(hmscModel, dtype)
     rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"), dtype)
     initParList = init_params(hmscImport.get("initParList"), modelData, modelDims, rLHyperparams, dtype)
@@ -42,7 +42,8 @@ def run_gibbs_sampler(
     rng_seed=0,
     hmc_leapfrog_steps=10,
     hmc_thin=10,
-    flag_fast_phylo_batched=True,
+    phylo_rho_ind_update_n=0,
+    phylo_fast_batched=True,
     flag_update_beta_eta=True,
     truncated_normal_library="tf",
     flag_save_eta=True,
@@ -57,7 +58,7 @@ def run_gibbs_sampler(
         rLHyperparams,
         initParList,
         nChainsTotal,
-    ) = load_params(init_obj_file_path, flag_fast_phylo_batched, dtype)
+    ) = load_params(init_obj_file_path, phylo_fast_batched, dtype)
     gibbs = GibbsSampler(modelDims, modelData, priorHyperparams, rLHyperparams)
     
     if chainIndList is None:
@@ -83,7 +84,8 @@ def run_gibbs_sampler(
         verbose=verbose,
         hmc_leapfrog_steps=hmc_leapfrog_steps,
         hmc_thin=hmc_thin,
-        flag_fast_phylo_batched=flag_fast_phylo_batched,
+        phylo_rho_ind_update_n=phylo_rho_ind_update_n,
+        phylo_fast_batched=phylo_fast_batched,
         flag_update_beta_eta=flag_update_beta_eta,
         truncated_normal_library=truncated_normal_library,
         flag_save_eta=flag_save_eta,
@@ -112,7 +114,8 @@ def run_gibbs_sampler(
                 verbose=verbose,
                 hmc_leapfrog_steps=hmc_leapfrog_steps,
                 hmc_thin=hmc_thin,
-                flag_fast_phylo_batched=flag_fast_phylo_batched,
+                phylo_rho_ind_update_n=phylo_rho_ind_update_n,
+                phylo_fast_batched=phylo_fast_batched,
                 flag_update_beta_eta=flag_update_beta_eta,
                 truncated_normal_library=truncated_normal_library,
                 flag_save_eta=flag_save_eta,
@@ -214,10 +217,16 @@ def main(arg_list=None):
         help="number of iterations between HMC conditional updater calls, zero will disable HMC",
     )
     argParser.add_argument(
-        "--fpb",
+        "--priun",
+        type=int,
+        default=0,
+        help="number of rho indices to update per MCMC iteration, zero means all",
+    )
+    argParser.add_argument(
+        "--pfb",
         type=int,
         default=1,
-        help="whether to use batched implementation for fast phylogeny utils)",
+        help="whether to use batched implementation for fast phylogeny utils",
     )
     argParser.add_argument(
         "--updbe",
@@ -276,7 +285,8 @@ def main(arg_list=None):
         rng_seed=args.rngseed,
         hmc_leapfrog_steps=args.hmcleapfrog,
         hmc_thin=args.hmcthin,
-        flag_fast_phylo_batched=bool(args.fpb),
+        phylo_rho_ind_update_n=args.priun,
+        phylo_fast_batched=bool(args.pfb),
         flag_update_beta_eta=bool(args.updbe),
         truncated_normal_library=args.tnlib,
         flag_save_eta=bool(args.fse),
