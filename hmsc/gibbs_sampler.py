@@ -99,19 +99,13 @@ class GibbsSampler():
           hmc_burnin = 0
           hmc_ss, hmc_las, hmc_es = [tf.constant(0, dtype)] * 3
 
-        tf.print("sampling")
-        for n in tf.range(step_num):
-            tf.autograph.experimental.set_loop_options(
-                shape_invariants=[
-                    (params["Eta"], [tf.TensorShape([npVec[r], None]) for r in range(nr)]),
-                    (params["Lambda"], [tf.TensorShape([None, ns])] * nr),
-                    (params["Psi"], [tf.TensorShape([None, ns])] * nr),
-                    (params["Delta"], [tf.TensorShape([None, 1])] * nr),
-                    (params["AlphaInd"], [tf.TensorShape(None)] * nr),
-                ]
-            )
-            
-            # tf.print("inside tf.function:", tf.random.normal([1]))
+        def body(n, params,
+         mcmcSamplesBeta, mcmcSamplesBetaSel, mcmcSamplesGamma,
+         mcmcSamplesiV, mcmcSamplesRhoInd, mcmcSamplesSigma,
+         mcmcSamplesLambda, mcmcSamplesPsi, mcmcSamplesDelta,
+         mcmcSamplesEta, mcmcSamplesAlphaInd,
+         mcmcSampleswRRR, mcmcSamplesPsiRRR, mcmcSamplesDeltaRRR,
+         hmc_ss, hmc_las, hmc_es):
             
             # z_marginalize_iter_cond = lambda it: ((it % 2) == 1) & (it >= 0)
             # z_marginalize_iter_flag = z_marginalize_iter_cond(n)
@@ -216,6 +210,49 @@ class GibbsSampler():
                     mcmcSampleswRRR = mcmcSampleswRRR.write(samInd, params["wRRR"])
                     mcmcSamplesPsiRRR = mcmcSamplesPsiRRR.write(samInd, params["PsiRRR"])
                     mcmcSamplesDeltaRRR = mcmcSamplesDeltaRRR.write(samInd, params["DeltaRRR"])
+            n_next = n + 1
+            return (n_next, params,
+              mcmcSamplesBeta, mcmcSamplesBetaSel, mcmcSamplesGamma,
+              mcmcSamplesiV, mcmcSamplesRhoInd, mcmcSamplesSigma,
+              mcmcSamplesLambda, mcmcSamplesPsi, mcmcSamplesDelta,
+              mcmcSamplesEta, mcmcSamplesAlphaInd,
+              mcmcSampleswRRR, mcmcSamplesPsiRRR, mcmcSamplesDeltaRRR,
+              hmc_ss, hmc_las, hmc_es)
+          
+        def cond(n, params,
+          mcmcSamplesBeta, mcmcSamplesBetaSel, mcmcSamplesGamma,
+          mcmcSamplesiV, mcmcSamplesRhoInd, mcmcSamplesSigma,
+          mcmcSamplesLambda, mcmcSamplesPsi, mcmcSamplesDelta,
+          mcmcSamplesEta, mcmcSamplesAlphaInd,
+          mcmcSampleswRRR, mcmcSamplesPsiRRR, mcmcSamplesDeltaRRR,
+          hmc_ss, hmc_las, hmc_es):
+          return n < step_num
+
+        n0 = tf.constant(0)
+        loop_vars = (
+          n0, params,
+          mcmcSamplesBeta, mcmcSamplesBetaSel, mcmcSamplesGamma,
+          mcmcSamplesiV, mcmcSamplesRhoInd, mcmcSamplesSigma,
+          mcmcSamplesLambda, mcmcSamplesPsi, mcmcSamplesDelta,
+          mcmcSamplesEta, mcmcSamplesAlphaInd,
+          mcmcSampleswRRR, mcmcSamplesPsiRRR, mcmcSamplesDeltaRRR,
+          hmc_ss, hmc_las, hmc_es
+        )
+        
+        tf.print("sampling")
+        (n_final, params,
+         mcmcSamplesBeta, mcmcSamplesBetaSel, mcmcSamplesGamma,
+         mcmcSamplesiV, mcmcSamplesRhoInd, mcmcSamplesSigma,
+         mcmcSamplesLambda, mcmcSamplesPsi, mcmcSamplesDelta,
+         mcmcSamplesEta, mcmcSamplesAlphaInd,
+         mcmcSampleswRRR, mcmcSamplesPsiRRR, mcmcSamplesDeltaRRR,
+         hmc_ss, hmc_las, hmc_es) = tf.while_loop(
+          cond=cond,
+          body=body,
+          loop_vars=loop_vars,
+          parallel_iterations=1,
+          maximum_iterations=step_num
+        )
 
         samples = {}
         samples["Beta"] = mcmcSamplesBeta.stack()
