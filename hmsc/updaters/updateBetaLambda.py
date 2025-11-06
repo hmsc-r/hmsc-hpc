@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 from hmsc.utils.tf_named_func import tf_named_func
-from hmsc.utils.phylo_fast_utils import phyloFastSample, phyloFastSampleBatched
+from hmsc.utils.phylo_fast_utils import phyloFastSampleBatched as pfSample
 tfm, tfla, tfr, tfs = tf.math, tf.linalg, tf.random, tf.sparse
 
 @tf_named_func("betaLambda")
@@ -49,7 +49,6 @@ def updateBetaLambda(params, data, priorHyperparams, phyloFastBatched=True, sdMu
     nfVec = tf.stack([tf.shape(Eta)[-1] for Eta in EtaList])
     nfSum = tf.cast(tf.reduce_sum(nfVec), tf.int32)
     na = nc + nfSum
-    pfSample = phyloFastSampleBatched if phyloFastBatched else phyloFastSample
 
     S = Z if Loff is None else Z - Loff
     PiEtaList = [None] * nr

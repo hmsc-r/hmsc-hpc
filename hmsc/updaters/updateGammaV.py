@@ -3,7 +3,8 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from hmsc.utils.tfla_utils import kron
 from hmsc.utils.tf_named_func import tf_named_func
-from hmsc.utils.phylo_fast_utils import phyloFastBilinearDet, phyloFastBilinearDetBatched, phyloFastGetPariV
+from hmsc.utils.phylo_fast_utils import phyloFastBilinearDetBatched as pfBilinearDet
+from hmsc.utils.phylo_fast_utils import phyloFastGetPariV
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 tfd, tfb = tfp.distributions, tfp.bijectors
 
@@ -49,7 +50,6 @@ def updateGammaV(params,
     nc, ns = Beta.shape
     nt = Gamma.shape[-1]
     rhoN = rhoInd.shape[0]
-    pfBilinearDet = phyloFastBilinearDetBatched if phyloFastBatched else phyloFastBilinearDet
     
     Mu = tf.matmul(Gamma, T, transpose_b=True)
     E = Beta - Mu

@@ -3,7 +3,7 @@ import tensorflow as tf
 import tensorflow_probability as tfp
 from hmsc.utils.tfla_utils import kron
 from hmsc.utils.tf_named_func import tf_named_func
-from hmsc.utils.phylo_fast_utils import phyloFastBilinearDet, phyloFastBilinearDetBatched
+from hmsc.utils.phylo_fast_utils import phyloFastBilinearDetBatched as pfBilinearDet
 tfla, tfm, tfr = tf.linalg, tf.math, tf.random
 tfd = tfp.distributions
 
@@ -35,7 +35,6 @@ def updateRhoInd(params,
   nc, ns = Beta.shape
   gN = rhopw.shape[0]
   rhoN = rhoInd.shape[0]
-  pfBilinearDet = phyloFastBilinearDetBatched if flag_fast_phylo_batched else phyloFastBilinearDet
   if it == None and (rhoIndUpdateN != 0 or rhoIndUpdateN != rhoN):
     raise ValueError(f"Incompatible rhoIndUpdateN={rhoIndUpdateN} for it=None.")
   if rhoIndUpdateN == 0:
