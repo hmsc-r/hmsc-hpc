@@ -45,33 +45,22 @@ def updateRhoInd(params,
     rhoIndUpdate = tfm.mod((it * rhoIndUpdateN) + tf.range(rhoIndUpdateN), rhoN)
   
   if phyloFlag == True:
-    Mu = tf.matmul(Gamma, T, transpose_b=True)
+    Mu = tf.matmul(Gamma, T, transpose_b=True, name='Mu')
     E = Beta - Mu
-    LiV = tfla.cholesky(iV)
+    LiV = tfla.cholesky(iV, name='LiV')
     if rhoN == 1:
       # logDetV = -2 * tf.reduce_sum(tfm.log(tfla.diag_part(LiV))) # can be ommited as is constant
       if phyloFast == False:
         E_VC = tf.matmul(E, VC)
-        # for k in range(rhoN):
-        #   tmp1 = tf.scatter_nd(tf.stack([tf.range(gN), k*tf.ones([gN],tf.int32)], -1), tf.range(gN), [gN,rhoN])
-        #   rhoIndSt = tmp1 + tf.tensor_scatter_nd_update(rhoInd, [[k]], [0])
-        #   rhoVec = tf.gather(rhopw[:,0], tf.gather(rhoIndSt, covRhoGroup, axis=-1))
-        #   eQ = tf.expand_dims(rhoVec, -1)*eC + tf.expand_dims(1-rhoVec, -1)
-        #   E_VC_eiQ05 = E_VC * tfm.rsqrt(eQ)
-        #   qf = tf.einsum("gcj,ck,gkj->g", E_VC_eiQ05, iV, E_VC_eiQ05)
-        #   logDet = tf.reduce_sum(tfm.log(eQ), [-1,-2]) # + ns*logDetV
         eQ = rhopw[:,0,None]*eC + (1-rhopw[:,0,None])
         E_VC_eiQ05 = E_VC * tfm.rsqrt(eQ[:,None,:])
         qf = tf.einsum("gcj,ck,gkj->g", E_VC_eiQ05, iV, E_VC_eiQ05)
         logDet = nc*tf.reduce_sum(tfm.log(eQ), -1) # + ns*logDetV
         # qf_1, logDet_1 = qf, logDet
       else:
-        # rhoInd = tf.squeeze(tfr.categorical(tfm.log(rhopw[tf.newaxis,:,1]), rhoN, dtype=tf.int32), -1)
         print("phyloFast updateRhoInd") #TODO remove after debug
-        LiVT_E = tf.matmul(LiV, E, transpose_a=True)
-        # LiVT_E_arrx = tf.tile(LiVT_E[None,:,:,None], [gN,1,1,1])
-        # LiVT_E_arrx = tf.tile(tf.transpose(LiVT_E)[:,None,None,:], [1,gN,1,1])
-        LiVT_E_arr = tf.transpose(LiVT_E)[:,None,None,:]
+        LiVT_E = tf.matmul(LiV, E, transpose_a=True, name='LiVT_E')
+        LiVT_E_arr = tf.tile(tf.transpose(LiVT_E, name='LiVT_E_arr_0')[:,None,None,:], [1,gN,1,1], name='LiVT_E_arr_0')
         tmp1, tmp2 = pfBilinearDet(phyloTreeList, LiVT_E_arr, LiVT_E_arr, phyloTreeRoot, tf.ones([1,1],dtype), rhopw[:,0,None], dtype)
         qf = tf.reduce_sum(tfla.diag_part(tmp1), -1)
         logDet = nc*tmp2 # + ns*logDetV
@@ -100,13 +89,14 @@ def updateRhoInd(params,
           logDet = 2 * tf.reduce_sum(tfm.log(tfla.diag_part(LQ)), -1)
           iLQe = tfla.triangular_solve(LQ, tf.reshape(tf.transpose(E), [1,ns*nc,1]))
           qf = tf.squeeze(tf.matmul(iLQe, iLQe, transpose_a=True), [-2,-1])
-          qf_1, logDet_1 = qf, logDet
+          # qf_1, logDet_1 = qf, logDet
         else:
           print(f"vector rho, phyloFast updateRhoInd, iter {k}") #TODO remove after debug
-          E_arr = tf.transpose(E)[:,None,:,None]
+          # E_arr = tf.transpose(E)[:,None,:,None]
+          E_arr = tf.tile(tf.transpose(E)[:,None,:,None], [1,gN,1,1])
           tmp1, logDet = pfBilinearDet(phyloTreeList, E_arr, E_arr, phyloTreeRoot, iV, rhoVec, dtype)
           qf = tf.squeeze(tmp1, [-1,-2])
-          qf_2, logDet_2 = qf, logDet
+          # qf_2, logDet_2 = qf, logDet
           
         logLike = tfm.log(rhopw[:,1]) - 0.5*logDet - 0.5*qf
         indNew = tf.squeeze(tfr.categorical(logLike[None,:], 1, dtype=np.int32), -1)

@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
   name='hmsc',
-  version='0.3.2',
+  version='0.3.3',
   author='Gleb Tikhonov, Anis Ur Rahman, Tuomas Rossi, Jari Oksanen, Otso Ovaskainen',
   author_email='gleb.tikhonov@helsinki.fi, otso.ovaskainen@jyu.fi',
   maintainer='Gleb Tikhonov',
