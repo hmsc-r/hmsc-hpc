@@ -268,8 +268,8 @@ def main(arg_list=None):
     )
 
     args = argParser.parse_args(arg_list)
-    print("args=%s" % args)
-    print("working directory", os.getcwd())
+    print("args=%s" % args, flush=True)
+    print("working directory", os.getcwd(), flush=True)
     init_obj_file_path = args.input
     postList_file_path = args.output
     dtype = np.float32 if args.fp == 32 else np.float64
@@ -295,7 +295,7 @@ def main(arg_list=None):
         dtype=dtype,
     )
 
-    print("done")
+    print("done", flush=True)
 
 
 if __name__ == "__main__":
