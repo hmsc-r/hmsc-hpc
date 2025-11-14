@@ -36,14 +36,13 @@ def updateSigma(params, modelDims, data, priorHyperparameters, dtype=np.float64)
     sigma = params["sigma"]
     X = params["Xeff"]
 
-    Y = data["Y"]
+    Yo = tf.cast(data["Yo"], dtype)
     Loff = data["Loff"]
     Pi = data["Pi"]
     distr = data["distr"]
     aSigma = priorHyperparameters["aSigma"]
     bSigma = priorHyperparameters["bSigma"]
 
-    Yo = tf.cast(tfm.logical_not(tfm.is_nan(Y)), dtype)
     indVarSigma = tf.equal(distr[:,1], 1)
     #TODO code below contains redundant calculations for fixed variance columns
 

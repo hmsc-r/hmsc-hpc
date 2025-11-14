@@ -6,9 +6,10 @@ tfla, tfr, tfs, tfm = tf.linalg, tf.random, tf.sparse, tf.math
 
 
 def load_model_data(hmscModel, importedInitParList, phyloFastBatched=True, dtype=np.float64):
-  Y = np.asarray(hmscModel.get("YScaled")).astype(dtype)
+  Y = tf.Variable(np.asarray(hmscModel.get("YScaled")), trainable=False, dtype=dtype)
+  Yo = tf.Variable(tfm.logical_not(tfm.is_nan(Y)), trainable=False, dtype=tf.bool)
   Loff = hmscModel.get("Loff")
-  Loff = None if Loff is None else np.asarray(Loff).astype(dtype)
+  Loff = None if Loff is None else tf.Variable(np.asarray(Loff), trainable=False, dtype=dtype)
   if isinstance(hmscModel.get("XScaled"), dict):
     X = np.stack([np.asarray(hmscModel.get("XScaled")[x]) for x in hmscModel.get("XScaled")], 0)
   else:
@@ -16,7 +17,7 @@ def load_model_data(hmscModel, importedInitParList, phyloFastBatched=True, dtype
   T = np.asarray(hmscModel.get("TrScaled")).astype(dtype)
   Pi = np.asarray(hmscModel.get("Pi")).astype(int) - 1
   distr = np.asarray(hmscModel.get("distr")).astype(int)
-  modelData = dict(zip(["Y","Loff","X","T","distr","Pi"], [Y,Loff,X,T,distr,Pi]))
+  modelData = dict(zip(["Y","Yo","Loff","X","T","distr","Pi"], [Y,Yo,Loff,X,T,distr,Pi]))
   
   phyloFlag = bool(hmscModel.get("phyloFlag")[0])
   phyloFast = bool(hmscModel.get("phyloFast")[0])
