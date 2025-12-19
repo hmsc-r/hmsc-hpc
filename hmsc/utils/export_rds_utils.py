@@ -24,7 +24,7 @@ def save_chains_postList_to_rds(postList, postList_file_path, nChains, elapsedTi
             params = postList[chain][i]
 
             sample_data["Beta"] = params["Beta"].numpy().tolist()
-            sample_data["BetaSel"] = [par.numpy().tolist() for par in params["BetaSel"]]
+            sample_data["BetaSel"] = dict(zip(np.arange(len(params["BetaSel"])), [par.numpy().tolist() for par in params["BetaSel"]]))
             sample_data["Gamma"] = params["Gamma"].numpy().tolist()
             sample_data["iV"] = params["iV"].numpy().tolist()
             sample_data["rhoInd"] = (params["rhoInd"]+1).numpy().tolist()
