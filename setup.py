@@ -9,10 +9,9 @@ setup(
     install_requires=[
         'numpy',
         'pandas',
-        'pyreadr',
+        'rdata>=1.0.0',
         'scipy',
         'tensorflow',
         'tensorflow-probability[tf]',
-        'ujson',
     ]
 )
