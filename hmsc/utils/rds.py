@@ -29,9 +29,7 @@ def convert_to_numpy(obj):
 
 def load_model_from_rds(rds_file_path):
     with warnings.catch_warnings():
-        warnings.filterwarnings("ignore",
-            message=".*Missing constructor for R class.*",
-            category=UserWarning)
+        warnings.filterwarnings("ignore", message=".*Missing constructor for R class.*", category=UserWarning)
         init_obj = rdata.read_rds(rds_file_path)
 
     init_obj = convert_to_numpy(init_obj)
@@ -50,9 +48,6 @@ def save_chains_postList_to_rds(postList, postList_file_path, nChains, elapsedTi
             item["rhoInd"] += 1
             for k in range(len(item["AlphaInd"])):
                 item["AlphaInd"][k] += 1
-
-            # Compatibility with HMSC-R / duplicate AlphaInd to Alpha
-            item["Alpha"] = item["AlphaInd"]
 
             # Remove eta if requested
             if not flag_save_eta:
