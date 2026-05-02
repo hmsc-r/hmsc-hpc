@@ -23,6 +23,7 @@ Please run the next chunk of code to check the version of Python available in yo
 system_python = "python3"
 # system_python = "/Users/username/opt/anaconda3/envs/tf/bin/python3"
 system2(system_python, "--version")
+localpath = "."
 ```
 
 If the Python distribution in your system is configured well, then the code shall print the version of Python. If this is failing, then you are likely missing Python altogether, or its path is not configured correctly. If this is the case, please follow the instructions at https://wiki.python.org/moin/BeginnersGuide/Download for installing Python for the operating system (Linux, Mac, Windows) of your computer.
@@ -40,8 +41,8 @@ system2(system_python, "-m venv hmsc-venv")
 Then, we activate this Python environment by defining an appropriate `python` path variable and check that it works by printing the version of Python:
 
 ```{r set_python_path}
-python = file.path(getwd(), "hmsc-venv", "bin", "python")  # for Linux and macOS
-# python = file.path(getwd(), "hmsc-venv", "Scripts", "python")  # for Windows
+python = file.path(localpath, "hmsc-venv", "bin", "python")  # for Linux and macOS
+# python = file.path(localpath, "hmsc-venv", "Scripts", "python")  # for Windows
 system2(python, "--version")
 ```
 
@@ -68,8 +69,8 @@ The next code chunk tests that the Python environment works by executing a basic
 ```{r test_python_env}
 # Choose correct python by uncommenting correct line:
 # python = "python3"  # default
-python = file.path(getwd(), "hmsc-venv", "bin", "python")  # hmsc-venv for Linux and macOS
-# python = file.path(getwd(), "hmsc-venv", "Scripts", "python")  # hmsc-venv for Windows
+python = file.path(localpath, "hmsc-venv", "bin", "python")  # hmsc-venv for Linux and macOS
+# python = file.path(localpath, "hmsc-venv", "Scripts", "python")  # hmsc-venv for Windows
 
 Sys.setenv(TF_CPP_MIN_LOG_LEVEL=3)  # reduce debug output from tensorflow
 system2(python, "-c \"import tensorflow as tf; print(tf.constant(1))\"")
@@ -89,7 +90,7 @@ Hmsc-HPC extension relies on Tensorflow for GPU acceleration, and the code will 
 
 First, we shall acquire a sufficiently recent `Hmsc` R package. Most likely, the actual distribution on CRAN is already suitable, but most certainly it can be done from the master branch of `Hmsc` repo on GitHub. `remotes` is a lightweight package that enables it.
 
-```{r install_hmsc_r, include=TRUE, results='hide'}
+```{r install_hmsc_r,  message=FALSE, results='hide'}
 install.packages("remotes")
 remotes::install_github("hmsc-r/HMSC", force=TRUE)
 ```
@@ -149,7 +150,7 @@ In order to use Hmsc-HPC, we need to export the model object, created by `Hmsc(.
 init_obj = sampleMcmc(m, samples=nSamples, thin=thin,
 											transient=transient, nChains=nChains,
 											verbose=verbose, engine="HPC")
-init_file_path = file.path(getwd(), "init_file.rds")
+init_file_path = file.path(localpath, "init_file.rds")
 saveRDS(init_obj, file=init_file_path)
 ```
 
@@ -158,7 +159,7 @@ saveRDS(init_obj, file=init_file_path)
 As the Hmsc-HPC operates in Python, in the next step we programmatically formulate the required call.
 
 ```{r prepare_python_call}
-post_file_path = file.path(getwd(), "post_file.rds")
+post_file_path = file.path(localpath, "post_file.rds")
 python_cmd_args = paste("-m hmsc.run_gibbs_sampler",
 												"--input", shQuote(init_file_path),
 												"--output", shQuote(post_file_path),
@@ -210,7 +211,7 @@ For this purpose, we need to create chain-specific Python calls, so that each on
 ```{r create_parallel_python_cmds}
 chain_cmd_args_list = vector("list", nChains)
 for(cInd in 1:nChains){
-	chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
+	chain_file_path = file.path(localpath, sprintf("post_chain%.2d_file.rds", cInd-1))
 	chain_cmd_args = paste("-m hmsc.run_gibbs_sampler",
 												 "--input", shQuote(init_file_path),
 												 "--output", shQuote(chain_file_path),
@@ -237,7 +238,7 @@ Therefore, once all Python calls have conducted, the following step is to import
 ```{r read_parallel_hpc_outputs}
 chainList = vector("list", nChains)
 for(cInd in 1:nChains){
-	chain_file_path = file.path(getwd(), sprintf("post_chain%.2d_file.rds", cInd-1))
+	chain_file_path = file.path(localpath, sprintf("post_chain%.2d_file.rds", cInd-1))
 	chainList[[cInd]] = readRDS(file = chain_file_path)[["list"]][[1]]
 }
 ```
