@@ -61,46 +61,25 @@ def load_model_dims(hmscModel):
     ny = int(hmscModel.get("ny")[0])
     ns = int(hmscModel.get("ns")[0])
     nc = int(hmscModel.get("nc")[0])
-    nt = int(hmscModel.get("nt")[0])
     nr = int(hmscModel.get("nr")[0])
     npVec = np.array(hmscModel.get("np"), int)
     ncsel = int(hmscModel.get("ncsel")[0])
     ncRRR = int(hmscModel.get("ncRRR")[0])
     ncNRRR = int(hmscModel.get("ncNRRR")[0])
     ncORRR = int(hmscModel.get("ncORRR")[0])
-    nuRRR = int(hmscModel.get("nuRRR")[0])
 
     modelDims = {}
     modelDims["ny"] = ny
     modelDims["ns"] = ns
     modelDims["nc"] = nc
-    modelDims["nt"] = nt
     modelDims["nr"] = nr
     modelDims["np"] = npVec
     modelDims["ncsel"] = ncsel
     modelDims["ncRRR"] = ncRRR
     modelDims["ncNRRR"] = ncNRRR
     modelDims["ncORRR"] = ncORRR
-    modelDims["nuRRR"] = nuRRR
 
     return modelDims
-
-
-def load_model_hyperparams(hmscModel, dataParList, dtype=np.float64):
-    print(hmscModel)
-    ns = int(np.squeeze(hmscModel.get("ns")))
-
-    dataParams = {}
-    if len(dataParList["Qg"]) == (ns * ns):  # TODO. need to review this condition
-        dataParams["Qg"] = np.reshape(dataParList["Qg"], (ns, ns))
-        dataParams["iQg"] = np.reshape(dataParList["iQg"], (ns, ns))
-        dataParams["RQg"] = np.reshape(dataParList["RQg"], (ns, ns))
-    else:
-        dataParams["Qg"] = np.reshape(dataParList["Qg"], (101, ns, ns))
-        dataParams["iQg"] = np.reshape(dataParList["iQg"], (101, ns, ns))
-        dataParams["RQg"] = np.reshape(dataParList["RQg"], (101, ns, ns))
-
-    return dataParams
 
 
 def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
@@ -227,7 +206,6 @@ def load_prior_hyperparams(hmscModel, dtype=np.float64):
 
     priorHyperParams = {}
     priorHyperParams["mGamma"] = mGamma
-    priorHyperParams["UGamma"] = UGamma
     priorHyperParams["iUGamma"] = tfla.inv(UGamma).numpy()
     priorHyperParams["f0"] = f0
     priorHyperParams["V0"] = V0

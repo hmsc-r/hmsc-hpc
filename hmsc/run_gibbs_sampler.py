@@ -14,7 +14,6 @@ from hmsc.utils.import_utils import (
     load_model_data,
     load_prior_hyperparams,
     load_random_level_hyperparams,
-    load_model_hyperparams,
     init_params,
 )
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
@@ -25,14 +24,11 @@ def load_params(file_path, dtype=np.float64):
     modelDims = load_model_dims(hmscModel)
     modelData = load_model_data(hmscModel, hmscImport.get("initParList"), dtype)
     priorHyperparams = load_prior_hyperparams(hmscModel, dtype)
-    # currently not used at all
-    # modelHyperparams = load_model_hyperparams(hmscModel, hmscImport.get("dataParList"))
-    modelHyperparams = None
     rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"), dtype)
     initParList = init_params(hmscImport.get("initParList"), modelData, modelDims, rLHyperparams, dtype)
     nChains = int(hmscImport.get("nChains")[0])
   
-    return modelDims, modelData, priorHyperparams, modelHyperparams, rLHyperparams, initParList, nChains
+    return modelDims, modelData, priorHyperparams, rLHyperparams, initParList, nChains
 
 
 def run_gibbs_sampler(
@@ -57,7 +53,6 @@ def run_gibbs_sampler(
         modelDims,
         modelData,
         priorHyperparams,
-        modelHyperparams, #this precomputed one (e.g. Qg) is currently not used and is computed at runtime
         rLHyperparams,
         initParList,
         nChainsTotal,
