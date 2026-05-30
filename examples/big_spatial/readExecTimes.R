@@ -1,6 +1,20 @@
 library(Hmsc)
-library(jsonify)
-setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+tryCatch({
+  setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+}, error = function(e) {
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- grep("--file=", args, value = TRUE)
+  if (length(file_arg) > 0) {
+    setwd(dirname(sub("--file=", "", file_arg[1])))
+  } else {
+    for (i in seq_along(sys.frames())) {
+      if (!is.null(sys.frames()[[i]]$ofile)) {
+        setwd(dirname(sys.frames()[[i]]$ofile))
+        break
+      }
+    }
+  }
+})
 fileDir = getwd()
 
 dirRFit = "fmR"
@@ -14,7 +28,7 @@ nChains = 1
 msFigFlag = TRUE
 
 dfTaxa = read.csv("data/taxa_used_tree.csv")
-spPart = dfTaxa$partition # 3-40, 5-160, 7-623
+spPart = dfTaxa$partition # 3-40, 5-160, 7-622
 spNumVec = cumsum(table(spPart))
 sitePart = as.vector(as.matrix(read.csv("data/data partition.csv", header=FALSE)))
 siteNumVec = cumsum(table(sitePart)[-1])
@@ -33,6 +47,7 @@ thinR = array(1, c(mtN,nsN,nyN))
 samTF = array(100, c(mtN,nsN,nyN))
 thinTF = array(10, c(mtN,nsN,nyN))
 
+# We can also handle other thin/sample settings dynamically if needed, but these are defaults
 execTimeR = array(NA, c(mtN,nsN,nyN))
 execTimeTF = array(NA, c(mtN,nsN,nyN))
 for(mtInd in 1:mtN){
@@ -53,7 +68,7 @@ for(mtInd in 1:mtN){
 				print(paste(paste(modelTypeString, ns, ny, sep="_"), "R", "missing"))
 			})
 			tryCatch({
-				fitTF <- from_json(readRDS(file = file.path(fileDir, dirTFFit, fitTF_file_name))[[1]])
+				fitTF <- readRDS(file = file.path(fileDir, dirTFFit, fitTF_file_name))
 				execTimeTF[mtInd,nsInd,nyInd] = fitTF$time
 			}, error = function(e){
 				print(paste(paste(modelTypeString, ns, ny, sep="_"), "TF", "missing"))
