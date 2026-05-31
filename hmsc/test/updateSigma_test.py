@@ -5,6 +5,7 @@ import tensorflow as tf
 tfr, tfm = tf.random, tf.math
 
 from hmsc.updaters.updateSigma import updateSigma
+from hmsc.utils.test_helpers import complete_model_data
 
 def _simple_model(spatial_method="None", dtype = np.float64):
 
@@ -55,6 +56,7 @@ def _simple_model(spatial_method="None", dtype = np.float64):
     priorHyperparams["aSigma"] = aSigma
     priorHyperparams["bSigma"] = bSigma
 
+    modelData = complete_model_data(modelData, params, modelDims)
     return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 def test_updateSigma():

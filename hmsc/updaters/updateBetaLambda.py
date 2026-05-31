@@ -81,7 +81,7 @@ def updateBetaLambda(params, data, priorHyperparams, phyloFastBatched=True, sdMu
         iK = tfla.LinearOperatorBlockDiag([iK11_op, iK22_op]).to_dense()
       else:
         iK = iV
-      if np.all(Yo == True) and np.sum(distr[:,0] == 2) == ns: #special case with all iD[i,j]==1
+      if tf.reduce_all(Yo) and tf.reduce_sum(tf.cast(distr[:,0] == 2, tf.int32)) == ns: #special case with all iD[i,j]==1
         XE_iD_XET = tf.repeat(tf.expand_dims(tf.matmul(XE, XE, transpose_a=True), 0), ns, 0, name="XE_iD_XET")
         M0 = tf.transpose(tf.matmul(XE, S, transpose_a=True))[:,:,None]
       else:

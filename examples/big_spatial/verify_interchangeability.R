@@ -25,13 +25,27 @@ dir.create(file.path(fileDir, "init"), showWarnings = FALSE)
 dir.create(file.path(fileDir, "fmR"), showWarnings = FALSE)
 dir.create(file.path(fileDir, "fmTF"), showWarnings = FALSE)
 
+library(optparse)
+
+option_list = list(
+  make_option("--samples", type="integer", default=100, 
+              help="number of samples [default=100]", metavar="number"),
+  make_option("--transient", type="integer", default=100, 
+              help="number of transient iterations [default=100]", metavar="number"),
+  make_option("--thin", type="integer", default=1, 
+              help="thinning interval [default=1]", metavar="number")
+)
+
+opt_parser = OptionParser(option_list=option_list)
+opt = parse_args(opt_parser)
+
 RS = 1
-nSamples = 1000
-thin = 10
+nSamples = opt$samples
+transient = opt$transient
+thin = opt$thin
 nChains = 4
 nf = 10
-transient = nSamples * thin
-verbose = 500
+verbose = 50
 
 modelTypeVec = c(0:4) # 0-ns, 1-full, 2-pgp, 3-nngp, 4-phylo
 mtSuffixVec = c("ns","fu","pg","nn","ph")

@@ -8,6 +8,7 @@ tfd = tfp.distributions
 
 
 from hmsc.updaters.updateLambdaPriors import updateLambdaPriors
+from hmsc.utils.test_helpers import complete_model_data
 
 def _simple_model(has_phylogeny=False, dtype = np.float64):
 
@@ -123,6 +124,7 @@ def _simple_model(has_phylogeny=False, dtype = np.float64):
         rLPar["b2"] = 1
         rLHyperparams[r] = rLPar
 
+    modelData = complete_model_data(modelData, params, modelDims)
     return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 def test_updateLambdaPriors():

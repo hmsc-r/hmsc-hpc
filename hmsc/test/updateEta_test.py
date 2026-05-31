@@ -5,6 +5,7 @@ import tensorflow as tf
 tfr, tfm = tf.random, tf.math
 
 from hmsc.updaters.updateEta import updateEta
+from hmsc.utils.test_helpers import complete_model_data
 
 def _simple_model(spatial_method="None", dtype = np.float64):
     
@@ -66,6 +67,7 @@ def _simple_model(spatial_method="None", dtype = np.float64):
         rLPar["sDim"] = 0
         rLHyperparams[r] = rLPar
 
+    modelData = complete_model_data(modelData, params, modelDims)
     return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 @pytest.mark.parametrize("spatial_method", ["Full", "NNGP", "GPP", "None"])

@@ -8,6 +8,7 @@ tfd = tfp.distributions
 
 
 from hmsc.updaters.updateGammaV import updateGammaV
+from hmsc.utils.test_helpers import complete_model_data
 
 def _simple_model(has_phylogeny=False, dtype = np.float64):
 
@@ -62,6 +63,7 @@ def _simple_model(has_phylogeny=False, dtype = np.float64):
     priorHyperparams["V0"] = V0
     priorHyperparams["f0"] = f0
 
+    modelData = complete_model_data(modelData, params, modelDims)
     return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 #@pytest.mark.parametrize("has_phylogeny", [False, True]) # has_phylogeny=True test is slow; uncomment in final version

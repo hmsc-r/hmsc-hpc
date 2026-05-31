@@ -5,6 +5,7 @@ import tensorflow as tf
 tfr, tfm = tf.random, tf.math
 
 from hmsc.updaters.updateZ import updateZ
+from hmsc.utils.test_helpers import complete_model_data
 
 def _simple_model(spatial_method="None", dtype = np.float64):
 
@@ -59,6 +60,7 @@ def _simple_model(spatial_method="None", dtype = np.float64):
         rLPar["xDim"] = 0
         rLHyperparams[r] = rLPar
 
+    modelData = complete_model_data(modelData, params, modelDims)
     return params, modelDims, modelData, priorHyperparams, rLHyperparams
 
 def test_updateZ():

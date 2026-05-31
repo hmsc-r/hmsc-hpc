@@ -35,7 +35,7 @@ def updateRhoInd(params,
   nc, ns = Beta.shape
   gN = rhopw.shape[0]
   rhoN = rhoInd.shape[0]
-  if it == None and (rhoIndUpdateN != 0 or rhoIndUpdateN != rhoN):
+  if it == None and (rhoIndUpdateN != 0 and rhoIndUpdateN != rhoN):
     raise ValueError(f"Incompatible rhoIndUpdateN={rhoIndUpdateN} for it=None.")
   if rhoIndUpdateN == 0:
     rhoIndUpdateN = rhoN
