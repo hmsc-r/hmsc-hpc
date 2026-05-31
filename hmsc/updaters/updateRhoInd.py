@@ -58,7 +58,6 @@ def updateRhoInd(params,
         logDet = nc*tf.reduce_sum(tfm.log(eQ), -1) # + ns*logDetV
         # qf_1, logDet_1 = qf, logDet
       else:
-        print("phyloFast updateRhoInd") #TODO remove after debug
         LiVT_E = tf.matmul(LiV, E, transpose_a=True, name='LiVT_E')
         LiVT_E_arr = tf.tile(tf.transpose(LiVT_E, name='LiVT_E_arr_0')[:,None,None,:], [1,gN,1,1], name='LiVT_E_arr_0')
         tmp1, tmp2 = pfBilinearDet(phyloTreeList, LiVT_E_arr, LiVT_E_arr, phyloTreeRoot, tf.ones([1,1],dtype), rhopw[:,0,None], dtype)
@@ -91,7 +90,6 @@ def updateRhoInd(params,
           qf = tf.squeeze(tf.matmul(iLQe, iLQe, transpose_a=True), [-2,-1])
           # qf_1, logDet_1 = qf, logDet
         else:
-          print(f"vector rho, phyloFast updateRhoInd, iter {k}") #TODO remove after debug
           # E_arr = tf.transpose(E)[:,None,:,None]
           E_arr = tf.tile(tf.transpose(E)[:,None,:,None], [1,gN,1,1])
           tmp1, logDet = pfBilinearDet(phyloTreeList, E_arr, E_arr, phyloTreeRoot, iV, rhoVec, dtype)

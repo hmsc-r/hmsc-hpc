@@ -66,7 +66,6 @@ def updateGammaV(params,
           A = tf.matmul(E_VC_eiQ05, E_VC_eiQ05, transpose_b=True)
           A_1 = A #TODO remove
         else:
-          print("scalar rho, phyloFast updateGammaV part 1") #TODO
           ET_arr = tf.transpose(E)[:,None,:]
           A, _ = pfBilinearDet(phyloTreeList, ET_arr, ET_arr, phyloTreeRoot, tf.ones([1,1],dtype), rho, dtype)
           A_2 = A #TODO remove
@@ -130,7 +129,6 @@ def updateGammaV(params,
           mg02 = tf.reshape(tf.transpose(tf.matmul(iV, tf.matmul(tf.matmul(Beta, VC) * eQ**-1, VCt_T))), [nt*nc,1])
           mg02_1, iSigmaGamma_1 = mg02, iSigmaGamma #TODO remove
         else:
-          print("scalar rho, phyloFast updateGammaV part Gamma") #TODO remove
           T_arr = T[:,None,:]
           Tt_iQ_T, _ = pfBilinearDet(phyloTreeList, T_arr, T_arr, phyloTreeRoot, tf.ones([1,1],dtype), rho, dtype)
           iSigmaGamma = iUGamma + kron(Tt_iQ_T, iV)
@@ -140,7 +138,6 @@ def updateGammaV(params,
           mg02_2, iSigmaGamma_2 = mg02, iSigmaGamma #TODO remove
       else:
         if phyloFast == False:
-          print("vector rho, phyloBase updateGammaV part Gamma") #TODO remove
           V = tfla.cholesky_solve(tfla.cholesky(iV), tf.eye(nc, dtype=dtype)) 
           # d105 = tfm.sqrt(rhoVec)
           # d205 = tfm.sqrt(1 - rhoVec)
@@ -156,7 +153,6 @@ def updateGammaV(params,
           mg02 = tf.reshape(tf.matmul(T, tf.reshape(tfla.cholesky_solve(LQ, beta), [ns,nc]), transpose_a=True), [nt*nc,1])
           mg02_1, iSigmaGamma_1 = mg02, iSigmaGamma #TODO remove
         else:
-          print("vector rho, phyloFast updateGammaV part Gamma") #TODO remove
           TxI_arr = tf.reshape(kron(T, tf.eye(nc, dtype=dtype)), [ns, nc, nt*nc])
           TxI_iQ_TxI, _ = pfBilinearDet(phyloTreeList, TxI_arr, TxI_arr, phyloTreeRoot, iV, rhoVec, dtype)
           iSigmaGamma = iUGamma + TxI_iQ_TxI

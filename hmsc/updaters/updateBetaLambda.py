@@ -122,7 +122,6 @@ def updateBetaLambda(params, data, priorHyperparams, phyloFastBatched=True, sdMu
         m = tfla.cholesky_solve(LiU, tf.reshape(M0, [na*ns,1]))
         BetaLambda = tf.reshape(m + tfla.triangular_solve(LiU, sdMult*tfr.normal(shape=[na*ns,1], dtype=dtype), adjoint=True), [na,ns])
       else:
-        print("phyloFast updateBetaLambda") #TODO remove print
         # BetaLambda = tfr.normal(shape=[na,ns], dtype=dtype)
         lin_op2 = tfla.LinearOperatorDiag(tf.ones([nfSum],dtype))
         iV_e = tfla.LinearOperatorBlockDiag([tfla.LinearOperatorFullMatrix(iV), lin_op2]).to_dense()
