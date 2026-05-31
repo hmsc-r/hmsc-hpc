@@ -107,7 +107,7 @@ def updateGammaV(params,
           A = tf.matmul(iLCZ1, iLCZ1, transpose_a=True) + tf.matmul(Z2, Z2, transpose_b=True)
           A1 = A
         else:
-          fa, A = phyloFastGetPariV(phyloTreeList, phyloTreeRoot, E, iV, rhoVec, dtype=tf.float64)
+          fa, A = phyloFastGetPariV(phyloTreeList, phyloTreeRoot, E, iV, rhoVec, dtype=dtype)
           fn = f0 + fa
           A2 = A
     
