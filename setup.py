@@ -1,9 +1,7 @@
 from setuptools import setup, find_packages
-
-
 setup(
   name='hmsc',
-  version='0.3.3',
+  version='0.3.4',
   author='Gleb Tikhonov, Anis Ur Rahman, Tuomas Rossi, Jari Oksanen, Otso Ovaskainen',
   author_email='gleb.tikhonov@helsinki.fi, otso.ovaskainen@jyu.fi',
   maintainer='Gleb Tikhonov',
@@ -12,12 +10,11 @@ setup(
   license='GPLv3+',
   packages=find_packages(include=['hmsc', 'hmsc.*']),
   install_requires=[
-    'numpy',
-    'pandas',
-    'pyreadr',
-    'scipy',
-    'tensorflow[and-cuda]',
-    'tensorflow-probability[tf]',
-    'ujson',
+    'numpy>=2.0.0',
+    'pandas>=2.1.0',
+    'rdata>=1.0.0',
+    'scipy>=1.11.0',
+    'tensorflow[and-cuda]>=2.16.0',
+    'tensorflow-probability[tf]>=0.24.0',
   ]
 )

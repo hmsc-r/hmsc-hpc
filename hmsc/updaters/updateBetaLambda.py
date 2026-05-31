@@ -36,6 +36,8 @@ def updateBetaLambda(params, data, priorHyperparams, phyloFastBatched=True, sdMu
     DeltaList = params["Delta"]
     X = params["Xeff"]  
     Loff = data["Loff"]
+    Yo = data["Yo"]
+    distr = data["distr"]
     T = data["T"]
     phyloFlag, phyloFast = data["phyloFlag"], data["phyloFast"]
     phyloTreeList, phyloTreeRoot = data["phyloTreeList"], data["phyloTreeRoot"]
@@ -79,15 +81,16 @@ def updateBetaLambda(params, data, priorHyperparams, phyloFastBatched=True, sdMu
         iK = tfla.LinearOperatorBlockDiag([iK11_op, iK22_op]).to_dense()
       else:
         iK = iV
- 
-      # iD05_XE = tf.multiply(tfla.matrix_transpose(iD)[:,:,None]**0.5, XE, name="iD05_XE")
-      # iU = iK + tf.matmul(iD05_XE, iD05_XE, transpose_a=True, name="iU.2")
-      if len(XE.shape.as_list()) == 2:
-        XE_iD_XET = tf.einsum("ic,ij,ik->jck", XE, iD, XE, name="XE_iD_XET")
-        M0 = tf.einsum("ik,ij->jk", XE, iD*S, name="M0")[:,:,None]
+      if np.all(Yo == True) and np.sum(distr[:,0] == 2) == ns: #special case with all iD[i,j]==1
+        XE_iD_XET = tf.repeat(tf.expand_dims(tf.matmul(XE, XE, transpose_a=True), 0), ns, 0, name="XE_iD_XET")
+        M0 = tf.transpose(tf.matmul(XE, S, transpose_a=True))[:,:,None]
       else:
-        XE_iD_XET = tf.einsum("jic,ij,jik->jck", XE, iD, XE, name="XE_iD_XET")
-        M0 = tf.einsum("jik,ij->jk", XE, iD*S, name="M0")[:,:,None]
+        if len(XE.shape.as_list()) == 2:
+          XE_iD_XET = tf.einsum("ic,ij,ik->jck", XE, iD, XE, name="XE_iD_XET")
+          M0 = tf.einsum("ik,ij->jk", XE, iD*S, name="M0")[:,:,None]
+        else:
+          XE_iD_XET = tf.einsum("jik,ij,jik->jck", XE, iD, XE, name="XE_iD_XET")
+          M0 = tf.einsum("jik,ij->jk", XE, iD*S, name="M0")[:,:,None]
       iU = iK + XE_iD_XET
       LiU = tfla.cholesky(iU, name="LiU")
       M = tfla.cholesky_solve(LiU, M0, name="M")

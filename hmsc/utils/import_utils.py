@@ -119,7 +119,7 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
         rLPar["b2"] = dtype(hmscModel.get("rL")[rLName]["b2"][0])
         rLPar["nfMin"] = int(hmscModel.get("rL")[rLName]["nfMin"][0])
         rLPar["nfMax"] = int(hmscModel.get("rL")[rLName]["nfMax"][0])
-        rLPar["sDim"] = int(hmscModel.get("rL")[rLName]["sDim"][0])
+        rLPar["sDim"] = np.inf if hmscModel.get("rL")[rLName]["sDim"][0] == "Inf" else int(hmscModel.get("rL")[rLName]["sDim"][0])
         rLPar["xDim"] = int(hmscModel.get("rL")[rLName]["xDim"][0])
         if rLPar["sDim"] > 0:
             rLPar["spatialMethod"] = hmscModel.get("rL")[rLName]["spatialMethod"][0]
@@ -127,22 +127,25 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
             gN = rLPar["alphapw"].shape[0]
             if rLPar["spatialMethod"] == "Full":
                 distMat = np.reshape(dataParList["rLPar"][r]["distMat"], [npVec[r], npVec[r]]).astype(dtype)
-                tmp = distMat / rLPar["alphapw"][:,0,None,None]
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    tmp = distMat / rLPar["alphapw"][:, 0, None, None]
                 tmp[np.isnan(tmp)] = 0
                 rLPar["Wg"] = np.exp(-tmp)
                 LWg = tfla.cholesky(rLPar["Wg"])
                 rLPar["iWg"] = tfla.cholesky_solve(LWg, tf.eye(npVec[r], npVec[r], [gN], dtype))
                 rLPar["LiWg"] = tfla.cholesky(rLPar["iWg"])
-                rLPar["detWg"] = 2*tf.reduce_sum(tfm.log(tfla.diag_part(LWg)), -1)
+                rLPar["detWg"] = 2 * tf.reduce_sum(tfm.log(tfla.diag_part(LWg)), -1)
 
             elif rLPar["spatialMethod"] == "GPP":
                 nK = int(dataParList["rLPar"][r]["nKnots"][0])
                 d12 = np.reshape(dataParList["rLPar"][r]["distMat12"], [npVec[r], nK]).astype(dtype)
                 d22 = np.reshape(dataParList["rLPar"][r]["distMat22"], [nK, nK]).astype(dtype)
-                W12 = d12 / rLPar["alphapw"][:,0,None,None]
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    W12 = d12 / rLPar["alphapw"][:, 0, None, None]
                 W12[np.isnan(W12)] = 0
                 W12 = tf.exp(-W12)
-                W22 = d22 / rLPar["alphapw"][:,0,None,None]
+                with np.errstate(divide="ignore", invalid="ignore"):
+                    W22 = d22 / rLPar["alphapw"][:, 0, None, None]
                 W22[np.isnan(W22)] = 0
                 W22 = tf.exp(-W22)
                 LW22 = tfla.cholesky(W22)
@@ -152,53 +155,56 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
                 F = W22 + tf.einsum("gik,gi,gih->gkh", W12, idD, W12)
                 LF = tfla.cholesky(F)
                 iDW12 = tf.einsum("gi,gik->gik", idD, W12)
-                detD = tf.reduce_sum(tfm.log(dD), -1) - 2*tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1) + \
-                  2*tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
-                
+                detD = (
+                    tf.reduce_sum(tfm.log(dD), -1)
+                    - 2 * tf.reduce_sum(tfm.log(tfla.diag_part(LW22)), -1)
+                    + 2 * tf.reduce_sum(tfm.log(tfla.diag_part(LF)), -1)
+                )
+
                 rLPar["nK"] = nK
                 rLPar["idDg"] = idD
                 rLPar["idDW12g"] = iDW12
                 rLPar["Fg"] = F
                 rLPar["iFg"] = tfla.cholesky_solve(tf.cast(tfla.cholesky(F), dtype=dtype), tf.eye(nK, nK, [gN], dtype))
                 rLPar["detDg"] = detD
-                
+
             elif rLPar["spatialMethod"] == "NNGP":
                 indList, distList = dataParList["rLPar"][r]["indices"], dataParList["rLPar"][r]["distList"]
                 iWList_csr = [None] * gN
                 RiWList = [None] * gN
                 detW = np.zeros([gN], dtype)
-                indMat = np.concatenate([ind for ind in indList if len(ind) > 0], 1).T.astype(int) - 1
+                indMat = np.concatenate([ind for ind in indList if (ind is not None and len(ind) > 0)], 1).T.astype(int) - 1
                 for ag in range(gN):
-                  alpha = rLPar["alphapw"][ag,0]
-                  if alpha == 0:
-                    RiWList[ag] = tfs.eye(npVec[r], dtype=dtype)
-                    iWList_csr[ag] = sparse.eye(npVec[r], dtype=dtype)
-                  else:
-                    D = np.zeros([npVec[r]], dtype)
-                    D[0] = 1
-                    valList = [[]] * npVec[r]
-                    for i in range(1,npVec[r]):
-                      if len(indList[i]) > 1:
-                        Kp = np.exp(-np.array(distList[i]).astype(dtype)/alpha)
-                        valList[i] = np.linalg.solve(Kp[:-1,:-1], Kp[:-1,-1])
-                        D[i] = Kp[-1,-1] - np.matmul(Kp[:-1,-1], valList[i])
-                      else:
-                        D[i] = 1
-                    iD05_csr = sparse.csr_array((D**-0.5, (np.arange(npVec[r]),np.arange(npVec[r]))), [npVec[r]]*2, dtype=dtype)
-                    A = sparse.csr_array((np.concatenate(valList), (indMat[:,0],indMat[:,1])), [npVec[r]]*2, dtype=dtype)
-                    B = sparse.eye(npVec[r], dtype=dtype) - A
-                    RiW = iD05_csr @ B
-                    iWList_csr[ag] = RiW.T @ RiW
-                    RiWList[ag] = tfs.reorder(tfs.SparseTensor(np.stack(RiW.nonzero(), 1), RiW[RiW.nonzero()], [npVec[r]]*2))
-                    detW[ag] = np.sum(np.log(D))
-                    
+                    alpha = rLPar["alphapw"][ag, 0]
+                    if alpha == 0:
+                        RiWList[ag] = tfs.eye(npVec[r], dtype=dtype)
+                        iWList_csr[ag] = sparse.eye(npVec[r], dtype=dtype)
+                    else:
+                        D = np.zeros([npVec[r]], dtype)
+                        D[0] = 1
+                        valList = [[]] * npVec[r]
+                        for i in range(1, npVec[r]):
+                            if indList[i] is not None and len(indList[i]) > 1:
+                                Kp = np.exp(-np.array(distList[i]).astype(dtype) / alpha)
+                                valList[i] = np.linalg.solve(Kp[:-1, :-1], Kp[:-1, -1])
+                                D[i] = Kp[-1, -1] - np.matmul(Kp[:-1, -1], valList[i])
+                            else:
+                                D[i] = 1
+                        iD05_csr = sparse.csr_array((D**-0.5, (np.arange(npVec[r]), np.arange(npVec[r]))), [npVec[r]] * 2, dtype=dtype)
+                        A = sparse.csr_array((np.concatenate(valList), (indMat[:, 0], indMat[:, 1])), [npVec[r]] * 2, dtype=dtype)
+                        B = sparse.eye(npVec[r], dtype=dtype) - A
+                        RiW = iD05_csr @ B
+                        iWList_csr[ag] = RiW.T @ RiW
+                        RiWList[ag] = tfs.reorder(tfs.SparseTensor(np.stack(RiW.nonzero(), 1), RiW[RiW.nonzero()], [npVec[r]] * 2))
+                        detW[ag] = np.sum(np.log(D))
+
                 rLPar["iWList_csr"] = iWList_csr
                 rLPar["RiWList"] = RiWList
                 rLPar["detWg"] = detW
-        
+
         if rLPar["xDim"] > 0:
-            rLPar["xMat"] = np.array(hmscModel.get("rL")[rLName]["xMat"]) # TODO. unsure about dtype
-        
+            rLPar["xMat"] = np.array(hmscModel.get("rL")[rLName]["xMat"])  # TODO. unsure about dtype
+
         rLParams[r] = rLPar
 
     return rLParams
@@ -220,7 +226,6 @@ def load_prior_hyperparams(hmscModel, dtype=np.float64):
 
     priorHyperParams = {}
     priorHyperParams["mGamma"] = mGamma
-    priorHyperParams["UGamma"] = UGamma
     priorHyperParams["iUGamma"] = tfla.inv(UGamma).numpy()
     priorHyperParams["f0"] = f0
     priorHyperParams["V0"] = V0
@@ -244,48 +249,49 @@ def init_params(importedInitParList, modelData, modelDims, rLHyperparams, dtype=
         Beta = tf.constant(importedInitPar["Beta"], dtype=dtype)
         Gamma = tf.constant(importedInitPar["Gamma"], dtype=dtype)
         iV = tfla.inv(tf.constant(importedInitPar["V"], dtype=dtype))
-        rhoInd = (tf.cast(tf.constant(importedInitPar["rhoInd"]), tf.int32) - 1)
+        rhoInd = tf.cast(tf.constant(importedInitPar["rhoInd"]), tf.int32) - 1
         sigma = tf.constant(importedInitPar["sigma"], dtype=dtype)
         EtaList = [tf.constant(Eta, dtype=dtype) for Eta in importedInitPar["Eta"]]
-        AlphaIndList = [tf.cast(tf.constant(AlphaInd), tf.int32) - 1 for AlphaInd in importedInitPar["Alpha"]]
-        LambdaList, PsiList, DeltaList  = [None] * modelDims["nr"], [None] * modelDims["nr"], [None] * modelDims["nr"]
-        for r, (Lambda, Psi, Delta, Eta, rLPar) in enumerate(zip(importedInitPar["Lambda"], importedInitPar["Psi"], importedInitPar["Delta"], 
-                                                                 EtaList, rLHyperparams)):
+        AlphaIndList = [tf.cast(tf.constant(AlphaInd), tf.int32) - 1 for AlphaInd in importedInitPar["AlphaInd"]]
+        LambdaList, PsiList, DeltaList = [None] * modelDims["nr"], [None] * modelDims["nr"], [None] * modelDims["nr"]
+        for r, (Lambda, Psi, Delta, Eta, rLPar) in enumerate(
+            zip(importedInitPar["Lambda"], importedInitPar["Psi"], importedInitPar["Delta"], EtaList, rLHyperparams)
+        ):
             nf = Eta.shape[1]
-            DeltaList[r] = tf.constant(Delta, dtype=dtype)  
+            DeltaList[r] = tf.constant(Delta, dtype=dtype)
             if rLPar["xDim"] == 0:
                 LambdaList[r] = tf.constant(Lambda, dtype=dtype)
                 PsiList[r] = tf.constant(Psi, dtype=dtype)
             else:
-                LambdaList[r] = tf.transpose(tf.reshape(tf.constant(Lambda, dtype=dtype), [rLPar["xDim"],modelDims["ns"],nf]), [2,1,0])
-                PsiList[r] = tf.transpose(tf.reshape(tf.constant(Psi, dtype=dtype), [rLPar["xDim"],modelDims["ns"],nf]), [2,1,0])
+                LambdaList[r] = tf.transpose(tf.reshape(tf.constant(Lambda, dtype=dtype), [rLPar["xDim"], modelDims["ns"], nf]), [2, 1, 0])
+                PsiList[r] = tf.transpose(tf.reshape(tf.constant(Psi, dtype=dtype), [rLPar["xDim"], modelDims["ns"], nf]), [2, 1, 0])
 
         BetaSel = [tf.constant(BetaSel, dtype=tf.bool) for BetaSel in importedInitPar["BetaSel"]]
 
         if modelDims["ncsel"] > 0:
-          ns, nc = modelDims["ns"], modelDims["nc"]
-          X, XSel = modelData["X"], modelData["XSel"]
-          bsCovGroupLen = [XSelElem["covGroup"].size for XSelElem in XSel]
-          bsInd = tf.concat([XSelElem["covGroup"] for XSelElem in XSel], 0)
-          bsActiveList = [tf.gather(BetaSelElem, XSelElem["spGroup"]) for BetaSelElem, XSelElem in zip(BetaSel, XSel)]
-          bsActive = tf.cast(tf.repeat(tf.stack(bsActiveList, 0), bsCovGroupLen, 0), dtype)
-          bsMask = tf.tensor_scatter_nd_min(tf.ones([nc,ns], dtype), bsInd[:,None], bsActive)
-          if X.ndim == 2:
-            Xeff = tf.einsum("ik,kj->jik", X, bsMask)
-          else:
-            Xeff = tf.einsum("jik,kj->jik", X, bsMask)
+            ns, nc = modelDims["ns"], modelDims["nc"]
+            X, XSel = modelData["X"], modelData["XSel"]
+            bsCovGroupLen = [XSelElem["covGroup"].size for XSelElem in XSel]
+            bsInd = tf.concat([XSelElem["covGroup"] for XSelElem in XSel], 0)
+            bsActiveList = [tf.gather(BetaSelElem, XSelElem["spGroup"]) for BetaSelElem, XSelElem in zip(BetaSel, XSel)]
+            bsActive = tf.cast(tf.repeat(tf.stack(bsActiveList, 0), bsCovGroupLen, 0), dtype)
+            bsMask = tf.tensor_scatter_nd_min(tf.ones([nc, ns], dtype), bsInd[:, None], bsActive)
+            if X.ndim == 2:
+                Xeff = tf.einsum("ik,kj->jik", X, bsMask)
+            else:
+                Xeff = tf.einsum("jik,kj->jik", X, bsMask)
         else:
-          Xeff = tf.constant(modelData["X"], dtype=dtype)
+            Xeff = tf.constant(modelData["X"], dtype=dtype)
 
         XRRR = modelData["XRRR"]
-        PsiRRR = tf.constant(importedInitPar["PsiRRR"], dtype) if "PsiRRR" in importedInitPar else tf.zeros([0,0], dtype)
+        PsiRRR = tf.constant(importedInitPar["PsiRRR"], dtype) if "PsiRRR" in importedInitPar else tf.zeros([0, 0], dtype)
         DeltaRRR = tf.squeeze(tf.constant(importedInitPar["DeltaRRR"], dtype), 1) if "DeltaRRR" in importedInitPar else tf.zeros([0], dtype)
-        wRRR = tf.constant(importedInitPar["wRRR"], dtype) if "wRRR" in importedInitPar else tf.zeros([0,0], dtype)
+        wRRR = tf.constant(importedInitPar["wRRR"], dtype) if "wRRR" in importedInitPar else tf.zeros([0, 0], dtype)
         XeffRRR = tf.einsum("ik,hk->ih", XRRR, wRRR)
         if Xeff.ndim == 2:
-          Xeff = tf.concat([Xeff, XeffRRR], axis=-1)
+            Xeff = tf.concat([Xeff, XeffRRR], axis=-1)
         else:
-          Xeff = tf.concat([Xeff, tf.repeat(tf.expand_dims(XeffRRR,0), modelDims["ns"], 0)], axis=-1)
+            Xeff = tf.concat([Xeff, tf.repeat(tf.expand_dims(XeffRRR, 0), modelDims["ns"], 0)], axis=-1)
 
         initPar = {}
         initPar["Z"] = None

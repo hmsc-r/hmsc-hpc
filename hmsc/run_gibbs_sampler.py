@@ -6,7 +6,7 @@ import argparse
 import numpy as np
 import tensorflow as tf
 from hmsc.gibbs_sampler import GibbsSampler
-from hmsc.utils.export_rds_utils import (
+from hmsc.utils.rds import (
     load_model_from_rds,
     save_chains_postList_to_rds,
 )
@@ -28,6 +28,7 @@ def load_params(file_path, phylo_fast_batched=True, dtype=np.float64):
     rLHyperparams = load_random_level_hyperparams(hmscModel, hmscImport.get("dataParList"), dtype)
     initParList = init_params(hmscImport.get("initParList"), modelData, modelDims, rLHyperparams, dtype)
     nChains = int(hmscImport.get("nChains")[0])
+
     return modelDims, modelData, priorHyperparams, rLHyperparams, initParList, nChains
 
 
@@ -266,12 +267,22 @@ def main(arg_list=None):
         choices=[32, 64],
         help="which precision mode is used for sampling: fp32 or fp64",
     )
+    argParser.add_argument(
+        "--eager",
+        type=int,
+        default=0,
+        choices=[0, 1],
+        help="whether to run in eager execution mode"
+    )
 
     args = argParser.parse_args(arg_list)
     print("args=%s" % args, flush=True)
     print("working directory", os.getcwd(), flush=True)
     init_obj_file_path = args.input
     postList_file_path = args.output
+    if args.eager:
+      tf.config.run_functions_eagerly(args.eager)
+      print("executing Hmsc-HPC eagerly, switch to graph execution for optimal performance", flush=True)
     dtype = np.float32 if args.fp == 32 else np.float64
 
     run_gibbs_sampler(

@@ -1,11 +1,25 @@
 library(Hmsc)
 library(sp)
-library(jsonify)
-setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+tryCatch({
+  setwd(dirname(rstudioapi::getSourceEditorContext()$path))
+}, error = function(e) {
+  args <- commandArgs(trailingOnly = FALSE)
+  file_arg <- grep("--file=", args, value = TRUE)
+  if (length(file_arg) > 0) {
+    setwd(dirname(sub("--file=", "", file_arg[1])))
+  } else {
+    for (i in seq_along(sys.frames())) {
+      if (!is.null(sys.frames()[[i]]$ofile)) {
+        setwd(dirname(sys.frames()[[i]]$ofile))
+        break
+      }
+    }
+  }
+})
 fileDir = getwd()
-dir.create(file.path(fileDir, "init"))
-dir.create(file.path(fileDir, "fmR"))
-dir.create(file.path(fileDir, "fmTF"))
+dir.create(file.path(fileDir, "init"), showWarnings = FALSE)
+dir.create(file.path(fileDir, "fmR"), showWarnings = FALSE)
+dir.create(file.path(fileDir, "fmTF"), showWarnings = FALSE)
 
 RS = 1
 nSamples = 100
@@ -18,7 +32,7 @@ verbose = 1
 modelTypeVec = c(0:4) # 0-ns, 1-full, 2-pgp, 3-nngp, 4-phylo
 nParallel = 1
 flagInit = 0
-flagFitR = 1
+flagFitR = 0
 
 YA = read.csv("data/Y.csv")
 TrA = read.csv("data/traits.csv")
@@ -37,7 +51,7 @@ rownames(YA) = siteNames
 rownames(XA) = siteNames
 rownames(xyA) = siteNames
 
-for(modelType in modelTypeVec){ 
+for(modelType in modelTypeVec){
 	if(modelType==2){
 		hull = read.csv("data/hull.csv", header=FALSE)
 		kn = as.data.frame(spsample(Polygon(hull[-1,]), 60, type = "hexagonal", offset=c(0,0)))
@@ -77,12 +91,7 @@ for(modelType in modelTypeVec){
 				rLSite = HmscRandomLevel(sData=xyA, sMethod="NNGP", nNeighbours=10)
 			} else if(modelType==4){
 				rLSite = HmscRandomLevel(units=rownames(xyA))
-				C = matrix(NA,spNumVec[nsInd],spNumVec[nsInd])
-				for(i in 1:spNumVec[nsInd]){
-					for(j in 1:spNumVec[nsInd]){
-						C[i,j] = mean((taxa[i,] == taxa[j,]))
-					}
-				}
+				C = Reduce(`+`, lapply(taxa, function(x) outer(x, x, `==`))) / ncol(taxa)
 				colnames(C) = rownames(C) = rownames(taxa)
 			}
 			rLSite = setPriors(rLSite, nfMin=nf, nfMax=nf)
@@ -93,13 +102,12 @@ for(modelType in modelTypeVec){
 			
 			if(flagInit){
 				cat("Initializing for TF\n")
-				path = dirname(rstudioapi::getSourceEditorContext()$path)
 				set.seed(RS+42)
 				init_obj = sampleMcmc(m, samples=nSamples, thin=thin,
 															transient=transient, nChains=nChains, verbose=verbose,
 															engine="HPC", updater=list(Gamma2=FALSE, GammaEta=FALSE))
 				
-				saveRDS(to_json(init_obj), file = file.path(fileDir, "init", init_file_name))
+				saveRDS(init_obj, file = file.path(fileDir, "init", init_file_name))
 				cat("Export to TF saved\n")
 			}
 			
