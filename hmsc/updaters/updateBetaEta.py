@@ -16,7 +16,7 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
   rhoInd = params["rhoInd"]
   LambdaList = params["Lambda"]
   EtaList = params["Eta"]
-  AlphaIndList = params["AlphaInd"]
+  AlphaIndList = params["alphaInd"]
   X = params["Xeff"]
   Loff = data["Loff"]
   T = data["T"]
@@ -41,7 +41,7 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
     LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
 
   EtaListNew = [None] * nr
-  for r, (Eta, Lambda, AlphaInd, rLPar) in enumerate(zip(EtaList, LambdaList, AlphaIndList, rLHyperparams)):
+  for r, (Eta, Lambda, alphaInd, rLPar) in enumerate(zip(EtaList, LambdaList, AlphaIndList, rLHyperparams)):
     randFlag = tf.cast(1, dtype)
     nf = tf.cast(tf.shape(Lambda)[-2], tf.int64)
     # if nf > 0:
@@ -110,7 +110,7 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
       iS22_2 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.scatter_nd(pi[:,None], Lam_iD_Lam, shape=[nv,nf,nf]), [1,2,0])), [0,2,1,3]), [nf*nv]*2)
       if rLPar["spatialMethod"] == "Full":
         iWg = rLPar["iWg"]
-        iWs = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(iWg, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nv]*2)
+        iWs = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(iWg, alphaInd), [1,2,0])), [2,0,3,1]), [nf*nv]*2)
         iS22 = iWs + iS22_2
       
         if C is None: # block-inverse calculation

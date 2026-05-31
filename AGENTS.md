@@ -35,9 +35,9 @@ python hmsc/run_gibbs_sampler.py \
 Use `python hmsc/run_gibbs_sampler.py --help` for a full list of options, including precision (`--fp 32` or `--fp 64`) and HMC parameters.
 
 ### Running Tests
-Tests are located in `hmsc/test/` and use `pytest`.
+Tests are located in `hmsc/test/` and use `pytest`. We use the virtual environment located at `~/.virtualenvs/tf` to run tests and commands:
 ```bash
-pytest
+~/.virtualenvs/tf/bin/pytest
 ```
 CI is configured via GitHub Actions in `.github/workflows/ci.yml`.
 

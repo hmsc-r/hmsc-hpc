@@ -41,7 +41,7 @@ def _simple_model(has_phylogeny=False, dtype=np.float64):
     Beta = tf.matmul(Gamma, T, transpose_b=True) + tf.transpose(tfd.MultivariateNormalFullCovariance(covariance_matrix=tfla.inv(iV)).sample(ns))
     EtaList = [tfr.normal([npVec[r], nfVec[r]], dtype=dtype) for r in range(nr)]
     LambdaList = [tfr.normal([nfVec[r], ns], dtype=dtype) for r in range(nr)]
-    AlphaIndList = [tf.zeros([nfVec[r], 1], dtype=tf.int64) for r in range(nr)]
+    alphaIndList = [tf.zeros([nfVec[r], 1], dtype=tf.int64) for r in range(nr)]
     rhoInd = tf.cast(tf.constant([0]), tf.int32)
     sigma = tfr.uniform([ns], dtype=dtype)
     wRRR = tf.abs(tfr.normal([ncNRRR, ncORRR], dtype=dtype))
@@ -100,7 +100,7 @@ def _simple_model(has_phylogeny=False, dtype=np.float64):
     params["BetaSel"] = BetaSel
     params["Gamma"] = Gamma
     params["Lambda"] = LambdaList
-    params["AlphaInd"] = AlphaIndList
+    params["alphaInd"] = alphaIndList
     params["Eta"] = EtaList
     params["iV"] = iV
     params["rhoInd"] = rhoInd
@@ -166,11 +166,11 @@ def test_updatewNf():
     PsiListTrue = params["Psi"]
     DeltaListTrue = params["Delta"]
     EtaListTrue = params["Eta"]
-    AlphaIndListTrue = params["AlphaInd"]
+    alphaIndListTrue = params["alphaInd"]
 
     rhoIndTrue = params["rhoInd"]
 
-    LambdaList, PsiList, DeltaList, EtaList, AlphaIndList = updateNf(params, rLHyperparams, it=0)
+    LambdaList, PsiList, DeltaList, EtaList, alphaIndList = updateNf(params, rLHyperparams, it=0)
 
     for r in range(modelDims["nr"]):
         assert_allclose(tf.reduce_mean(LambdaList[r]), tf.reduce_mean(LambdaListTrue[r]), atol=0.005)
@@ -181,14 +181,14 @@ def test_updatewNf():
 
         assert_allclose(tf.reduce_mean(EtaList[r]), tf.reduce_mean(EtaListTrue[r]), atol=0.001)
 
-        assert_allclose(tf.reduce_mean(AlphaIndList[r]), tf.reduce_mean(AlphaIndListTrue[r]), atol=0.001)
+        assert_allclose(tf.reduce_mean(alphaIndList[r]), tf.reduce_mean(alphaIndListTrue[r]), atol=0.001)
 
 
 def test_updateNf_shape():
 
     params, modelDims, _, _, rLHyperparams = _simple_model()
 
-    LambdaList, PsiList, DeltaList, EtaList, AlphaIndList = updateNf(params, rLHyperparams, it=0)
+    LambdaList, PsiList, DeltaList, EtaList, alphaIndList = updateNf(params, rLHyperparams, it=0)
 
     for r in range(modelDims["nr"]):
         assert tf.shape(LambdaList[r])[0] == modelDims["nf"][r]
@@ -202,4 +202,4 @@ def test_updateNf_shape():
         assert tf.shape(EtaList[r])[0] == modelDims["np"][r]
         assert tf.shape(EtaList[r])[1] == modelDims["nf"][r]
 
-        assert tf.shape(AlphaIndList[r])[0] == modelDims["nf"][r]
+        assert tf.shape(alphaIndList[r])[0] == modelDims["nf"][r]

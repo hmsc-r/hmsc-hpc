@@ -32,7 +32,7 @@ def updateNf(params, rLHyperparams, it, dtype=np.float64):
     PsiList = params["Psi"]
     DeltaList = params["Delta"]
     EtaList = params["Eta"]
-    AlphaIndList = params["AlphaInd"]
+    AlphaIndList = params["alphaInd"]
 
     c0 = 1
     c1 = 0.0005
@@ -41,8 +41,8 @@ def updateNf(params, rLHyperparams, it, dtype=np.float64):
     prob = 1 / tf.exp(c0 + c1 * tf.cast(it, dtype))  # probability of adapting
 
     nr = len(LambdaList)
-    EtaNew, LambdaNew, PsiNew, DeltaNew, AlphaIndNew = [[None] * nr for i in range(5)]
-    for r, (Lambda, Psi, Delta, Eta, AlphaInd, rLPar) in enumerate(zip(LambdaList, PsiList, DeltaList, EtaList, AlphaIndList, rLHyperparams)):
+    EtaNew, LambdaNew, PsiNew, DeltaNew, alphaIndNew = [[None] * nr for i in range(5)]
+    for r, (Lambda, Psi, Delta, Eta, alphaInd, rLPar) in enumerate(zip(LambdaList, PsiList, DeltaList, EtaList, AlphaIndList, rLHyperparams)):
 
         nu = rLPar["nu"]
         a2 = rLPar["a2"]
@@ -63,7 +63,7 @@ def updateNf(params, rLHyperparams, it, dtype=np.float64):
                 PsiNew[r] = tf.concat([Psi, tfr.gamma([1,ns], nu/2, nu/2, dtype=dtype)], 0)
                 DeltaNew[r] = tf.concat([Delta, tfr.gamma([1,1], a2, b2, dtype=dtype)], 0)
                 EtaNew[r] = tf.concat([Eta, tfr.normal([np,1], dtype=dtype)], 1)
-                AlphaIndNew[r] = tf.concat([AlphaInd, tf.zeros([1], tf.int32)], 0)
+                alphaIndNew[r] = tf.concat([alphaInd, tf.zeros([1], tf.int32)], 0)
             elif nf > nfMin and numRedundant > 0:
                 indRemain = tf.cast(tf.squeeze(tf.where(tfm.logical_not(indRedundant)), -1), tf.int32)
                 # if tf.shape(indRemain)[0] < nfMin:
@@ -72,9 +72,9 @@ def updateNf(params, rLHyperparams, it, dtype=np.float64):
                 PsiNew[r] = tf.gather(Psi, indRemain, axis=0)
                 DeltaNew[r] = tf.gather(Delta, indRemain, axis=0)
                 EtaNew[r] = tf.gather(Eta, indRemain, axis=1)
-                AlphaIndNew[r] = tf.gather(AlphaInd, indRemain, axis=0)
+                alphaIndNew[r] = tf.gather(alphaInd, indRemain, axis=0)
             else:
-                LambdaNew[r], PsiNew[r], DeltaNew[r], EtaNew[r], AlphaIndNew[r] = Lambda, Psi, Delta, Eta, AlphaInd
+                LambdaNew[r], PsiNew[r], DeltaNew[r], EtaNew[r], alphaIndNew[r] = Lambda, Psi, Delta, Eta, alphaInd
         else:
-            EtaNew[r], LambdaNew[r], PsiNew[r], DeltaNew[r], AlphaIndNew[r] = Eta, Lambda, Psi, Delta, AlphaInd
-    return LambdaNew, PsiNew, DeltaNew, EtaNew, AlphaIndNew
+            EtaNew[r], LambdaNew[r], PsiNew[r], DeltaNew[r], alphaIndNew[r] = Eta, Lambda, Psi, Delta, alphaInd
+    return LambdaNew, PsiNew, DeltaNew, EtaNew, alphaIndNew

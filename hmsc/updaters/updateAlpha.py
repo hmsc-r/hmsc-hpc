@@ -23,7 +23,7 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
 
     nr = len(EtaList)
 
-    AlphaList = [None] * nr
+    alphaList = [None] * nr
 
     for r, (Eta, rLPar) in enumerate(zip(EtaList, rLHyperparams)):
         nf = tf.cast(tf.shape(Eta)[1], tf.int32)
@@ -56,8 +56,8 @@ def updateAlpha(params, rLHyperparams, dtype=np.float64):
                 EtaTiWEta = tf.transpose(tf.reduce_sum(RiWg_Eta**2, [-2]))
                 logLike = tfm.log(alphapw[:,1]) - 0.5 * detWg - 0.5 * EtaTiWEta
 
-            AlphaList[r] = tf.squeeze(tfr.categorical(logLike, 1, dtype=tf.int32), -1)
+            alphaList[r] = tf.squeeze(tfr.categorical(logLike, 1, dtype=tf.int32), -1)
         else:
-            AlphaList[r] = tf.zeros([nf], dtype=tf.int32)
-    # print(AlphaList)
-    return AlphaList
+            alphaList[r] = tf.zeros([nf], dtype=tf.int32)
+    # print(alphaList)
+    return alphaList

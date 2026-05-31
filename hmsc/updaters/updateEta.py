@@ -30,7 +30,7 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
     Beta = params["Beta"]
     LambdaList = params["Lambda"]
     EtaList = params["Eta"]
-    AlphaIndList = params["AlphaInd"]
+    AlphaIndList = params["alphaInd"]
     X = params["Xeff"]
     Loff = data["Loff"]
     Pi = data["Pi"]
@@ -49,7 +49,7 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
         LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
 
     EtaListNew = [None] * nr
-    for r, (Eta, Lambda, AlphaInd, rLPar) in enumerate(zip(EtaList, LambdaList, AlphaIndList, rLHyperparams)):
+    for r, (Eta, Lambda, alphaInd, rLPar) in enumerate(zip(EtaList, LambdaList, AlphaIndList, rLHyperparams)):
         nf = tf.cast(tf.shape(Lambda)[-2], tf.int64)
         if nf > 0:
             S = Z_no_off - tf.add_n([LFix] + [LRanLevelList[rInd] for rInd in np.setdiff1d(np.arange(nr), r)])
@@ -75,13 +75,13 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
                     LamInvSigLam = tf.tile(LamInvSigLam[None,:,:], [npVec[r],1,1])
                     
                 if rLPar["spatialMethod"] == "Full":
-                    EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, AlphaInd, rLPar["iWg"], npVec[r], nf, dtype)
+                    EtaListNew[r] = modelSpatialFull(LamInvSigLam, mu0, alphaInd, rLPar["iWg"], npVec[r], nf, dtype)
                 elif rLPar["spatialMethod"] == "GPP":
-                    EtaListNew[r] = modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, rLPar["Fg"], rLPar["idDg"], rLPar["idDW12g"], rLPar["nK"], npVec[r], nf, dtype)
+                    EtaListNew[r] = modelSpatialGPP(LamInvSigLam, mu0, alphaInd, rLPar["Fg"], rLPar["idDg"], rLPar["idDW12g"], rLPar["nK"], npVec[r], nf, dtype)
                 elif rLPar["spatialMethod"] == "NNGP":                
-                    modelSpatialNNGP_local = lambda LamInvSigLam, mu0, Alpha, nf: modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, rLPar["iWList_csr"], npVec[r], nf, dtype)
-                    # EtaListNew[r] = modelSpatialNNGP_local(LamInvSigLam, mu0, AlphaInd, nf)
-                    Eta = tf.numpy_function(modelSpatialNNGP_local, [LamInvSigLam, mu0, AlphaInd, nf], dtype)
+                    modelSpatialNNGP_local = lambda LamInvSigLam, mu0, alpha, nf: modelSpatialNNGP_scipy(LamInvSigLam, mu0, alpha, rLPar["iWList_csr"], npVec[r], nf, dtype)
+                    # EtaListNew[r] = modelSpatialNNGP_local(LamInvSigLam, mu0, alphaInd, nf)
+                    Eta = tf.numpy_function(modelSpatialNNGP_local, [LamInvSigLam, mu0, alphaInd, nf], dtype)
                     EtaListNew[r] = tf.ensure_shape(Eta, [npVec[r], None])              
             
             LRanLevelList[r] = tf.matmul(tf.gather(EtaListNew[r], Pi[:,r]), Lambda)
@@ -113,9 +113,9 @@ def modelNonSpatial(LamInvSigLam, mu0, np, nf, dtype=np.float64):
     return Eta
 
 
-def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64): 
+def modelSpatialFull(LamInvSigLam, mu0, alphaInd, iWg, np, nf, dtype=np.float64): 
     #TODO a lot of unnecessary tanspositions - rework if considerably affects perfomance
-    iWs = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(iWg, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*np,nf*np])
+    iWs = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(iWg, alphaInd), [1,2,0])), [2,0,3,1]), [nf*np,nf*np])
     iUEta = iWs + tf.reshape(tf.transpose(tfla.diag(tf.transpose(LamInvSigLam, [1,2,0])), [0,2,1,3]), [nf*np,nf*np])
     LiUEta = tfla.cholesky(iUEta, name="LiUEta")
     mu1 = tfla.triangular_solve(LiUEta, tf.reshape(tf.transpose(mu0), [nf*np,1]), name="mu1")
@@ -124,10 +124,10 @@ def modelSpatialFull(LamInvSigLam, mu0, AlphaInd, iWg, np, nf, dtype=np.float64)
     return Eta
 
 
-def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nK, nu, nf, dtype=tf.float64):
-    idDst = tf.gather(idDg, AlphaInd)
-    Fst = tf.gather(Fg, AlphaInd)
-    idDW12st = tf.gather(idDW12g, AlphaInd)
+def modelSpatialGPP(LamInvSigLam, mu0, alphaInd, Fg, idDg, idDW12g, nK, nu, nf, dtype=tf.float64):
+    idDst = tf.gather(idDg, alphaInd)
+    Fst = tf.gather(Fg, alphaInd)
+    idDW12st = tf.gather(idDW12g, alphaInd)
     Fmat = tf.reshape(tf.transpose(tfla.diag(tf.transpose(Fst, [1,2,0])), [2,0,3,1]), [nf*nK,nf*nK])
     # idD1W12 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(idDW12g, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nu,nf*nK])
     
@@ -153,10 +153,10 @@ def modelSpatialGPP(LamInvSigLam, mu0, AlphaInd, Fg, idDg, idDW12g, nK, nu, nf, 
     return tf.ensure_shape(Eta, [nu,None])
 
 
-def modelSpatialNNGP_scipy(LamInvSigLam, mu0, Alpha, iWList, nu, nf, dtype=np.float64):
+def modelSpatialNNGP_scipy(LamInvSigLam, mu0, alpha, iWList, nu, nf, dtype=np.float64):
     LamInvSigLam_bdiag = block_diag([LamInvSigLam[i] for i in range(nu)], dtype=dtype)
     dataList, colList, rowList = [None]*int(nf), [None]*int(nf), [None]*int(nf)
-    for h, a in enumerate(Alpha):
+    for h, a in enumerate(alpha):
       iW = coo_matrix(iWList[a])
       dataList[h] = iW.data
       colList[h] = iW.col + h*nu

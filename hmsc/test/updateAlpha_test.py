@@ -23,7 +23,7 @@ def _simple_model(dtype=np.float64):
     Beta = tfr.normal([nc, ns], dtype=dtype)
     EtaList = [tfr.normal([npVec[r], nfVec[r]], dtype=dtype) for r in range(nr)]
     LambdaList = [tfr.normal([nfVec[r], ns], dtype=dtype) for r in range(nr)]
-    AlphaIndList = [tf.zeros([nfVec[r], 1], dtype=tf.int64) for r in range(nr)]
+    alphaIndList = [tf.zeros([nfVec[r], 1], dtype=tf.int64) for r in range(nr)]
     sigma = tfr.uniform([ns], dtype=dtype)
 
     X = np.random.normal(size=[ny, nc])
@@ -46,7 +46,7 @@ def _simple_model(dtype=np.float64):
     params["Beta"] = Beta
     params["Eta"] = EtaList
     params["Lambda"] = LambdaList
-    params["AlphaInd"] = AlphaIndList
+    params["alphaInd"] = alphaIndList
     params["sigma"] = sigma
     params["iD"] = iD
     params["Xeff"] = Xeff
@@ -72,7 +72,7 @@ def test_updateAlpha():
 
     params, modelDims, _, _, rLHyperparams = _simple_model()
 
-    AlphaListTrue = params["AlphaInd"]
+    AlphaListTrue = params["alphaInd"]
 
     AlphaList = updateAlpha(params, rLHyperparams)
 

@@ -136,6 +136,7 @@ def run_gibbs_sampler(
                     "Psi": [samples[n] for samples in parSamples["Psi"]],
                     "Delta": [samples[n] for samples in parSamples["Delta"]],
                     "Eta": [samples[n] for samples in parSamples["Eta"]] if flag_save_eta else None,
+                    "alphaInd": [samples[n] for samples in parSamples["alphaInd"]],
                     "AlphaInd": [samples[n] for samples in parSamples["AlphaInd"]],
                     "wRRR": parSamples["wRRR"][n] if "wRRR" in parSamples else None,
                     "PsiRRR": parSamples["PsiRRR"][n] if "PsiRRR" in parSamples else None,

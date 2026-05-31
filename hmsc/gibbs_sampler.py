@@ -67,6 +67,8 @@ class GibbsSampler():
         ncORRR = self.modelDims["ncORRR"]
         npVec = self.modelDims["np"]
         params = paramsInput.copy() #TODO due to tf.function requiring not to change its Tensor input
+        if "alphaInd" not in params and "AlphaInd" in params:
+            params["alphaInd"] = params["AlphaInd"]
         #TODO potentially move next two lines to somewhere more approriate
         # params["iD"] = tf.cast(tfm.logical_not(tfm.is_nan(self.modelData["Y"])), params["Z"].dtype) * params["sigma"]**-2
         params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams,
@@ -86,7 +88,7 @@ class GibbsSampler():
         mcmcSamplesDelta = [tf.TensorArray(params["Delta"][r].dtype, size=num_samples) for r in range(nr)]
         # if flag_save_eta:
         mcmcSamplesEta = [tf.TensorArray(params["Eta"][r].dtype, size=num_samples) for r in range(nr)]
-        mcmcSamplesAlphaInd = [tf.TensorArray(params["AlphaInd"][r].dtype, size=num_samples) for r in range(nr)]
+        mcmcSamplesAlphaInd = [tf.TensorArray(params["alphaInd"][r].dtype, size=num_samples) for r in range(nr)]
         mcmcSampleswRRR = tf.TensorArray(params["wRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         mcmcSamplesPsiRRR = tf.TensorArray(params["PsiRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
         mcmcSamplesDeltaRRR = tf.TensorArray(params["DeltaRRR"].dtype if ncRRR > 0 else tf.float64, size=num_samples)
@@ -108,7 +110,7 @@ class GibbsSampler():
                     (params["Lambda"], [tf.TensorShape([None, ns])] * nr),
                     (params["Psi"], [tf.TensorShape([None, ns])] * nr),
                     (params["Delta"], [tf.TensorShape([None, 1])] * nr),
-                    (params["AlphaInd"], [tf.TensorShape(None)] * nr),
+                    (params["alphaInd"], [tf.TensorShape(None)] * nr),
                 ]
             )
             
@@ -140,7 +142,7 @@ class GibbsSampler():
                 params["Beta"], params["Gamma"], params["iV"], params["Eta"], params["Lambda"], params["Delta"] = hmc_res[:-3]
                 hmc_ss, hmc_las, hmc_es = hmc_res[-3:]
                 params["Psi"], params["Delta"] = updateLambdaPriors(params, self.rLHyperparams, dtype=dtype)
-                params["AlphaInd"] = updateAlpha(params, self.rLHyperparams, dtype=dtype)
+                params["alphaInd"] = updateAlpha(params, self.rLHyperparams, dtype=dtype)
 
             params["Z"], params["iD"], params["poisson_omega"] = updateZ(params, self.modelData, self.rLHyperparams, dtype=dtype)
 
@@ -185,7 +187,7 @@ class GibbsSampler():
             if print_debug_flag:
               tf.print("Eta", [tf.reduce_sum(tf.cast(tfm.is_nan(par), tf.int32)) for par in params["Eta"]])
             
-            params["AlphaInd"] = updateAlpha(params, self.rLHyperparams, dtype)
+            params["alphaInd"] = updateAlpha(params, self.rLHyperparams, dtype)
             
             # if z_marginalize_iter_flag == False:
             params["sigma"] = updateSigma(params, self.modelDims, self.modelData, self.priorHyperparams, dtype)
@@ -193,7 +195,7 @@ class GibbsSampler():
               tf.print("sigma", tf.reduce_sum(tf.cast(tfm.is_nan(params["sigma"]), tf.int32)))
 
             if n < sample_burnin:
-                params["Lambda"], params["Psi"], params["Delta"], params["Eta"], params["AlphaInd"] = updateNf(params, self.rLHyperparams, n, dtype)
+                params["Lambda"], params["Psi"], params["Delta"], params["Eta"], params["alphaInd"] = updateNf(params, self.rLHyperparams, n, dtype)
             # tf.print(tf.shape(params["Lambda"][0])[0])
 
             samInd = tf.cast((n - sample_burnin + 1) / sample_thining - 1, tf.int32)
@@ -212,7 +214,7 @@ class GibbsSampler():
                 mcmcSamplesDelta = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesDelta, params["Delta"])]
                 if flag_save_eta:
                   mcmcSamplesEta = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesEta, params["Eta"])]
-                mcmcSamplesAlphaInd = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesAlphaInd, params["AlphaInd"])]
+                mcmcSamplesAlphaInd = [mcmcSamples.write(samInd, par) for mcmcSamples, par in zip(mcmcSamplesAlphaInd, params["alphaInd"])]
                 if ncRRR > 0:
                     mcmcSampleswRRR = mcmcSampleswRRR.write(samInd, params["wRRR"])
                     mcmcSamplesPsiRRR = mcmcSamplesPsiRRR.write(samInd, params["PsiRRR"])
@@ -229,7 +231,8 @@ class GibbsSampler():
         samples["Psi"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesPsi]
         samples["Delta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesDelta]
         samples["Eta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesEta] if flag_save_eta else None
-        samples["AlphaInd"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesAlphaInd]
+        samples["alphaInd"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesAlphaInd]
+        samples["AlphaInd"] = samples["alphaInd"]
         if ncRRR > 0:
           samples["wRRR"] = mcmcSampleswRRR.stack()
           samples["PsiRRR"] = mcmcSamplesPsiRRR.stack()
