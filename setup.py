@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 setup(
   name='hmsc',
-  version='0.3.4',
+  version='0.2.0',
   author='Gleb Tikhonov, Anis Ur Rahman, Tuomas Rossi, Jari Oksanen, Otso Ovaskainen',
   author_email='gleb.tikhonov@helsinki.fi, otso.ovaskainen@jyu.fi',
   maintainer='Gleb Tikhonov',
