@@ -33,7 +33,9 @@ option_list = list(
   make_option("--transient", type="integer", default=100, 
               help="number of transient iterations [default=100]", metavar="number"),
   make_option("--thin", type="integer", default=1, 
-              help="thinning interval [default=1]", metavar="number")
+              help="thinning interval [default=1]", metavar="number"),
+  make_option("--models", type="character", default="all",
+              help="comma-separated list of model indices to test (0,1,2,3,4,5 or all) [default=all]", metavar="string")
 )
 
 opt_parser = OptionParser(option_list=option_list)
@@ -47,8 +49,13 @@ nChains = 4
 nf = 10
 verbose = 50
 
-modelTypeVec = c(0:4) # 0-ns, 1-full, 2-pgp, 3-nngp, 4-phylo
-mtSuffixVec = c("ns","fu","pg","nn","ph")
+# Available models: 0-ns, 1-fu, 2-pg, 3-nn, 4-ph (Phylogenetic Matrix), 5-pf (Phylogenetic Fast Tree)
+model_types <- 0:5
+if (opt$models != "all") {
+  model_types <- as.integer(unlist(strsplit(opt$models, ",")))
+}
+modelTypeVec = model_types
+mtSuffixVec = c("ns","fu","pg","nn","ph","pf")
 
 YA = read.csv("data/Y.csv")
 TrA = read.csv("data/traits.csv")
@@ -99,11 +106,11 @@ for(modelType in modelTypeVec){
 	studyDesign = data.frame(site=as.factor(rownames(X)))
 	C = NULL
 	
+	phyloTree = NULL
 	if(modelType==0){
 		rLSite = HmscRandomLevel(units=rownames(xyA))
 	} else if(modelType==1){
 		rLSite = HmscRandomLevel(sData=xyA)
-		modelTypeString = sprintf("%dfu", modelType)
 	} else if(modelType==2){
 		rLSite = HmscRandomLevel(sData=xyA, sMethod="GPP", sKnot=kn)
 	} else if(modelType==3){
@@ -112,9 +119,17 @@ for(modelType in modelTypeVec){
 		rLSite = HmscRandomLevel(units=rownames(xyA))
 		C = Reduce(`+`, lapply(taxa, function(x) outer(x, x, `==`))) / ncol(taxa)
 		colnames(C) = rownames(C) = rownames(taxa)
+	} else if(modelType==5){
+		rLSite = HmscRandomLevel(units=rownames(xyA))
+		taxa_tree_df = taxa[, c("phylum", "class", "order", "family", "scientific", "name")]
+		phyloTree = taxToPhylo(taxa_tree_df)
 	}
 	rLSite = setPriors(rLSite, nfMin=nf, nfMax=nf)
-	m = Hmsc(Y=Y, XData=X, Tr=Tr, C=C, distr="probit", studyDesign=studyDesign, ranLevels=list(site=rLSite))
+	if(modelType == 5){
+		m = Hmsc(Y=Y, XData=X, Tr=Tr, phyloTree=phyloTree, phyloFast=TRUE, distr="probit", studyDesign=studyDesign, ranLevels=list(site=rLSite))
+	} else {
+		m = Hmsc(Y=Y, XData=X, Tr=Tr, C=C, distr="probit", studyDesign=studyDesign, ranLevels=list(site=rLSite))
+	}
 	
 	#----------------------------------------------------
 	# 1. Fit in R
