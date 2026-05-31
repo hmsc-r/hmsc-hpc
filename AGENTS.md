@@ -38,10 +38,21 @@ Use `python hmsc/run_gibbs_sampler.py --help` for a full list of options, includ
 Tests are located in `hmsc/test/` and use `pytest`.
 
 #### Standard Execution
-Run tests using the `pytest` executable in your active virtual environment:
+Run tests using the `pytest` executable in your active virtual environment.
+
+Due to tests using strict random number assertions and enabling TensorFlow op determinism (`tf.config.experimental.enable_op_determinism()`), running tests directly on a GPU may fail. Specifically:
+- **Determinism Errors**: `SparseTensorDenseMatMul` does not currently have a deterministic GPU implementation in TensorFlow, which raises an `UnimplementedError` when subsequent tests attempt to execute it on GPU.
+- **Randomness Mismatches**: Floating-point and random number generator variances on GPU can cause assertions in `test_update_z.py` to slightly differ from the CPU-calibrated reference values.
+
+To guarantee that all tests pass, it is highly recommended to execute them on the CPU by setting `CUDA_VISIBLE_DEVICES=""`:
 ```bash
-pytest
+CUDA_VISIBLE_DEVICES="" pytest
 ```
+or:
+```bash
+CUDA_VISIBLE_DEVICES="" $(cat .venv_path)/bin/pytest
+```
+
 
 #### Local Virtual Environment Override
 To support localized agent tooling and developer scripts without hardcoding user-specific paths in shared repository files, you can define your local virtual environment path in a Git-excluded `.venv_path` file at the root of the workspace.
