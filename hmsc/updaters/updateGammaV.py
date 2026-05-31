@@ -64,11 +64,9 @@ def updateGammaV(params,
           eiQ05 = tfm.rsqrt(eQ)
           E_VC_eiQ05 = eiQ05 * tf.matmul(E, VC)
           A = tf.matmul(E_VC_eiQ05, E_VC_eiQ05, transpose_b=True)
-          A_1 = A #TODO remove
         else:
           ET_arr = tf.transpose(E)[:,None,:]
           A, _ = pfBilinearDet(phyloTreeList, ET_arr, ET_arr, phyloTreeRoot, tf.ones([1,1],dtype), rho, dtype)
-          A_2 = A #TODO remove
         fn = f0 + ns
       else:
         rhoVec = tf.gather(rhopw[:,0], tf.gather(rhoInd, covRhoGroup))
@@ -104,11 +102,9 @@ def updateGammaV(params,
           LC = tfla.cholesky(C) #TODO maybe rework with eC, VC
           iLCZ1 = tfla.triangular_solve(LC, Z1)
           A = tf.matmul(iLCZ1, iLCZ1, transpose_a=True) + tf.matmul(Z2, Z2, transpose_b=True)
-          A1 = A
         else:
           fa, A = phyloFastGetPariV(phyloTreeList, phyloTreeRoot, E, iV, rhoVec, dtype=dtype)
           fn = f0 + fa
-          A2 = A
     
     if updateiV:
       # Vn = tfla.cholesky_solve(tfla.cholesky(V0 + A), tf.eye(nc, dtype=dtype))
@@ -127,15 +123,13 @@ def updateGammaV(params,
           Tt_iQ_T = tf.matmul(eiQ05_VCt_T, eiQ05_VCt_T, transpose_a=True)
           iSigmaGamma = iUGamma + kron(Tt_iQ_T, iV) #tf.reshape(tf.einsum("jt,ck,jf->tcfk", eiQ05_VCt_T, iV, eiQ05_VCt_T), [nt*nc,nt*nc])
           mg02 = tf.reshape(tf.transpose(tf.matmul(iV, tf.matmul(tf.matmul(Beta, VC) * eQ**-1, VCt_T))), [nt*nc,1])
-          mg02_1, iSigmaGamma_1 = mg02, iSigmaGamma #TODO remove
         else:
           T_arr = T[:,None,:]
           Tt_iQ_T, _ = pfBilinearDet(phyloTreeList, T_arr, T_arr, phyloTreeRoot, tf.ones([1,1],dtype), rho, dtype)
           iSigmaGamma = iUGamma + kron(Tt_iQ_T, iV)
           iV_Beta_arr = tf.matmul(Beta, iV, transpose_a=True)[:,None,:]
           iVBeta_iQ_Tr, _ = pfBilinearDet(phyloTreeList, iV_Beta_arr, T_arr, phyloTreeRoot, tf.ones([1,1],dtype), rho, dtype)
-          mg02 = tf.reshape(tf.transpose(iVBeta_iQ_Tr), [nt*nc,1]) # remove transpose by swapping X and Y in prev line? 
-          mg02_2, iSigmaGamma_2 = mg02, iSigmaGamma #TODO remove
+          mg02 = tf.reshape(tf.transpose(iVBeta_iQ_Tr), [nt*nc,1]) # remove transpose by swapping X and Y in prev line?
       else:
         if phyloFast == False:
           V = tfla.cholesky_solve(tfla.cholesky(iV), tf.eye(nc, dtype=dtype)) 
@@ -151,14 +145,12 @@ def updateGammaV(params,
           iSigmaGamma = iUGamma + tf.matmul(iLQ_TxI, iLQ_TxI, transpose_a=True)
           beta = tf.reshape(tfla.matrix_transpose(Beta), [ns*nc,1])
           mg02 = tf.reshape(tf.matmul(T, tf.reshape(tfla.cholesky_solve(LQ, beta), [ns,nc]), transpose_a=True), [nt*nc,1])
-          mg02_1, iSigmaGamma_1 = mg02, iSigmaGamma #TODO remove
         else:
           TxI_arr = tf.reshape(kron(T, tf.eye(nc, dtype=dtype)), [ns, nc, nt*nc])
           TxI_iQ_TxI, _ = pfBilinearDet(phyloTreeList, TxI_arr, TxI_arr, phyloTreeRoot, iV, rhoVec, dtype)
           iSigmaGamma = iUGamma + TxI_iQ_TxI
           beta_iQ_T, _ = pfBilinearDet(phyloTreeList, tf.transpose(Beta)[:,:,None], TxI_arr, phyloTreeRoot, iV, rhoVec, dtype)
           mg02 = tf.reshape(tf.transpose(beta_iQ_T), [nt*nc,1])
-          mg02_2, iSigmaGamma_2 = mg02, iSigmaGamma #TODO remove
           
     mg0 = tf.matmul(iUGamma, mGamma[:,None]) + mg02 # is order of mGamma/iUGamma (traits-cov) and mg02 (traits-cov) correct? Seems yes.
     L = tfla.cholesky(iSigmaGamma)

@@ -73,7 +73,6 @@ def updateBetaLambda(params, data, priorHyperparams, phyloFastBatched=True, sdMu
     else:
       LambdaPriorPrec = tf.zeros([0,ns], dtype)
     
-    # phyloFlag = False #TODO remove!!!
     if phyloFlag == False:
       if nr > 0:
         iK11_op = tfla.LinearOperatorFullMatrix(iV)
