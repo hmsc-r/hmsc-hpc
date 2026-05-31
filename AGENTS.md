@@ -35,10 +35,23 @@ python hmsc/run_gibbs_sampler.py \
 Use `python hmsc/run_gibbs_sampler.py --help` for a full list of options, including precision (`--fp 32` or `--fp 64`) and HMC parameters.
 
 ### Running Tests
-Tests are located in `hmsc/test/` and use `pytest`. We use the virtual environment located at `~/.virtualenvs/tf` to run tests and commands:
+Tests are located in `hmsc/test/` and use `pytest`.
+
+#### Standard Execution
+Run tests using the `pytest` executable in your active virtual environment:
 ```bash
-~/.virtualenvs/tf/bin/pytest
+pytest
 ```
+
+#### Local Virtual Environment Override
+To support localized agent tooling and developer scripts without hardcoding user-specific paths in shared repository files, you can define your local virtual environment path in a Git-excluded `.venv_path` file at the root of the workspace.
+
+For example, create a `.venv_path` file containing the absolute path to your active virtual environment:
+```
+/path/to/your/virtualenv
+```
+If `.venv_path` is present, local tools and agent commands will automatically run using that virtual environment (e.g., `$(cat .venv_path)/bin/pytest`). If the file is not present, tools will fall back to globally available command-line executables.
+
 CI is configured via GitHub Actions in `.github/workflows/ci.yml`.
 
 ## Development Conventions
