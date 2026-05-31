@@ -40,17 +40,16 @@ Tests are located in `hmsc/test/` and use `pytest`.
 #### Standard Execution
 Run tests using the `pytest` executable in your active virtual environment.
 
-Due to tests using strict random number assertions and enabling TensorFlow op determinism (`tf.config.experimental.enable_op_determinism()`), running tests directly on a GPU may fail. Specifically:
-- **Determinism Errors**: `SparseTensorDenseMatMul` does not currently have a deterministic GPU implementation in TensorFlow, which raises an `UnimplementedError` when subsequent tests attempt to execute it on GPU.
-- **Randomness Mismatches**: Floating-point and random number generator variances on GPU can cause assertions in `test_update_z.py` to slightly differ from the CPU-calibrated reference values.
+To guarantee that all tests pass, it is highly recommended to execute them on the CPU by setting `CUDA_VISIBLE_DEVICES=""`. This avoids GPU-specific floating-point variations and unimplemented deterministic GPU operations (since strict TensorFlow op determinism is enabled).
 
-To guarantee that all tests pass, it is highly recommended to execute them on the CPU by setting `CUDA_VISIBLE_DEVICES=""`:
+Additionally, set `PYTHONPATH=.` so the `hmsc` package and test utilities are resolved correctly:
+
 ```bash
-CUDA_VISIBLE_DEVICES="" pytest
+CUDA_VISIBLE_DEVICES="" PYTHONPATH=. pytest
 ```
 or:
 ```bash
-CUDA_VISIBLE_DEVICES="" $(cat .venv_path)/bin/pytest
+CUDA_VISIBLE_DEVICES="" PYTHONPATH=. $(cat .venv_path)/bin/pytest
 ```
 
 
