@@ -134,7 +134,7 @@ for(modelType in modelTypeVec){
 	#----------------------------------------------------
 	# 1. Fit in R
 	#----------------------------------------------------
-	cat("Fitting model with R (4 chains, 1000 samples, thin 10)...\n")
+	cat(sprintf("Fitting model with R (%d chains, %d samples, thin %d, transient %d)...\n", nChains, nSamples, thin, transient))
 	set.seed(RS+42)
 	init_obj_r = sampleMcmc(m, samples=nSamples, thin=thin,
 												transient=transient, nChains=nChains, verbose=verbose,
@@ -163,7 +163,7 @@ for(modelType in modelTypeVec){
 	init_file_path = file.path(fileDir, "init", init_file_name)
 	saveRDS(init_obj_tf, file = init_file_path)
 	
-	cat("Fitting model with TF Python Sampler...\n")
+	cat(sprintf("Fitting model with TF Python Sampler (%d chains, %d samples, thin %d, transient %d)...\n", nChains, nSamples, thin, transient))
 	post_file_name = sprintf("post_verify_%s.rds", modelTypeString)
 	post_file_path = file.path(fileDir, "fmTF", post_file_name)
 	
