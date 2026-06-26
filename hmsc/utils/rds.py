@@ -46,8 +46,8 @@ def save_chains_postList_to_rds(postList, postList_file_path, nChains, elapsedTi
 
             # Convert from zero- to one-based indices
             item["rhoInd"] += 1
-            for k in range(len(item["AlphaInd"])):
-                item["AlphaInd"][k] += 1
+            for k in range(len(item["alphaInd"])):
+                item["alphaInd"][k] += 1
 
             # Remove eta if requested
             if not flag_save_eta:

@@ -232,7 +232,6 @@ class GibbsSampler():
         samples["Delta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesDelta]
         samples["Eta"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesEta] if flag_save_eta else None
         samples["alphaInd"] = [mcmcSamples.stack() for mcmcSamples in mcmcSamplesAlphaInd]
-        samples["AlphaInd"] = samples["alphaInd"]
         if ncRRR > 0:
           samples["wRRR"] = mcmcSampleswRRR.stack()
           samples["PsiRRR"] = mcmcSamplesPsiRRR.stack()
