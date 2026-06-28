@@ -30,7 +30,7 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
     Beta = params["Beta"]
     LambdaList = params["Lambda"]
     EtaList = params["Eta"]
-    AlphaIndList = params["alphaInd"]
+    alphaIndList = params["alphaInd"]
     X = params["Xeff"]
     Loff = data["Loff"]
     Pi = data["Pi"]
@@ -49,7 +49,7 @@ def updateEta(params, modelDims, data, rLHyperparams, dtype=np.float64):
         LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
 
     EtaListNew = [None] * nr
-    for r, (Eta, Lambda, alphaInd, rLPar) in enumerate(zip(EtaList, LambdaList, AlphaIndList, rLHyperparams)):
+    for r, (Eta, Lambda, alphaInd, rLPar) in enumerate(zip(EtaList, LambdaList, alphaIndList, rLHyperparams)):
         nf = tf.cast(tf.shape(Lambda)[-2], tf.int64)
         if nf > 0:
             S = Z_no_off - tf.add_n([LFix] + [LRanLevelList[rInd] for rInd in np.setdiff1d(np.arange(nr), r)])
@@ -129,7 +129,7 @@ def modelSpatialGPP(LamInvSigLam, mu0, alphaInd, Fg, idDg, idDW12g, nK, nu, nf, 
     Fst = tf.gather(Fg, alphaInd)
     idDW12st = tf.gather(idDW12g, alphaInd)
     Fmat = tf.reshape(tf.transpose(tfla.diag(tf.transpose(Fst, [1,2,0])), [2,0,3,1]), [nf*nK,nf*nK])
-    # idD1W12 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(idDW12g, AlphaInd), [1,2,0])), [2,0,3,1]), [nf*nu,nf*nK])
+    # idD1W12 = tf.reshape(tf.transpose(tfla.diag(tf.transpose(tf.gather(idDW12g, alphaInd), [1,2,0])), [2,0,3,1]), [nf*nu,nf*nK])
     
     Ast = LamInvSigLam + tfla.diag(tf.transpose(idDst))
     LAst = tfla.cholesky(Ast, name="LAst")

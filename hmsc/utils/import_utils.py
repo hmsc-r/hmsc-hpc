@@ -47,6 +47,7 @@ def load_model_data(hmscModel, importedInitParList, phyloFastBatched=True, dtype
     phyloTreeRoot = phyloTreeList = phyloTreeDepth = None
 
   covRhoGroup = np.asarray(hmscModel.get("covRhoGroup")).astype(int) - 1
+
   modelData.update(dict(zip(["phyloFlag","phyloFast","phyloTreeList","phyloTreeRoot","phyloTreeDepth","covRhoGroup"], 
                             [phyloFlag,phyloFast,phyloTreeList,phyloTreeRoot,phyloTreeDepth,covRhoGroup])))
   C_import = hmscModel.get("C")
@@ -118,7 +119,11 @@ def load_random_level_hyperparams(hmscModel, dataParList, dtype=np.float64):
         rLPar["a2"] = dtype(hmscModel.get("rL")[rLName]["a2"][0])
         rLPar["b2"] = dtype(hmscModel.get("rL")[rLName]["b2"][0])
         rLPar["nfMin"] = int(hmscModel.get("rL")[rLName]["nfMin"][0])
-        rLPar["nfMax"] = int(hmscModel.get("rL")[rLName]["nfMax"][0])
+        nfMax_raw = hmscModel.get("rL")[rLName]["nfMax"][0]
+        if str(nfMax_raw).lower() == "inf":
+            rLPar["nfMax"] = np.iinfo(np.int32).max
+        else:
+            rLPar["nfMax"] = int(nfMax_raw)
         rLPar["sDim"] = np.inf if hmscModel.get("rL")[rLName]["sDim"][0] == "Inf" else int(hmscModel.get("rL")[rLName]["sDim"][0])
         rLPar["xDim"] = int(hmscModel.get("rL")[rLName]["xDim"][0])
         if rLPar["sDim"] > 0:
@@ -252,7 +257,7 @@ def init_params(importedInitParList, modelData, modelDims, rLHyperparams, dtype=
         rhoInd = tf.cast(tf.constant(importedInitPar["rhoInd"]), tf.int32) - 1
         sigma = tf.constant(importedInitPar["sigma"], dtype=dtype)
         EtaList = [tf.constant(Eta, dtype=dtype) for Eta in importedInitPar["Eta"]]
-        AlphaIndList = [tf.cast(tf.constant(AlphaInd), tf.int32) - 1 for AlphaInd in importedInitPar["AlphaInd"]]
+        alphaIndList = [tf.cast(tf.constant(alphaInd), tf.int32) - 1 for alphaInd in importedInitPar["alphaInd"]]
         LambdaList, PsiList, DeltaList = [None] * modelDims["nr"], [None] * modelDims["nr"], [None] * modelDims["nr"]
         for r, (Lambda, Psi, Delta, Eta, rLPar) in enumerate(
             zip(importedInitPar["Lambda"], importedInitPar["Psi"], importedInitPar["Delta"], EtaList, rLHyperparams)
@@ -304,7 +309,7 @@ def init_params(importedInitParList, modelData, modelDims, rLHyperparams, dtype=
         initPar["Psi"] = PsiList
         initPar["Delta"] = DeltaList
         initPar["Eta"] = EtaList
-        initPar["AlphaInd"] = AlphaIndList
+        initPar["alphaInd"] = alphaIndList
         initPar["BetaSel"] = BetaSel
         initPar["PsiRRR"] = PsiRRR
         initPar["DeltaRRR"] = DeltaRRR

@@ -16,7 +16,7 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
   rhoInd = params["rhoInd"]
   LambdaList = params["Lambda"]
   EtaList = params["Eta"]
-  AlphaIndList = params["alphaInd"]
+  alphaIndList = params["alphaInd"]
   X = params["Xeff"]
   Loff = data["Loff"]
   T = data["T"]
@@ -41,7 +41,7 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
     LRanLevelList[r] = tf.matmul(tf.gather(Eta, Pi[:,r]), Lambda)
 
   EtaListNew = [None] * nr
-  for r, (Eta, Lambda, alphaInd, rLPar) in enumerate(zip(EtaList, LambdaList, AlphaIndList, rLHyperparams)):
+  for r, (Eta, Lambda, alphaInd, rLPar) in enumerate(zip(EtaList, LambdaList, alphaIndList, rLHyperparams)):
     randFlag = tf.cast(1, dtype)
     nf = tf.cast(tf.shape(Lambda)[-2], tf.int64)
     # if nf > 0:

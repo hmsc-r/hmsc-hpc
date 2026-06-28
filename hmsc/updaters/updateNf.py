@@ -32,7 +32,7 @@ def updateNf(params, rLHyperparams, it, dtype=np.float64):
     PsiList = params["Psi"]
     DeltaList = params["Delta"]
     EtaList = params["Eta"]
-    AlphaIndList = params["alphaInd"]
+    alphaIndList = params["alphaInd"]
 
     c0 = 1
     c1 = 0.0005
@@ -42,7 +42,7 @@ def updateNf(params, rLHyperparams, it, dtype=np.float64):
 
     nr = len(LambdaList)
     EtaNew, LambdaNew, PsiNew, DeltaNew, alphaIndNew = [[None] * nr for i in range(5)]
-    for r, (Lambda, Psi, Delta, Eta, alphaInd, rLPar) in enumerate(zip(LambdaList, PsiList, DeltaList, EtaList, AlphaIndList, rLHyperparams)):
+    for r, (Lambda, Psi, Delta, Eta, alphaInd, rLPar) in enumerate(zip(LambdaList, PsiList, DeltaList, EtaList, alphaIndList, rLHyperparams)):
 
         nu = rLPar["nu"]
         a2 = rLPar["a2"]
