@@ -4,6 +4,7 @@
 *.RData
 *.Rapp.history
 build/
+tmp_dev/
 hmsc.egg-info/
 .ipynb_checkpoints
 .spyproject/

@@ -28,7 +28,9 @@ def updateRhoInd(params,
   rhoInd = params["rhoInd"]
   T = data["T"]
   phyloFlag, phyloFast = data["phyloFlag"], data["phyloFast"]
-  phyloTreeList, phyloTreeRoot = data["phyloTreeList"], data["phyloTreeRoot"]
+  if phyloFlag == False:
+    return rhoInd
+  
   C, eC, VC = data["C"], data["eC"], data["VC"]
   covRhoGroup = data["covRhoGroup"]
   rhopw = priorHyperparams["rhopw"]

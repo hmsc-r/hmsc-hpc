@@ -1,5 +1,6 @@
 import warnings
 
+import numpy as np
 import rdata
 import tensorflow as tf
 import xarray as xr
@@ -7,10 +8,20 @@ import xarray as xr
 
 def convert_to_numpy(obj):
     if isinstance(obj, xr.DataArray):
-        return obj.to_numpy()
+        obj = obj.to_numpy()
 
     if isinstance(obj, tf.Tensor):
-        return obj.numpy()
+        obj = obj.numpy()
+
+    if isinstance(obj, np.ndarray):
+        if obj.dtype == np.float32:
+            return obj.astype(np.float64)
+        return obj
+
+    if isinstance(obj, np.floating):
+        if obj.dtype == np.float32:
+            return np.float64(obj)
+        return obj
 
     if isinstance(obj, dict):
         new = {}
@@ -24,7 +35,11 @@ def convert_to_numpy(obj):
             new.append(convert_to_numpy(value))
         return new
 
+    if isinstance(obj, tuple):
+        return tuple(convert_to_numpy(value) for value in obj)
+
     return obj
+
 
 
 def load_model_from_rds(rds_file_path):

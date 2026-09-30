@@ -21,7 +21,7 @@ def updateBetaEta(params, modelDims, data, priorHyperparams, rLHyperparams, dtyp
   Loff = data["Loff"]
   T = data["T"]
   Pi = data["Pi"]
-  rhoGroup = data["rhoGroup"]
+  rhoGroup = data["covRhoGroup"]
   Pi = data["Pi"]
   C, eC, VC = data["C"], data["eC"], data["VC"]
   rhopw = priorHyperparams["rhopw"]

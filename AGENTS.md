@@ -78,7 +78,13 @@ CI is configured via GitHub Actions in `.github/workflows/ci.yml`.
     - `GibbsSampler` inherits from `tf.Module` to manage stateful variables and functions.
     - `sampling_routine` uses `tf.while_loop` (via `tf.range` loop) for efficient execution of the MCMC chains.
 
+## Agent Command Execution Guidelines
+
+- **Run One Command at a Time**: Never chain multiple commands using `;`, `&&`, `||`, or command substitutions in a single tool call. Run each command individually.
+- **Python / Pytest Path**: Use the active virtual environment binary directly (e.g. `/path/to/virtualenv/bin/python` and `/path/to/virtualenv/bin/pytest`, or as specified in the local `.venv_path` file).
+
 ## Important Files
 - `README.rst`: High-level overview and links to the paper and documentation.
 - `docs/csc_install.md`: Detailed installation instructions for high-performance computing (HPC) environments operated by CSC.
 - `examples/`: Contains notebooks and scripts for learning how to use the package and benchmarking performance.
+
